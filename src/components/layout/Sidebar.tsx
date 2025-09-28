@@ -40,7 +40,7 @@ const navigation = [
     name: 'Doctors',
     href: '/doctors',
     icon: DoctorIcon,
-    roles: ['admin', 'patient'],
+    roles: ['admin'],
   },
   {
     name: 'Medical Records',
