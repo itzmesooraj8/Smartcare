@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SmartCare Healthcare Design System - Medical Professional Theme
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Base healthcare colors */
+    --background: 210 20% 98%;
+    --foreground: 210 11% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 11% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 15%;
+
+    /* Medical primary - Professional blue */
+    --primary: 200 98% 39%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 200 98% 35%;
+
+    /* Medical secondary - Soft teal */
+    --secondary: 184 91% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Success - Medical green */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Medical amber */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Muted backgrounds */
+    --muted: 210 20% 96%;
+    --muted-foreground: 210 6% 46%;
+
+    --accent: 200 15% 94%;
+    --accent-foreground: 210 11% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 13% 88%;
+    --input: 214 13% 88%;
+    --ring: 200 98% 39%;
+
+    --radius: 0.75rem;
+
+    /* Healthcare gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    --gradient-hero: linear-gradient(135deg, hsl(200 98% 39%), hsl(184 91% 50%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 20% 98%));
+
+    /* Medical shadows */
+    --shadow-medical: 0 4px 20px -4px hsl(200 98% 39% / 0.1);
+    --shadow-card: 0 2px 12px -2px hsl(210 11% 15% / 0.08);
+    --shadow-hover: 0 8px 30px -8px hsl(200 98% 39% / 0.2);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark theme for healthcare app */
+    --background: 210 30% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 210 25% 10%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 210 25% 10%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 200 98% 55%;
+    --primary-foreground: 210 30% 8%;
+    --primary-hover: 200 98% 60%;
+
+    --secondary: 184 70% 45%;
+    --secondary-foreground: 210 30% 8%;
+
+    --success: 142 70% 45%;
+    --success-foreground: 210 30% 8%;
+
+    --warning: 38 85% 55%;
+    --warning-foreground: 210 30% 8%;
+
+    --muted: 210 25% 12%;
+    --muted-foreground: 210 10% 65%;
+
+    --accent: 210 20% 15%;
+    --accent-foreground: 210 20% 95%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 210 20% 95%;
+
+    --border: 210 20% 18%;
+    --input: 210 20% 18%;
+    --ring: 200 98% 55%;
+
+    /* Dark theme gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(200 98% 55%), hsl(184 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(200 98% 55%), hsl(184 70% 45%));
+    --gradient-card: linear-gradient(145deg, hsl(210 25% 10%), hsl(210 20% 12%));
+
+    /* Dark theme shadows */
+    --shadow-medical: 0 4px 20px -4px hsl(200 98% 55% / 0.2);
+    --shadow-card: 0 2px 12px -2px hsl(0 0% 0% / 0.3);
+    --shadow-hover: 0 8px 30px -8px hsl(200 98% 55% / 0.3);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-inter antialiased;
+  }
+
+  /* Healthcare specific utilities */
+  .medical-gradient {
+    background: var(--gradient-primary);
+  }
+
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .shadow-medical {
+    box-shadow: var(--shadow-medical);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-hover {
+    box-shadow: var(--shadow-hover);
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* Medical icons and elements */
+  .pulse-medical {
+    animation: pulse-medical 2s infinite;
+  }
+
+  @keyframes pulse-medical {
+    0%, 100% { 
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% { 
+      opacity: 0.8;
+      transform: scale(1.02);
+    }
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Focus styles for accessibility */
+  .focus-medical:focus {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+}
