@@ -124,7 +124,7 @@ const ServicesPage = () => {
               Comprehensive healthcare services delivered by experienced medical professionals 
               using the latest technology and evidence-based practices.
             </p>
-            <Button size="lg" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/register">
                 Book an Appointment
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -302,7 +302,7 @@ const ServicesPage = () => {
             
             <Card className="shadow-card">
               <CardHeader>
-                <CardTitle className="text-xl">Payment Options</CardTitle>
+                <CardTitle className="text-xl flex items-center gap-2">Payment Options <span style={{fontWeight:600, fontSize:'1.3em'}}>₹</span></CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
@@ -318,7 +318,7 @@ const ServicesPage = () => {
                   ].map((option, index) => (
                     <li key={index} className="flex items-center text-muted-foreground">
                       <div className="w-2 h-2 bg-secondary rounded-full mr-3 flex-shrink-0" />
-                      {option}
+                      <span style={{fontWeight:500, fontSize:'1.1em', marginRight:'0.3em'}}>₹</span>{option}
                     </li>
                   ))}
                 </ul>
@@ -339,10 +339,10 @@ const ServicesPage = () => {
             Our team is ready to provide you with exceptional medical care.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/register">Book Appointment</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500">
               <Link to="/contact">Contact Us</Link>
             </Button>
           </div>

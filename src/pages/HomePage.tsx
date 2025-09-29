@@ -113,13 +113,13 @@ const HomePage = () => {
               consult with expert doctors, and manage your health journey all in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" variant="secondary" asChild className="shadow-hover font-semibold px-8">
+              <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white shadow-hover font-semibold px-8">
                 <Link to="/register">
                   Get Started Today
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary font-semibold px-8">
+              <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 font-semibold px-8">
                 <Link to="/doctors">Find a Doctor</Link>
               </Button>
             </div>
@@ -192,7 +192,7 @@ const HomePage = () => {
           </div>
           
           <div className="text-center mt-12">
-            <Button size="lg" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/services">
                 View All Services
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -273,10 +273,10 @@ const HomePage = () => {
             Start your journey to better health today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/register">Create Account</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 font-semibold px-8">
               <Link to="/contact">Contact Us</Link>
             </Button>
           </div>
@@ -294,13 +294,13 @@ const HomePage = () => {
             Our team is ready to provide you with exceptional medical care.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/book-appointment">
                 Book Appointment
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/services">View Services</Link>
             </Button>
           </div>
@@ -318,10 +318,10 @@ const HomePage = () => {
             team and experience personalized healthcare.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/register">Create Account</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 font-semibold px-8">
               <Link to="/doctors">Find a Doctor</Link>
             </Button>
           </div>
@@ -339,13 +339,13 @@ const HomePage = () => {
             Discover compassionate, innovative care tailored to your unique needs.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/register">
                 Get Started Today
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="font-semibold px-8">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-8">
               <Link to="/about">Learn More</Link>
             </Button>
           </div>

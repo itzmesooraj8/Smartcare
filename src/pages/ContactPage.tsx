@@ -41,7 +41,6 @@ const ContactPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.name || !formData.email || !formData.message) {
       toast({
         title: "Missing Information",

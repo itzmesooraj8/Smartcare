@@ -62,7 +62,7 @@ const DoctorsPage = () => {
       name: 'Dr. Emily Rodriguez',
       specialty: 'Pediatrics',
       subSpecialty: 'Developmental Pediatrics',
-      image: 'https://images.unsplash.com/photo-1594824020332-8845734abf10?w=300&h=300&fit=crop&crop=face',
+      image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=764&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       rating: 4.9,
       reviewCount: 156,
       experience: '10+ years',
@@ -292,13 +292,13 @@ const DoctorsPage = () => {
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button className="flex-1" asChild>
+                    <Button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white" asChild>
                       <Link to={`/doctors/${doctor.id}`}>
                         View Profile
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
-                    <Button variant="outline" className="flex-1" asChild>
+                    <Button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white" asChild>
                       <Link to="/book-appointment">
                         <Calendar className="mr-2 h-4 w-4" />
                         Book Appointment
@@ -317,7 +317,7 @@ const DoctorsPage = () => {
               <p className="text-muted-foreground mb-4">
                 Try adjusting your search criteria or filters
               </p>
-              <Button onClick={() => {
+              <Button className="bg-blue-500 hover:bg-blue-600 text-white" onClick={() => {
                 setSearchTerm('');
                 setSelectedSpecialty('all');
                 setSelectedLocation('all');
@@ -388,10 +388,10 @@ const DoctorsPage = () => {
             and experience personalized healthcare.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/register">Create Account</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500">
               <Link to="/contact">
                 <Phone className="mr-2 h-5 w-5" />
                 Call Us

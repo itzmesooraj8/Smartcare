@@ -34,6 +34,8 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import MedicalRecordsPage from "./pages/MedicalRecordsPage";
 import DoctorProfilePage from "./pages/DoctorProfilePage";
+import FinancialHub from "./pages/FinancialHub";
+import ResourcesCenter from "./pages/ResourcesCenter";
 // Ensure the file exists or update the path if necessary
 // import PatientProfilePage from "./pages/PatientProfilePage";
 import MessagesPage from "./pages/MessagesPage";
@@ -140,6 +142,22 @@ const App = () => (
               />
               
               {/* Additional Protected Routes */}
+              <Route 
+                path="/financial-hub" 
+                element={
+                  <ProtectedRoute>
+                    <FinancialHub />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/resources" 
+                element={
+                  <ProtectedRoute>
+                    <ResourcesCenter />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/patients" 
                 element={

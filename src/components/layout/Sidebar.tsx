@@ -10,6 +10,7 @@ import {
   FiBarChart2 as BarChart3,
   FiMessageSquare as MessageSquare,
   FiDollarSign as DollarSign,
+  FiDollarSign as RupeeSign,
   FiMonitor as Monitor,
   FiUser as User,
   FiSettings as Settings,
@@ -70,21 +71,21 @@ const navigation = [
   {
     name: 'Payments',
     href: '/financial-hub',
-    icon: DollarSign,
+    icon: RupeeSign,
     roles: ['patient'],
   },
   // Doctor: Payments below Messages
   {
     name: 'Payments',
     href: '/financial-hub',
-    icon: DollarSign,
+    icon: RupeeSign,
     roles: ['doctor'],
   },
   // Admin: Financial Hub
   {
     name: 'Financial Hub',
     href: '/financial-hub',
-    icon: DollarSign,
+    icon: RupeeSign,
     roles: ['admin'],
   },
   {

@@ -86,7 +86,7 @@ const AboutPage = () => {
               Dedicated to providing exceptional healthcare services with compassion, 
               innovation, and unwavering commitment to patient wellbeing since 2009.
             </p>
-            <Button size="lg" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/contact">
                 Get in Touch
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -301,10 +301,10 @@ const AboutPage = () => {
             Discover compassionate, innovative care tailored to your unique needs.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white">
               <Link to="/register">Get Started Today</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white hover:text-primary">
+            <Button size="lg" asChild className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500">
               <Link to="/services">Our Services</Link>
             </Button>
           </div>
