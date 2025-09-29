@@ -1,12 +1,5 @@
 import VideoCallPage from "./pages/VideoCallPage";
-            <Route 
-              path="/video-call" 
-              element={
-                <ProtectedRoute allowedRoles={['doctor', 'patient']}>
-                  <VideoCallPage />
-                </ProtectedRoute>
-              } 
-            />
+import WaitingRoom from "./pages/WaitingRoom";
 import LabResultsCenter from "./pages/LabResultsCenter";
 import DoctorMessagesPage from "./pages/DoctorMessagesPage";
 import { Toaster } from "@/components/ui/toaster";
@@ -84,6 +77,22 @@ const App = () => (
               />
 
               {/* Protected Routes */}
+              <Route 
+                path="/video-call" 
+                element={
+                  <ProtectedRoute allowedRoles={['doctor', 'patient']}>
+                    <VideoCallPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/waiting-room" 
+                element={
+                  <ProtectedRoute allowedRoles={['doctor', 'patient']}>
+                    <WaitingRoom />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/dashboard" 
                 element={

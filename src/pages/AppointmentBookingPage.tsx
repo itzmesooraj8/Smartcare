@@ -31,7 +31,8 @@ const AppointmentBookingPage = () => {
   const [reason, setReason] = useState('');
   const [isUrgent, setIsUrgent] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [consultType, setConsultType] = useState<'video' | 'audio' | 'chat'>('video');
+  const [visitType, setVisitType] = useState<'in-person' | 'video'>();
+  const [consultType, setConsultType] = useState<'video' | 'audio' | 'chat' | undefined>(undefined);
   const navigate = window.location ? (window.location.pathname ? null : null) : null;
 
   const doctors = [
@@ -62,27 +63,12 @@ const AppointmentBookingPage = () => {
   const handleSubmit = async () => {
     if (!selectedDate || !selectedTime || !selectedDoctor || !selectedService) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
+        title: 'Missing Fields',
+        description: 'Please fill in all required fields before booking.',
+        variant: 'destructive',
       });
       return;
     }
-
-    // Simulate booking appointment
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    toast({
-      title: "Appointment Booked!",
-      description: `Your ${consultType} consultation has been successfully scheduled. You'll receive a confirmation email shortly.`,
-    });
-
-    // If chat, redirect to messages page
-    if (consultType === 'chat') {
-      window.location.href = '/messages';
-      return;
-    }
-
     // Reset form
     setSelectedDate(new Date());
     setSelectedTime('');

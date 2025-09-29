@@ -17,6 +17,7 @@ import {
   FiBookOpen as BookOpen,
   FiUserCheck as DoctorIcon // Use FiUserCheck for Doctors
 } from 'react-icons/fi';
+import { Video } from 'lucide-react';
 // Navigation array for sidebar (single source of truth)
 const navigation = [
   {
@@ -49,6 +50,20 @@ const navigation = [
     icon: FileText,
     roles: ['admin', 'doctor', 'patient'],
   },
+  {
+    name: 'Waiting Room',
+    href: '/waiting-room',
+    icon: Monitor,
+    roles: ['doctor', 'patient'],
+  },
+  {
+    name: 'Video Call',
+    href: '/video-call',
+    icon: Video,
+    roles: ['doctor', 'patient'],
+  },
+  ,
+
   {
     name: 'Lab Results Center',
     href: '/lab-results',
@@ -88,12 +103,7 @@ const navigation = [
     icon: RupeeSign,
     roles: ['admin'],
   },
-  {
-    name: 'Video Call',
-    href: '/video-call',
-    icon: Monitor,
-    roles: ['doctor', 'patient'],
-  },
+  // Removed duplicate Video Call entry
   {
     name: 'Profile',
     href: '/profile',

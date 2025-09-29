@@ -37,8 +37,8 @@ const FinancialHub: React.FC = () => {
       title: { display: true, text: 'Monthly Revenue Trend', font: { size: 18 } },
     },
     scales: {
-      y: { beginAtZero: true, ticks: { color: '#2563eb', font: { weight: "bold" } } },
-      x: { ticks: { color: '#2563eb', font: { weight: "bold" } } },
+      y: { beginAtZero: true, ticks: { color: '#2563eb', font: { weight: 'bold' as const } } },
+      x: { ticks: { color: '#2563eb', font: { weight: 'bold' as const } } },
     },
   };
   // Get user role from AuthContext
