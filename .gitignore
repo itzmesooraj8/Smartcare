@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local Netlify folder
+.netlify
+
+# Python caches
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Python virtual environments
+venv/
+smartcare-backend/venv/
+
+# Environment files
+.env
+server/.env
+
+# Optional: ignore Bun lockfile if using npm
+bun.lockb
+

@@ -117,6 +117,73 @@ const App = () => (
                   </ProtectedRoute>
                 } 
               />
+              {/* Patient Routes */}
+              <Route 
+                path="/patient/dashboard" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <PatientDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/appointments" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <AppointmentPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/medical-records" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <MedicalRecordsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/messages" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <MessagesPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/profile" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/settings" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/video-call" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <VideoCallPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/patient/lab-results" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <LabResultsCenter />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Legacy Patient Routes - redirect to new paths */}
               <Route 
                 path="/patient-dashboard" 
                 element={
@@ -192,7 +259,7 @@ const App = () => (
                 } 
               />
               <Route 
-                path="/messages" 
+                path="/doctor/messages" 
                 element={
                   <ProtectedRoute allowedRoles={['doctor']}>
                     <DoctorMessagesPage />
@@ -200,9 +267,17 @@ const App = () => (
                 } 
               />
               <Route 
+                path="/patient/messages" 
+                element={
+                  <ProtectedRoute allowedRoles={['patient']}>
+                    <MessagesPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/messages" 
                 element={
-                  <ProtectedRoute allowedRoles={['admin','patient']}>
+                  <ProtectedRoute allowedRoles={['admin']}>
                     <MessagesPage />
                   </ProtectedRoute>
                 } 

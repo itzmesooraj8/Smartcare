@@ -20,6 +20,8 @@ const RegisterPage = () => {
     role: 'patient' as UserRole,
     acceptTerms: false
   });
+  // Local state for doctor's license file
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
@@ -74,7 +76,19 @@ const RegisterPage = () => {
       return;
     }
 
-    const success = await register(formData.email, formData.password, formData.name, formData.role);
+    // If registering as a doctor, ensure a license file is provided
+    if (formData.role === 'doctor' && !licenseFile) {
+      toast({
+        title: "License Required",
+        description: "Please upload your medical license to register as a doctor.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+  // NOTE: current register mock doesn't accept files. In a real app we would send
+  // the licenseFile in a multipart/form-data request to the backend here.
+  const success = await register(formData.email, formData.password, formData.name, formData.role);
     
     if (success) {
       toast({
@@ -153,6 +167,35 @@ const RegisterPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Doctor license upload: show only when role is doctor */}
+              {formData.role === 'doctor' && (
+                <div className="space-y-2">
+                  <Label>Medical License</Label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      id="license"
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files && e.target.files[0];
+                        setLicenseFile(file || null);
+                      }}
+                    />
+                    <label htmlFor="license">
+                      <Button type="button" onClick={() => {
+                        // trigger file input click by focusing label (native behavior)
+                        const input = document.getElementById('license') as HTMLInputElement | null;
+                        input?.click();
+                      }}>
+                        {licenseFile ? 'Change License' : 'Upload License'}
+                      </Button>
+                    </label>
+                    <span className="text-sm text-muted-foreground">{licenseFile ? licenseFile.name : 'No file selected'}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>

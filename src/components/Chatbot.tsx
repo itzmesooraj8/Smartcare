@@ -51,7 +51,7 @@ const Chatbot: React.FC = () => {
         >
           <div className="flex items-center justify-between px-5 py-3 border-b border-blue-200 bg-blue-100 rounded-t-2xl">
             <div className="flex items-center gap-2">
-              <span className="inline-block w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">🤖</span>
+              <span className="flex w-8 h-8 bg-blue-500 rounded-full items-center justify-center text-white font-bold text-lg">🤖</span>
               <span className="font-semibold text-blue-700 text-lg">SmartCare Chatbot</span>
             </div>
             <button
