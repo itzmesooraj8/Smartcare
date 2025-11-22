@@ -3,10 +3,24 @@
   publish = "dist"
 
 [context.production.environment]
-# Add any environment variables you need for production here, for example:
-#  VITE_API_URL = "https://api.example.com"
+  # Frontend build-time environment variables
+  # IMPORTANT: Replace these with your live endpoints before deploying
+  VITE_API_URL = "https://your-backend.example.com"           # FastAPI or other backend base URL
+  VITE_CHAT_SERVER_URL = "https://your-chat-server.example.com" # Socket.IO server URL (must be HTTPS)
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

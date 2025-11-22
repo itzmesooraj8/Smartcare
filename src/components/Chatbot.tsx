@@ -1,30 +1,70 @@
-import React, { useEffect, useRef, useState } from 'react';
-const WS_URL = 'ws://localhost:8000/ws/chatbot';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Use standard WebSocket URL
+// In production, this should be wss:// if https://
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/chatbot';
 
 const Chatbot: React.FC = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; content: string }[]>([]);
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
-  const ws = useRef<WebSocket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const role = user?.role || 'patient';
 
+  const placeholder = useMemo(() => (
+    role === 'patient'
+      ? 'Ask for general health news or updates…'
+      : 'Ask about a patient update or general medical news…'
+  ), [role]);
+
+  // Connect to WebSocket when chat is opened
   useEffect(() => {
-    ws.current = new WebSocket(WS_URL);
-    ws.current.onmessage = (event) => {
-      setMessages((prev) => [...prev, { sender: 'bot', content: event.data }]);
+    if (!open) return;
+
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('Connected to chatbot');
     };
-    return () => ws.current?.close();
-  }, []);
+
+    ws.onmessage = (event) => {
+      const text = event.data;
+      setMessages((prev) => [...prev, { sender: 'bot', content: text }]);
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'bot', content: 'Unable to connect to chat server.' },
+      ]);
+    };
+
+    ws.onclose = () => {
+      console.log('Disconnected from chatbot');
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [open]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = () => {
-    if (input.trim() && ws.current) {
+    if (input.trim() && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       setMessages((prev) => [...prev, { sender: 'user', content: input }]);
-      ws.current.send(input);
+      wsRef.current.send(input);
       setInput('');
+    } else if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      setMessages((prev) => [...prev, { sender: 'bot', content: 'Connection lost. Please close and reopen the chat.' }]);
     }
   };
 
@@ -67,7 +107,7 @@ const Chatbot: React.FC = () => {
               <div className="text-center text-blue-400 text-sm mt-10">How can I help you today?</div>
             )}
             {messages.map((msg, idx) => (
-              <div key={idx} className={`mb-3 flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}> 
+              <div key={idx} className={`mb-3 flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <span className={`max-w-[70%] px-4 py-2 rounded-2xl shadow ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800 border border-blue-100'}`}>{msg.content}</span>
               </div>
             ))}
@@ -79,7 +119,7 @@ const Chatbot: React.FC = () => {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage()}
-              placeholder="Type your message..."
+              placeholder={placeholder}
             />
             <button
               className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold transition-all duration-150"

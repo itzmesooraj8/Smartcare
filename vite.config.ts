@@ -22,6 +22,12 @@ export default defineConfig(({ mode }) => ({
         target: 'ws://localhost:8000',
         ws: true,
         changeOrigin: true,
+      },
+      // Proxy Socket.IO to chatbot server to avoid cross-origin issues in dev
+      '/socket.io': {
+        target: 'http://localhost:5000',
+        ws: true,
+        changeOrigin: true,
       }
     }
   },

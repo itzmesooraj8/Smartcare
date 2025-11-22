@@ -62,7 +62,7 @@ const navigation = [
     icon: Video,
     roles: ['doctor', 'patient'],
   },
-  ,
+  
 
   {
     name: 'Lab Results Center',
@@ -130,10 +130,13 @@ const Sidebar = () => {
   const { user } = useAuth();
   const location = useLocation();
 
+  if (!user) return null; // Guard against null user to avoid runtime errors
+
   return (
     <div className="sidebar bg-background h-full flex flex-col justify-between">
       <nav className="flex-1 px-2 py-4">
         {navigation
+          .filter(Boolean)
           .filter(item => item.roles.includes(user.role))
           .map(item => (
             <Link

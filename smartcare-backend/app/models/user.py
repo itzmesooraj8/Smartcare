@@ -1,7 +1,7 @@
 # app/models/user.py
 import enum, uuid
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
+
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
@@ -12,7 +12,7 @@ class UserRole(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
-    id = sa.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = sa.Column(sa.String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = sa.Column(sa.String(255), unique=True, nullable=False, index=True)
     name = sa.Column(sa.String(255), nullable=True)
     hashed_password = sa.Column(sa.String, nullable=False)

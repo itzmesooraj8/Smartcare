@@ -13,6 +13,11 @@ services:
       - redis
       - minio
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
   
   minio:
     image: minio/minio
@@ -32,30 +37,30 @@ services:
       - redis
       - db
 
+  coturn:
+    image: instrumentisto/coturn
+    ports:
+      - "3478:3478"    # UDP/TCP
+      - "3478:3478/udp"
+    environment:
+      - REALM=yourdomain.com
+      - LISTENING_PORT=3478
+      - MIN_PORT=49152
+      - MAX_PORT=65535
+      - USERS=user:pass  # or configure static users or turnserv
+
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: smartcare
+      POSTGRES_PASSWORD: smartcare123
+      POSTGRES_DB: smartcare
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
 volumes:
   postgres_data:
   minio_data:
-
-coturn:
-  image: instrumentisto/coturn
-  ports:
-    - "3478:3478"    # UDP/TCP
-    - "3478:3478/udp"
-  environment:
-    - REALM=yourdomain.com
-    - LISTENING_PORT=3478
-    - MIN_PORT=49152
-    - MAX_PORT=65535
-    - USERS=user:pass  # or configure static users or turnserv
-
-db:
-  image: postgres:15
-  restart: always
-  environment:
-    POSTGRES_USER: smartcare
-    POSTGRES_PASSWORD: smartcare123
-    POSTGRES_DB: smartcare
-  volumes:
-    - postgres_data:/var/lib/postgresql/data
-  ports:
-    - "5432:5432"

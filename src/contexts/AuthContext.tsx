@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Mock users for demo
   const mockUsers: User[] = [
@@ -62,14 +62,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Check for stored auth on mount
-    const storedUser = localStorage.getItem('smartcare_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    try {
+      const storedUser = localStorage.getItem('smartcare_user');
+      if (storedUser) {
+        const parsed: User = JSON.parse(storedUser);
+        if (parsed && parsed.id && parsed.role) {
+          setUser(parsed);
+        } else {
+          // Cleanup corrupted data
+          localStorage.removeItem('smartcare_user');
+        }
+      }
+    } catch (e) {
+      // If parsing fails, clear the bad value to avoid crashes
+      localStorage.removeItem('smartcare_user');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const login = async (email: string, password: string, role?: UserRole): Promise<boolean> => {
-    setIsLoading(true);
+  setIsLoading(true);
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -88,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (email: string, password: string, name: string, role: UserRole): Promise<boolean> => {
-    setIsLoading(true);
+  setIsLoading(true);
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
