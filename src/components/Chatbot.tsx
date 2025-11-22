@@ -24,6 +24,14 @@ const Chatbot: React.FC = () => {
   useEffect(() => {
     if (!open) return;
 
+    // Temporary: Backend not deployed yet
+    setMessages([{
+      sender: 'bot',
+      content: 'Hi! The chatbot backend is currently being set up. In the meantime, please use the Contact page or call our helpline for assistance. We appreciate your patience!'
+    }]);
+
+    // TODO: Uncomment when backend is deployed
+    /*
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
@@ -52,6 +60,7 @@ const Chatbot: React.FC = () => {
       ws.close();
       wsRef.current = null;
     };
+    */
   }, [open]);
 
   useEffect(() => {

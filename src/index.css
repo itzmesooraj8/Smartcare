@@ -187,11 +187,14 @@ All colors MUST be HSL.
   }
 
   @keyframes pulse-medical {
-    0%, 100% { 
+
+    0%,
+    100% {
       opacity: 1;
       transform: scale(1);
     }
-    50% { 
+
+    50% {
       opacity: 0.8;
       transform: scale(1.02);
     }
@@ -211,7 +214,16 @@ All colors MUST be HSL.
   /* Hide Netlify badge */
   .netlify-badge,
   [data-netlify-badge],
-  a[href*="netlify.com"] img {
+  a[href*="netlify.com"] img,
+  a[href*="netlify.com"],
+  img[alt*="Netlify"],
+  img[alt*="netlify"],
+  [class*="netlify"],
+  #netlify-badge {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 }
