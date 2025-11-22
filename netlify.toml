@@ -4,9 +4,15 @@
 
 [context.production.environment]
   # Frontend build-time environment variables
-  # IMPORTANT: Replace these with your live endpoints before deploying
-  VITE_API_URL = "https://your-backend.example.com"           # FastAPI or other backend base URL
-  VITE_CHAT_SERVER_URL = "https://your-chat-server.example.com" # Socket.IO server URL (must be HTTPS)
+  # IMPORTANT: Update VITE_API_URL with your actual backend URL after deploying the Python backend
+  # For now, this is set to a placeholder - you'll need to deploy smartcare-backend to Render/Railway/etc
+  VITE_API_URL = "https://your-backend-url.onrender.com"  # Replace with your actual backend URL
+  VITE_WS_URL = "wss://your-backend-url.onrender.com/ws/chatbot"  # WebSocket URL (wss:// for HTTPS)
+
+[context.deploy-preview.environment]
+  # Preview deployments use localhost (for testing)
+  VITE_API_URL = "http://localhost:8000"
+  VITE_WS_URL = "ws://localhost:8000/ws/chatbot"
 
 [[redirects]]
   from = "/*"
