@@ -207,4 +207,11 @@ All colors MUST be HSL.
     outline: 2px solid hsl(var(--primary));
     outline-offset: 2px;
   }
+
+  /* Hide Netlify badge */
+  .netlify-badge,
+  [data-netlify-badge],
+  a[href*="netlify.com"] img {
+    display: none !important;
+  }
 }
