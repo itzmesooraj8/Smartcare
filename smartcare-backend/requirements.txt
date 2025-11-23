@@ -8,3 +8,8 @@ python-multipart
 google-generativeai
 httpx
 celery
+
+python-dotenv
+pydantic
+boto3
+botocore
