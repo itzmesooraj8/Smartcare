@@ -70,7 +70,8 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
-            <span className="text-2xl font-bold text-primary">SmartCare</span>
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-2xl font-bold text-primary">SmartCare</span>
         </div>
 
         <Card className="shadow-card">
@@ -79,7 +80,7 @@ const LoginPage = () => {
             <CardDescription className="text-center">
               Sign in to your SmartCare account to access your healthcare dashboard
             </CardDescription>
-          </CardHeader >
+          </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -157,7 +158,6 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            {/* Demo Credentials */}
             <div className="mt-6 p-4 bg-muted/30 rounded-lg">
               <p className="text-sm font-medium text-muted-foreground mb-3">
                 Demo Accounts - Click to auto-fill:
@@ -190,7 +190,7 @@ const LoginPage = () => {
               </span>
             </div>
           </CardContent>
-        </Card >
+        </Card>
 
         <div className="text-center">
           <Link
@@ -200,8 +200,8 @@ const LoginPage = () => {
             ← Back to Homepage
           </Link>
         </div>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 };
 
