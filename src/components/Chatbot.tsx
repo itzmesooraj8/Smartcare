@@ -1,17 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Use standard WebSocket URL
 // In production, this should be wss:// if https://
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/chatbot';
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 3000; // 3 seconds
 
 const Chatbot: React.FC = () => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; content: string }[]>([]);
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const role = user?.role || 'patient';
 
   const placeholder = useMemo(() => (
@@ -20,60 +26,125 @@ const Chatbot: React.FC = () => {
       : 'Ask about a patient update or general medical news…'
   ), [role]);
 
-  // Connect to WebSocket when chat is opened
-  useEffect(() => {
-    if (!open) return;
+  // Cleanup function for WebSocket
+  const cleanupWebSocket = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
 
-    // Temporary: Backend not deployed yet
-    setMessages([{
-      sender: 'bot',
-      content: 'Hi! The chatbot backend is currently being set up. In the meantime, please use the Contact page or call our helpline for assistance. We appreciate your patience!'
-    }]);
+  // Connect to WebSocket with auto-reconnect logic
+  const connectWebSocket = useCallback(() => {
+    if (isConnecting || wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-    // TODO: Uncomment when backend is deployed
-    /*
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
+    setIsConnecting(true);
+    console.log('Attempting to connect to WebSocket:', WS_URL);
 
-    ws.onopen = () => {
-      console.log('Connected to chatbot');
-    };
+    try {
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      const text = event.data;
-      setMessages((prev) => [...prev, { sender: 'bot', content: text }]);
-    };
+      ws.onopen = () => {
+        console.log('WebSocket connected successfully');
+        setWsConnected(true);
+        setIsConnecting(false);
+        setReconnectAttempts(0);
+        // Welcome message will come from the server
+      };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      ws.onmessage = (event) => {
+        const text = event.data;
+        setMessages((prev) => [...prev, { sender: 'bot', content: text }]);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setIsConnecting(false);
+      };
+
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        setWsConnected(false);
+        setIsConnecting(false);
+        wsRef.current = null;
+
+        // Attempt to reconnect if chat is still open and we haven't exceeded max attempts
+        if (open && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: 'bot',
+              content: `Connection lost. Attempting to reconnect... (${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`
+            },
+          ]);
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setReconnectAttempts((prev) => prev + 1);
+            connectWebSocket();
+          }, RECONNECT_DELAY);
+        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              sender: 'bot',
+              content: 'Unable to establish connection. Please check your internet connection and try reopening the chat.'
+            },
+          ]);
+        }
+      };
+
+    } catch (err) {
+      console.error('Failed to initialize chatbot connection:', err);
+      setIsConnecting(false);
       setMessages((prev) => [
         ...prev,
-        { sender: 'bot', content: 'Unable to connect to chat server.' },
+        {
+          sender: 'bot',
+          content: 'Chatbot configuration error. Please check your connection and try again.',
+        },
       ]);
-    };
+    }
+  }, [open, reconnectAttempts, isConnecting]);
 
-    ws.onclose = () => {
-      console.log('Disconnected from chatbot');
-    };
+  // Connect when chat is opened
+  useEffect(() => {
+    if (!open) {
+      cleanupWebSocket();
+      setMessages([]);
+      setReconnectAttempts(0);
+      return;
+    }
+
+    setMessages([
+      {
+        sender: 'bot',
+        content: 'Connecting to SmartCare Assistant…',
+      },
+    ]);
+
+    connectWebSocket();
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      cleanupWebSocket();
     };
-    */
-  }, [open]);
+  }, [open, connectWebSocket, cleanupWebSocket]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = () => {
-    if (input.trim() && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (input.trim() && wsRef.current && wsConnected) {
       setMessages((prev) => [...prev, { sender: 'user', content: input }]);
       wsRef.current.send(input);
       setInput('');
-    } else if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      setMessages((prev) => [...prev, { sender: 'bot', content: 'Connection lost. Please close and reopen the chat.' }]);
     }
   };
 
@@ -101,7 +172,15 @@ const Chatbot: React.FC = () => {
           <div className="flex items-center justify-between px-5 py-3 border-b border-blue-200 bg-blue-100 rounded-t-2xl">
             <div className="flex items-center gap-2">
               <span className="flex w-8 h-8 bg-blue-500 rounded-full items-center justify-center text-white font-bold text-lg">🤖</span>
-              <span className="font-semibold text-blue-700 text-lg">SmartCare Chatbot</span>
+              <div className="flex flex-col">
+                <span className="font-semibold text-blue-700 text-lg">SmartCare Chatbot</span>
+                <span className="text-xs flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : isConnecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
+                  <span className="text-gray-600">
+                    {wsConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
+                  </span>
+                </span>
+              </div>
             </div>
             <button
               className="ml-auto text-blue-500 hover:text-blue-700 text-xl font-bold"
@@ -131,8 +210,9 @@ const Chatbot: React.FC = () => {
               placeholder={placeholder}
             />
             <button
-              className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold transition-all duration-150"
+              className={`bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold transition-all duration-150 ${!wsConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={sendMessage}
+              disabled={!wsConnected}
             >
               Send
             </button>

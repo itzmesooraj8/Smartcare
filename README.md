@@ -140,9 +140,15 @@ Migrations are managed with Alembic inside `smartcare-backend`. Before running t
 - Frontend: run the configured test runner (check `package.json` in the root). Common commands are `npm test` or `pnpm test`.
 - Backend: use pytest from within the Python virtual environment.
 
+
 ## Deployment notes
 
 - Static frontend builds: `npm run build` produces the `dist` directory (served by Netlify, Vercel, or any static host).
+- **Vercel deployment:**
+  - Connect your GitHub repo to Vercel at https://vercel.com/import/git.
+  - Set environment variables in the Vercel dashboard (e.g., `VITE_API_URL`, `VITE_WS_URL`).
+  - Use the default build command (`npm run build`) and output directory (`dist`).
+  - After deploy, your site will be live at `https://<your-vercel-project>.vercel.app`.
 - Backend: deploy the Python app to your preferred host (Docker, cloud provider). Make sure to provide environment variables and run database migrations on deploy.
 - CI/CD: include steps to run tests, build the frontend, and apply migrations before switching traffic.
 

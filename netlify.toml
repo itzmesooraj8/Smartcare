@@ -4,10 +4,8 @@
 
 [context.production.environment]
   # Frontend build-time environment variables
-  # IMPORTANT: Update VITE_API_URL with your actual backend URL after deploying the Python backend
-  # For now, this is set to a placeholder - you'll need to deploy smartcare-backend to Render/Railway/etc
-  VITE_API_URL = "https://your-backend-url.onrender.com"  # Replace with your actual backend URL
-  VITE_WS_URL = "wss://your-backend-url.onrender.com/ws/chatbot"  # WebSocket URL (wss:// for HTTPS)
+  VITE_API_URL = "https://smartcare-zflo.onrender.com"
+  VITE_WS_URL = "wss://smartcare-zflo.onrender.com/ws/chatbot"
 
 [context.deploy-preview.environment]
   # Preview deployments use localhost (for testing)

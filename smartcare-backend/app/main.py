@@ -2,10 +2,17 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from app.tasks.audit import record_audit_async
 from app.signaling import router as signaling_router
 from app.api.v1 import ehr, appointments, availability, profile, auth, tele, finance
+from app.services.chatbot import ChatbotService
 import os
 from typing import List
+import json
+import logging
 
 from fastapi.middleware.cors import CORSMiddleware
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Smartcare Backend")
 
@@ -87,52 +94,59 @@ async def audit_middleware(request: Request, call_next):
     return response
 
 
-# Simple rule-based chatbot responses
-def get_chatbot_response(message: str) -> str:
-    """Simple keyword-based chatbot for healthcare queries."""
-    msg_lower = message.lower()
-    
-    # Greetings
-    if any(word in msg_lower for word in ['hello', 'hi', 'hey', 'greetings']):
-        return "Hello! I'm SmartCare Assistant. I can help you with appointment booking, general health information, and navigating our services. How can I assist you today?"
-    
-    # Appointments
-    if any(word in msg_lower for word in ['appointment', 'book', 'schedule', 'doctor']):
-        return "To book an appointment, please navigate to the 'Book Appointment' section in the menu. You can choose your preferred doctor, date, and time. Would you like me to guide you through the process?"
-    
-    # Hours/Contact
-    if any(word in msg_lower for word in ['hours', 'open', 'time', 'contact', 'phone']):
-        return "Our clinic is open Monday-Friday 8:00 AM - 6:00 PM, and Saturday 9:00 AM - 2:00 PM. For urgent matters, you can reach us at our 24/7 helpline. You can find contact details in the 'Contact' section."
-    
-    # Medical records
-    if any(word in msg_lower for word in ['record', 'history', 'medical', 'report']):
-        return "You can access your medical records in the 'Medical Records' section of your dashboard. All your test results, prescriptions, and visit history are securely stored there."
-    
-    # Payments/Billing
-    if any(word in msg_lower for word in ['payment', 'bill', 'invoice', 'cost', 'price']):
-        return "You can view and manage your bills in the 'Financial Hub' section. We accept various payment methods including credit cards, insurance, and online payments."
-    
-    # Emergency
-    if any(word in msg_lower for word in ['emergency', 'urgent', 'help', 'pain']):
-        return "⚠️ If this is a medical emergency, please call emergency services immediately (911 or your local emergency number). For urgent but non-emergency care, please visit our 'Contact' page for our 24/7 helpline."
-    
-    # Video consultation
-    if any(word in msg_lower for word in ['video', 'call', 'online', 'teleconsult']):
-        return "We offer video consultations! You can schedule a video appointment through the 'Teleconsultation' section. Make sure you have a stable internet connection and a camera-enabled device."
-    
-    # Default response
-    return "I'm here to help! You can ask me about:\n• Booking appointments\n• Clinic hours and contact info\n• Accessing medical records\n• Payment and billing\n• Video consultations\n\nWhat would you like to know?"
-
-# WebSocket endpoint for real-time chatbot
+# WebSocket endpoint for real-time chatbot with conversation history
 @app.websocket("/ws/chatbot")
 async def websocket_chatbot(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time chatbot communication.
+    Maintains conversation history for context-aware responses.
+    """
     await websocket.accept()
+    conversation_history = []
     
     try:
+        # Send welcome message
+        welcome_msg = "Hi! I'm SmartCare Assistant. I can help you with appointments, billing, medical records, and general health information. How can I assist you today?"
+        await websocket.send_text(welcome_msg)
+        
         while True:
+            # Receive message from client
             data = await websocket.receive_text()
-            response = get_chatbot_response(data)
-            await websocket.send_text(response)
+            
+            # Add user message to history
+            conversation_history.append({
+                "sender": "user",
+                "content": data
+            })
+            
+            # Get AI/rule-based response
+            try:
+                response = await ChatbotService.get_response(data, conversation_history)
+                
+                # Add bot response to history
+                conversation_history.append({
+                    "sender": "bot",
+                    "content": response
+                })
+                
+                # Send response to client
+                await websocket.send_text(response)
+                
+                # Keep conversation history manageable (last 20 messages)
+                if len(conversation_history) > 20:
+                    conversation_history = conversation_history[-20:]
+                    
+            except Exception as e:
+                logger.error(f"Error generating chatbot response: {e}")
+                error_msg = "I apologize, but I'm having trouble processing your request. Please try again or contact our support team."
+                await websocket.send_text(error_msg)
+                
     except WebSocketDisconnect:
-        pass
+        logger.info("Chatbot WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Chatbot WebSocket error: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
