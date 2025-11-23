@@ -108,11 +108,9 @@ const RegisterPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Logo */}
         <div className="text-center">
-          <Link to="/" className="inline-flex items-center space-x-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg medical-gradient">
-              <Heart className="h-6 w-6 text-white" />
+          <Link to="/" className="inline-flex items-center space-x-2 mb-6 >
+            </Link>
             </div>
             <span className="text-2xl font-bold text-primary">SmartCare</span>
           </Link>
