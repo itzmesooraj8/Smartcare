@@ -6,7 +6,7 @@ import { componentTagger } from "lovable-tagger";
 // vite.config.ts
 export default defineConfig(({ mode }) => ({
   server: {
-    host: true,
+    host: "127.0.0.1",
     port: 5173,
     strictPort: false,
     open: true,
@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => ({
   },
   preview: {
     port: 5173,
-    host: true,
+    host: "127.0.0.1",
   },
   // Build options: split vendor packages into separate chunks to avoid very large bundles
   build: {
