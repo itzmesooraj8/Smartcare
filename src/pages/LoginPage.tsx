@@ -24,7 +24,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Missing Information",
@@ -35,7 +35,7 @@ const LoginPage = () => {
     }
 
     const success = await login(email, password, role);
-    
+
     if (success) {
       toast({
         title: "Welcome back!",
@@ -66,15 +66,13 @@ const LoginPage = () => {
     }
   };
 
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg medical-gradient">
-              <Heart className="h-6 w-6 text-white" />
-            </div>
             <span className="text-2xl font-bold text-primary">SmartCare</span>
           </Link>
         </div>
@@ -85,7 +83,7 @@ const LoginPage = () => {
             <CardDescription className="text-center">
               Sign in to your SmartCare account to access your healthcare dashboard
             </CardDescription>
-          </CardHeader>
+          </CardHeader >
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -150,9 +148,9 @@ const LoginPage = () => {
                 </Link>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -196,7 +194,7 @@ const LoginPage = () => {
               </span>
             </div>
           </CardContent>
-        </Card>
+        </Card >
 
         <div className="text-center">
           <Link
@@ -206,8 +204,8 @@ const LoginPage = () => {
             ← Back to Homepage
           </Link>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

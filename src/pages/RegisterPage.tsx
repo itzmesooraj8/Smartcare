@@ -24,7 +24,7 @@ const RegisterPage = () => {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const { register, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -38,7 +38,7 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       toast({
@@ -86,10 +86,10 @@ const RegisterPage = () => {
       return;
     }
 
-  // NOTE: current register mock doesn't accept files. In a real app we would send
-  // the licenseFile in a multipart/form-data request to the backend here.
-  const success = await register(formData.email, formData.password, formData.name, formData.role);
-    
+    // NOTE: current register mock doesn't accept files. In a real app we would send
+    // the licenseFile in a multipart/form-data request to the backend here.
+    const success = await register(formData.email, formData.password, formData.name, formData.role);
+
     if (success) {
       toast({
         title: "Account Created!",
@@ -105,15 +105,13 @@ const RegisterPage = () => {
     }
   };
 
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg medical-gradient">
-              <Heart className="h-6 w-6 text-white" />
-            </div>
             <span className="text-2xl font-bold text-primary">SmartCare</span>
           </Link>
         </div>
@@ -124,7 +122,7 @@ const RegisterPage = () => {
             <CardDescription className="text-center">
               Join SmartCare to access personalized healthcare services and manage your health journey
             </CardDescription>
-          </CardHeader>
+          </CardHeader >
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -153,8 +151,8 @@ const RegisterPage = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="role">Account Type</Label>
-                <Select 
-                  value={formData.role} 
+                <Select
+                  value={formData.role}
                   onValueChange={(value: UserRole) => handleInputChange('role', value)}
                 >
                   <SelectTrigger>
@@ -272,9 +270,9 @@ const RegisterPage = () => {
                 </label>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -294,7 +292,7 @@ const RegisterPage = () => {
               </span>
             </div>
           </CardContent>
-        </Card>
+        </Card >
 
         <div className="text-center">
           <Link
@@ -304,8 +302,8 @@ const RegisterPage = () => {
             ← Back to Homepage
           </Link>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 
