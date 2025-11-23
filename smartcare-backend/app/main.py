@@ -3,14 +3,58 @@ from app.tasks.audit import record_audit_async
 from app.signaling import router as signaling_router
 from app.api.v1 import ehr, appointments, availability, profile, auth, tele, finance
 import os
+from typing import List
 
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Smartcare Backend")
 
+# Production root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Smartcare Backend. API is running."}
+
+# Health check endpoint
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+def _build_allowed_origins() -> List[str]:
+    """Compose the CORS allow list from defaults + env overrides."""
+    defaults = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://localhost:3000",
+        "https://localhost:5173",
+    ]
+
+    frontend_url = os.getenv("FRONTEND_URL")
+    extra_origins = os.getenv("ADDITIONAL_ORIGINS", "")
+
+    if frontend_url:
+        defaults.append(frontend_url.rstrip("/"))
+
+    if extra_origins:
+        defaults.extend([
+            origin.strip().rstrip("/")
+            for origin in extra_origins.split(",")
+            if origin.strip()
+        ])
+
+    # Remove duplicates while preserving order
+    seen = set()
+    cleaned = []
+    for origin in defaults:
+        if origin not in seen:
+            cleaned.append(origin)
+            seen.add(origin)
+    return cleaned
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=_build_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
