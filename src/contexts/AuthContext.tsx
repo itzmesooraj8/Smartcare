@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { API_URL } from '@/lib/api';
 
 export type UserRole = 'patient' | 'doctor' | 'admin';
 
@@ -8,138 +9,247 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
-  specialization?: string; // For doctors
-  department?: string; // For doctors
-  phone?: string;
-  dateOfBirth?: string;
-  address?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
-  logout: () => void;
-  register: (email: string, password: string, name: string, role: UserRole) => Promise<boolean>;
   isLoading: boolean;
+  login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  logout: (broadcast?: boolean) => Promise<void>;
+  register: (payload: { name: string; email: string; password: string; role?: UserRole }) => Promise<void>;
+  fetchWithAuth: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+  mockLogin: (user: User, remember?: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper: decode JWT exp
+function parseJwt(token: string) {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    return decoded;
+  } catch (e) {
+    return null;
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const accessTokenRef = useRef<string | null>(null);
+  const refreshTimeoutRef = useRef<number | null>(null);
+  const bcRef = useRef<BroadcastChannel | null>(null);
 
-  // Mock users for demo
-  const mockUsers: User[] = [
-    {
-      id: '1',
-      email: 'admin@smartcare.com',
-      name: 'Admin User',
-      role: 'admin',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-    },
-    {
-      id: '2',
-      email: 'dr.smith@smartcare.com',
-      name: 'Dr. Sarah Smith',
-      role: 'doctor',
-      specialization: 'Cardiology',
-      department: 'Heart & Vascular',
-      phone: '+1 (555) 123-4567',
-      avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop&crop=face'
-    },
-    {
-      id: '3',
-      email: 'patient@example.com',
-      name: 'John Doe',
-      role: 'patient',
-      phone: '+1 (555) 987-6543',
-      dateOfBirth: '1985-06-15',
-      address: '123 Main St, City, ST 12345',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face'
-    }
-  ];
-
+  // Broadcast logout/login across tabs
   useEffect(() => {
-    // Check for stored auth on mount
-    try {
-      const storedUser = localStorage.getItem('smartcare_user');
-      if (storedUser) {
-        const parsed: User = JSON.parse(storedUser);
-        if (parsed && parsed.id && parsed.role) {
-          setUser(parsed);
-        } else {
-          // Cleanup corrupted data
-          localStorage.removeItem('smartcare_user');
+    if ('BroadcastChannel' in window) {
+      bcRef.current = new BroadcastChannel('smartcare_auth');
+      bcRef.current.onmessage = (ev) => {
+        if (ev.data === 'logout') {
+          // clear silently
+          accessTokenRef.current = null;
+          setUser(null);
         }
+        if (ev.data?.type === 'login' && ev.data.user) {
+          setUser(ev.data.user);
+        }
+      };
+    } else {
+      const handler = (ev: StorageEvent) => {
+        if (ev.key === 'smartcare_broadcast' && ev.newValue === 'logout') {
+          accessTokenRef.current = null;
+          setUser(null);
+        }
+      };
+      window.addEventListener('storage', handler);
+      return () => window.removeEventListener('storage', handler);
+    }
+
+    return () => {
+      bcRef.current?.close();
+    };
+  }, []);
+
+  // Schedule silent refresh based on access token exp
+  const scheduleRefresh = (token: string | null) => {
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+
+    if (!token) return;
+    const payload = parseJwt(token);
+    if (!payload || !payload.exp) return;
+    const expiresAt = payload.exp * 1000;
+    const now = Date.now();
+    const msUntil = expiresAt - now - 60_000; // refresh 60s before expiry
+    const delay = Math.max(5_000, msUntil);
+    // @ts-ignore - setTimeout returns number in browser
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      void refreshToken();
+    }, delay);
+  };
+
+  const setAccessToken = (token: string | null) => {
+    accessTokenRef.current = token;
+    scheduleRefresh(token);
+  };
+
+  // Attempt to refresh access token using HttpOnly refresh cookie
+  const refreshToken = async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('refresh-failed');
+      const data = await res.json();
+      const { accessToken, user: returnedUser } = data;
+      if (accessToken) {
+        setAccessToken(accessToken);
       }
+      if (returnedUser) setUser(returnedUser);
+      return true;
     } catch (e) {
-      // If parsing fails, clear the bad value to avoid crashes
-      localStorage.removeItem('smartcare_user');
+      // clear session
+      setAccessToken(null);
+      setUser(null);
+      return false;
+    }
+  };
+
+  // On mount, try silent session check
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setIsLoading(true);
+      const ok = await refreshToken();
+      if (!ok && mounted) {
+        // not authenticated
+        setUser(null);
+      }
+      if (mounted) setIsLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const login = async (email: string, password: string, remember = false) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        credentials: 'include', // expect refresh token cookie
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'login-failed');
+      }
+      const data = await res.json();
+      const { accessToken, user: returnedUser } = data;
+      setAccessToken(accessToken || null);
+      setUser(returnedUser || null);
+      if (remember) {
+        try {
+          localStorage.setItem('smartcare_remember_email', email);
+        } catch {}
+      } else {
+        try {
+          localStorage.removeItem('smartcare_remember_email');
+        } catch {}
+      }
+      // broadcast login
+      bcRef.current?.postMessage({ type: 'login', user: returnedUser });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const login = async (email: string, password: string, role?: UserRole): Promise<boolean> => {
-  setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const foundUser = mockUsers.find(u => u.email === email && (!role || u.role === role));
-    
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('smartcare_user', JSON.stringify(foundUser));
-      setIsLoading(false);
-      return true;
+  const logout = async (broadcast = true) => {
+    setIsLoading(true);
+    try {
+      // Tell backend to clear refresh cookie
+      await fetch(`${API_URL}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (e) {
+      // ignore
     }
-    
-    setIsLoading(false);
-    return false;
-  };
-
-  const register = async (email: string, password: string, name: string, role: UserRole): Promise<boolean> => {
-  setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-      id: Date.now().toString(),
-      email,
-      name,
-      role,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('smartcare_user', JSON.stringify(newUser));
-    setIsLoading(false);
-    return true;
-  };
-
-  const logout = () => {
+    setAccessToken(null);
     setUser(null);
-    localStorage.removeItem('smartcare_user');
+    if (broadcast) {
+      if (bcRef.current) bcRef.current.postMessage('logout');
+      try {
+        localStorage.setItem('smartcare_broadcast', 'logout');
+        localStorage.removeItem('smartcare_broadcast');
+      } catch {}
+    }
+    setIsLoading(false);
   };
 
-  const value = {
+  const register = async (payload: { name: string; email: string; password: string; role?: UserRole }) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('register-failed');
+      // If backend auto-logs in, attempt to refresh
+      await refreshToken();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // helper to perform authenticated fetches; will attempt refresh on 401
+  const fetchWithAuth = async (input: RequestInfo, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers || {});
+    headers.set('Accept', 'application/json');
+    if (accessTokenRef.current) headers.set('Authorization', `Bearer ${accessTokenRef.current}`);
+    const res = await fetch(input, { ...init, headers, credentials: 'include' });
+    if (res.status === 401) {
+      const refreshed = await refreshToken();
+      if (refreshed && accessTokenRef.current) {
+        headers.set('Authorization', `Bearer ${accessTokenRef.current}`);
+        return await fetch(input, { ...init, headers, credentials: 'include' });
+      }
+    }
+    return res;
+  };
+
+  const value: AuthContextType = {
     user,
+    isLoading,
     login,
     logout,
     register,
-    isLoading
+    fetchWithAuth,
+    mockLogin: (mockUser: User, remember = false) => {
+      setAccessToken(null);
+      setUser(mockUser);
+      if (remember) {
+        try {
+          localStorage.setItem('smartcare_remember_email', mockUser.email);
+        } catch {}
+      }
+      bcRef.current?.postMessage({ type: 'login', user: mockUser });
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 };

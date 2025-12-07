@@ -5,306 +5,261 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { API_URL } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { Heart, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Check } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
-const RegisterPage = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'patient' as UserRole,
-    acceptTerms: false
+const passwordStrength = (pw: string) => {
+  let score = 0;
+  if (pw.length >= 8) score += 1;
+  if (/[A-Z]/.test(pw)) score += 1;
+  if (/[0-9]/.test(pw)) score += 1;
+  if (/[^A-Za-z0-9]/.test(pw)) score += 1;
+  return Math.min(4, score);
+};
+
+const schema = z
+  .object({
+    name: z.string().min(2, 'Please enter your full name'),
+    email: z.string().email('Please enter a valid email'),
+    role: z.enum(['patient', 'doctor', 'admin']).default('patient'),
+    password: z.string().min(8, 'Password must be 8+ characters'),
+    confirmPassword: z.string(),
+    acceptTerms: z.boolean().refine((v) => v === true, { message: 'You must accept the terms' }),
+  })
+  .superRefine((vals, ctx) => {
+    if (vals.password !== vals.confirmPassword) {
+      ctx.addIssue({ path: ['confirmPassword'], message: 'Passwords do not match', code: 'custom' });
+    }
   });
-  // Local state for doctor's license file
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { register, isLoading } = useAuth();
+type FormValues = z.infer<typeof schema>;
+
+const RegisterPage: React.FC = () => {
+  const { register: registerApi, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onBlur' });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [licenseFileName, setLicenseFileName] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-    // Validation
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const pw = watch('password') || '';
+  const selectedRole = watch('role');
+  const strength = passwordStrength(pw);
 
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "Passwords do not match. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      toast({
-        title: "Weak Password",
-        description: "Password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!formData.acceptTerms) {
-      toast({
-        title: "Terms Required",
-        description: "Please accept the terms and conditions to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // If registering as a doctor, ensure a license file is provided
-    if (formData.role === 'doctor' && !licenseFile) {
-      toast({
-        title: "License Required",
-        description: "Please upload your medical license to register as a doctor.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // NOTE: current register mock doesn't accept files. In a real app we would send
-    // the licenseFile in a multipart/form-data request to the backend here.
-    const success = await register(formData.email, formData.password, formData.name, formData.role);
-
-    if (success) {
-      toast({
-        title: "Account Created!",
-        description: "Welcome to SmartCare. Your account has been created successfully.",
-      });
+  const onSubmit = async (data: FormValues) => {
+    try {
+      await registerApi({ name: data.name, email: data.email, password: data.password, role: data.role });
+      toast({ title: 'Account Created', description: 'Welcome to SmartCare!' });
       navigate('/dashboard');
-    } else {
-      toast({
-        title: "Registration Failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: 'Registration failed', description: e?.message || 'Please try again', variant: 'destructive' });
     }
   };
-
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <div className="text-center">
-<Link to="/" className="inline-flex items-center space-x-2 mb-6">
-    <span className="text-2xl font-bold text-primary">SmartCare</span>
-</Link>
-</div>
-        </div>
-
-        <Card className="shadow-card">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
-            <CardDescription className="text-center">
-              Join SmartCare to access personalized healthcare services and manage your health journey
-            </CardDescription>
-          </CardHeader >
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Account Type</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value: UserRole) => handleInputChange('role', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="patient">Patient - Access healthcare services</SelectItem>
-                    <SelectItem value="doctor">Doctor - Provide medical care</SelectItem>
-                    <SelectItem value="admin">Administrator - Manage the system</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Doctor license upload: show only when role is doctor */}
-              {formData.role === 'doctor' && (
-                <div className="space-y-2">
-                  <Label>Medical License</Label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      id="license"
-                      type="file"
-                      accept="application/pdf,image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files && e.target.files[0];
-                        setLicenseFile(file || null);
-                      }}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-6">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="register-card"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.32 }}
+          className="w-full max-w-md"
+        >
+          <Card className="shadow-card">
+            <CardHeader className="p-6">
+              <CardTitle className="text-2xl font-semibold text-center">Create Account</CardTitle>
+              <CardDescription className="text-center text-sm">Join SmartCare to manage your health</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="name"
+                      render={({ field }) => (
+                        <div>
+                          <Label htmlFor="name">Full Name</Label>
+                          <Input id="name" placeholder="Your full name" aria-label="Full name" {...field} />
+                          {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
+                        </div>
+                      )}
                     />
-                    <label htmlFor="license">
-                      <Button type="button" onClick={() => {
-                        // trigger file input click by focusing label (native behavior)
-                        const input = document.getElementById('license') as HTMLInputElement | null;
-                        input?.click();
-                      }}>
-                        {licenseFile ? 'Change License' : 'Upload License'}
-                      </Button>
-                    </label>
-                    <span className="text-sm text-muted-foreground">{licenseFile ? licenseFile.name : 'No file selected'}</span>
-                  </div>
-                </div>
-              )}
+                  </motion.div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="email"
+                      render={({ field }) => (
+                        <div>
+                          <Label htmlFor="email">Email</Label>
+                          <Input id="email" type="email" placeholder="you@company.com" aria-label="Email" {...field} />
+                          {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
+                        </div>
+                      )}
+                    />
+                  </motion.div>
+
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="role"
+                      render={({ field }) => (
+                        <div>
+                          <Label htmlFor="role">Account Type</Label>
+                          <Select value={field.value} onValueChange={(v) => field.onChange(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select your role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="patient">Patient</SelectItem>
+                              <SelectItem value="doctor">Doctor</SelectItem>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    />
+                  </motion.div>
+
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field }) => (
+                        <div>
+                          <Label htmlFor="password">Password</Label>
+                          <div className="relative">
+                            <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="Create password" {...field} aria-label="Password" />
+                            <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-1 top-1/2 -translate-y-1/2 p-2">
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <div className="mt-2">
+                            <div className="h-2 bg-muted rounded-md overflow-hidden">
+                              <div
+                                className={`h-full transition-all`} style={{ width: `${(strength / 4) * 100}%`, background: strength >= 3 ? 'linear-gradient(90deg,#34d399,#10b981)' : strength === 2 ? '#f59e0b' : '#ef4444' }}
+                              />
+                            </div>
+                            <p className="text-xs mt-1 text-muted-foreground">Strength: {['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'][strength]}</p>
+                          </div>
+                          {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message}</p>}
+                        </div>
+                      )}
+                    />
+                  </motion.div>
+
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <div>
+                          <Label htmlFor="confirmPassword">Confirm Password</Label>
+                          <div className="relative">
+                            <Input id="confirmPassword" type={showConfirm ? 'text' : 'password'} placeholder="Confirm password" {...field} aria-label="Confirm password" />
+                            <button type="button" onClick={() => setShowConfirm((s) => !s)} className="absolute right-1 top-1/2 -translate-y-1/2 p-2">
+                              {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword.message}</p>}
+                        </div>
+                      )}
+                    />
+                  </motion.div>
+
+                  <AnimatePresence>
+                    {selectedRole === 'doctor' && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.22 }}
+                      >
+                        <div className="space-y-2">
+                          <Label>Medical License (doctors)</Label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              id="license"
+                              type="file"
+                              accept="application/pdf,image/*"
+                              className="hidden"
+                              onChange={(e) => setLicenseFileName(e.target.files?.[0]?.name ?? null)}
+                            />
+                            <label htmlFor="license">
+                              <Button onClick={() => { const el = document.getElementById('license') as HTMLInputElement | null; el?.click(); }} type="button" className="bg-blue-600 text-white hover:bg-blue-700">
+                                {licenseFileName ? 'Change License' : 'Upload License'}
+                              </Button>
+                            </label>
+                            <span className="text-sm text-muted-foreground">{licenseFileName ?? 'No file selected'}</span>
+                          </div>
+                        </div>
+                      </motion.div>
                     )}
+                  </AnimatePresence>
+
+                  <motion.div>
+                    <Controller
+                      control={control}
+                      name="acceptTerms"
+                      render={({ field }) => (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={!!field.value} onChange={(e) => field.onChange(e.target.checked)} />
+                          <span className="text-sm">I agree to the <Link to="/terms" className="text-primary">Terms</Link> and <Link to="/privacy" className="text-primary">Privacy</Link></span>
+                        </label>
+                      )}
+                    />
+                    {errors.acceptTerms && <p className="text-xs text-destructive mt-1">{errors.acceptTerms.message as string}</p>}
+                  </motion.div>
+                </motion.div>
+
+                <div>
+                  <Button type="submit" className="w-full bg-blue-600 text-white hover:bg-blue-700" disabled={isSubmitting || isLoading}>
+                    {isSubmitting || isLoading ? <LoadingSpinner size="sm" text="" /> : 'Create Account'}
                   </Button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                <div className="mt-3">
+                  <a
+                    href={`${API_URL}/api/v1/auth/google`}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2 bg-white text-sm hover:shadow-sm"
                   >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+                    <img src="/google-icon.svg" alt="Google" className="w-4 h-4" />
+                    Sign up with Google
+                  </a>
                 </div>
+              </form>
+
+              <div className="mt-6 text-center">
+                <span className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="text-primary hover:underline font-medium">Sign in here</Link></span>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="terms"
-                  checked={formData.acceptTerms}
-                  onCheckedChange={(checked) => handleInputChange('acceptTerms', checked as boolean)}
-                />
-                <label
-                  htmlFor="terms"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  I agree to the{' '}
-                  <Link to="/terms" className="text-primary hover:underline">
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link to="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
-                </label>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <LoadingSpinner size="sm" text="" />
-                ) : (
-                  'Create Account'
-                )}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <span className="text-sm text-muted-foreground">
-                Already have an account?{' '}
-                <Link to="/login" className="text-primary hover:underline font-medium">
-                  Sign in here
-                </Link>
-              </span>
-            </div>
-          </CardContent>
-        </Card >
-
-        <div className="text-center">
-          <Link
-            to="/"
-            className="text-sm text-muted-foreground hover:text-primary transition-smooth"
-          >
-            ← Back to Homepage
-          </Link>
-        </div>
-      </div >
-    </div >
+          <div className="text-center mt-4">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-primary transition-smooth">← Back to Homepage</Link>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 };
 

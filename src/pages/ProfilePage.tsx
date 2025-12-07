@@ -89,15 +89,25 @@ const ProfilePage = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="flex items-center text-sm font-medium">
-                        <Phone className="mr-2 h-4 w-4" />
-                        Phone Number
+                      <Phone className="mr-2 h-4 w-4" />
+                      Phone Number
                       </Label>
-                      <Input 
-                        id="phone" 
-                        value={user?.phone || 'Not provided'} 
-                        readOnly 
-                        className="bg-muted/30"
+                      <div className="flex items-center gap-2">
+                      <Input
+                        id="phone"
+                        type="tel"
+                        inputMode="tel"
+                        value={(user as any)?.phone ?? 'Not provided'}
+                        readOnly
+                        className="bg-muted/30 flex-1"
+                        aria-label="Phone number"
                       />
+                      {(user as any)?.phone && (
+                        <Button size="sm" variant="outline" asChild>
+                        <a href={`tel:${(user as any).phone}`}>Call</a>
+                        </Button>
+                      )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="dateOfBirth" className="flex items-center text-sm font-medium">
@@ -106,7 +116,7 @@ const ProfilePage = () => {
                       </Label>
                       <Input 
                         id="dateOfBirth" 
-                        value={user?.dateOfBirth || 'Not provided'} 
+                        value={(user as any)?.dateOfBirth ?? 'Not provided'} 
                         readOnly 
                         className="bg-muted/30"
                       />
@@ -118,7 +128,7 @@ const ProfilePage = () => {
                       </Label>
                       <Input 
                         id="address" 
-                        value={user?.address || 'Not provided'} 
+                        value={(user as any)?.address ?? 'Not provided'} 
                         readOnly 
                         className="bg-muted/30"
                       />
