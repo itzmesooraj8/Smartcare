@@ -19,6 +19,7 @@ interface AuthContextType {
   register: (payload: { name: string; email: string; password: string; role?: UserRole }) => Promise<void>;
   fetchWithAuth: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
   mockLogin: (user: User, remember?: boolean) => void;
+  updateUser: (u: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -233,6 +234,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     register,
     fetchWithAuth,
+    updateUser: (u: Partial<User>) => {
+      setUser((prev) => {
+        const merged = prev ? { ...prev, ...u } : (u as User);
+        bcRef.current?.postMessage({ type: 'login', user: merged });
+        return merged;
+      });
+    },
     mockLogin: (mockUser: User, remember = false) => {
       setAccessToken(null);
       setUser(mockUser);

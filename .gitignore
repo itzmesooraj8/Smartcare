@@ -42,3 +42,5 @@ server/.env
 # Optional: ignore Bun lockfile if using npm
 bun.lockb
 
+.vercel
+.env*.local
