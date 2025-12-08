@@ -134,6 +134,7 @@ export default function PatientDashboard(): JSX.Element {
 	const { user } = useAuth();
 	const [expanded, setExpanded] = React.useState<null | string>(null);
 	const [showSidebar, setShowSidebar] = React.useState<boolean>(false);
+	const [mobileMenuOpen, setMobileMenuOpen] = React.useState<boolean>(false);
 	const vitals = [
 		{ id: 'v1', label: 'Heart Rate', value: 72 },
 		{ id: 'v2', label: 'Hydration', value: 80 },
@@ -160,7 +161,18 @@ export default function PatientDashboard(): JSX.Element {
 							<Sidebar />
 						</div>
 					)}
-					<main className="flex-1 p-6 pb-20">
+					{/* Mobile hamburger (fixed, visible on small screens) */}
+					<button
+						aria-label="Open menu"
+						onClick={() => setMobileMenuOpen(true)}
+						className="lg:hidden fixed top-3 left-3 z-60 inline-flex items-center justify-center h-10 w-10 rounded-md bg-white/90 shadow-md"
+					>
+						<svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+							<path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+						</svg>
+					</button>
+
+					<main className="flex-1 p-6 pb-28">
 						<div className="max-w-7xl mx-auto">
 							<Hero3D label={`Good Morning, ${user?.name || 'Patient'}`} />
 
@@ -274,6 +286,27 @@ export default function PatientDashboard(): JSX.Element {
 						</div>
 					</main>
 				</div>
+
+				{/* Slide-over sidebar for mobile */}
+				{mobileMenuOpen && (
+					<div className="fixed inset-0 z-70 lg:hidden">
+						{/* backdrop */}
+						<button aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-black/40" />
+						<div className="absolute left-0 top-0 bottom-0 w-72 bg-background p-4 overflow-auto shadow-2xl">
+							<div className="flex items-center justify-between mb-4">
+								<div className="text-lg font-semibold">Menu</div>
+								<button aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-md">
+									<span className="sr-only">Close</span>
+									<svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+										<path d="M6 6l12 12M6 18L18 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+									</svg>
+								</button>
+							</div>
+							{/* reuse Sidebar component inside slide-over */}
+							<Sidebar />
+						</div>
+					</div>
+				)}
 				{/* Mobile bottom nav (visible on small screens) */}
 				<nav className="fixed left-0 right-0 bottom-0 z-50 lg:hidden">
 					<div className="mx-4 mb-4 bg-white/70 backdrop-blur border border-white/10 rounded-xl shadow-lg p-2 flex justify-around items-center">
