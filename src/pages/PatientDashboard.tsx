@@ -3,424 +3,264 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Link } from 'react-router-dom';
-import {
-	Calendar,
-	MessageSquare,
-	FileText,
-	CreditCard,
-	Stethoscope,
-	Video,
-	Activity,
-	Pill,
-	ShieldCheck,
-	ArrowRight,
-} from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Calendar, MessageSquare, FileText, CreditCard, Video } from 'lucide-react';
 
-type Appointment = {
-	id: string;
-	doctor: string;
-	specialty: string;
-	mode: 'In-person' | 'Teleconsultation';
-	datetime: string; // ISO
-	location?: string;
-	status: 'Confirmed' | 'Pending' | 'Completed';
+// Inlined motion primitives and a lightweight 3D hero.
+type MotionTokens = { snappy: any; luxury: any; gentle: any };
+
+const MotionContext = React.createContext<{ reducedMotion: boolean; tokens: MotionTokens } | null>(null);
+
+const MotionProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
+	const reducedMotion = useReducedMotion();
+	const tokens = React.useMemo(
+		() => ({
+			snappy: { type: 'spring', stiffness: 320, damping: 28 },
+			luxury: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+			gentle: { duration: 0.36, ease: [0.25, 0.1, 0.25, 1] },
+		}),
+		[]
+	);
+	return <MotionContext.Provider value={{ reducedMotion, tokens }}>{children}</MotionContext.Provider>;
 };
 
-type RecordItem = {
-	id: string;
-	type: 'Prescription' | 'Visit Summary' | 'Lab Result';
-	title: string;
-	date: string; // ISO
+function useMotion() {
+	const ctx = React.useContext(MotionContext);
+	if (!ctx) return { reducedMotion: true, tokens: { snappy: {}, luxury: {}, gentle: {} } };
+	return ctx;
+}
+
+const MotionCard: React.FC<React.HTMLAttributes<HTMLDivElement> & { delay?: number }> = ({ children, className = '', delay = 0, ...props }) => {
+	const { reducedMotion, tokens } = useMotion();
+	return (
+		<motion.div
+			initial={{ opacity: 0, y: 8 }}
+			animate={{ opacity: 1, y: 0 }}
+			transition={!reducedMotion ? { ...tokens.gentle, delay } : undefined}
+			whileHover={!reducedMotion ? { y: -6 } : undefined}
+			className={className}
+			{...props}
+		>
+			<div className="backdrop-blur bg-white/60 border border-white/10 shadow-md rounded-lg p-4">{children}</div>
+		</motion.div>
+	);
 };
 
-type MessagePreview = {
-	id: string;
-	from: string;
-	subject: string;
-	time: string; // human readable
-	unread?: boolean;
-};
+const MotionButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ children, className = '', ...props }, ref) => {
+	const { reducedMotion, tokens } = useMotion();
+	return (
+		<motion.div whileTap={!reducedMotion ? { scale: 0.96 } : undefined} whileHover={!reducedMotion ? { scale: 1.02 } : undefined} transition={tokens.snappy} className="inline-block">
+			<button ref={ref as any} {...props} className={`${className} px-3 py-2 rounded-md bg-white/10 hover:bg-white/20`}>{children}</button>
+		</motion.div>
+	);
+});
+MotionButton.displayName = 'MotionButton';
 
-const PatientDashboard: React.FC = () => {
-	const { user } = useAuth();
+const Hero3D: React.FC<{ label?: string }> = ({ label = 'Good Morning' }) => {
+	const ref = React.useRef<HTMLDivElement | null>(null);
+	const reducedMotion = useReducedMotion();
 
-	// Mock data for a polished dashboard experience
-	const upcomingAppointments: Appointment[] = [
-		{
-			id: 'a1',
-			doctor: 'Dr. Sarah Smith',
-			specialty: 'Cardiology',
-			mode: 'Teleconsultation',
-			datetime: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
-			status: 'Confirmed',
-		},
-		{
-			id: 'a2',
-			doctor: 'Dr. Kevin Lee',
-			specialty: 'Dermatology',
-			mode: 'In-person',
-			datetime: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
-			location: 'Building A, Room 204',
-			status: 'Pending',
-		},
-	];
-
-	const recentRecords: RecordItem[] = [
-		{ id: 'r1', type: 'Visit Summary', title: 'Annual Physical Exam', date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString() },
-		{ id: 'r2', type: 'Lab Result', title: 'CBC Panel', date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString() },
-		{ id: 'r3', type: 'Prescription', title: 'Atorvastatin 10mg', date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString() },
-	];
-
-	const messages: MessagePreview[] = [
-		{ id: 'm1', from: 'Dr. Sarah Smith', subject: 'Follow-up recommendation', time: '2h ago', unread: true },
-		{ id: 'm2', from: 'Reception', subject: 'Appointment confirmation', time: '1d ago' },
-	];
-
-	const medications = [
-		{ name: 'Atorvastatin', dose: '10 mg', schedule: 'Once nightly' },
-		{ name: 'Metformin', dose: '500 mg', schedule: 'Twice daily' },
-	];
-
-	const goals = [
-		{ name: 'Daily Steps', progress: 70 },
-		{ name: 'Sleep (7h target)', progress: 60 },
-		{ name: 'Water Intake', progress: 80 },
-	];
-
-	const formatDate = (iso: string) => new Date(iso).toLocaleString(undefined, {
-		weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-	});
+	React.useEffect(() => {
+		if (reducedMotion) return;
+		const el = ref.current;
+		if (!el) return;
+		let raf = 0;
+		const onMove = (e: MouseEvent) => {
+			const rect = el.getBoundingClientRect();
+			const cx = rect.left + rect.width / 2;
+			const cy = rect.top + rect.height / 2;
+			const dx = e.clientX - cx;
+			const dy = e.clientY - cy;
+			const ry = (dx / rect.width) * 8;
+			const rx = -(dy / rect.height) * 6;
+			if (!raf) raf = requestAnimationFrame(() => {
+				if (el) el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+				raf = 0;
+			});
+		};
+		const onLeave = () => { if (ref.current) ref.current.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg)'; };
+		el.addEventListener('mousemove', onMove);
+		el.addEventListener('mouseleave', onLeave);
+		return () => { el.removeEventListener('mousemove', onMove); el.removeEventListener('mouseleave', onLeave); if (raf) cancelAnimationFrame(raf); };
+	}, [reducedMotion]);
 
 	return (
-		<div className="min-h-screen bg-background">
-			<Header />
-
-			<div className="flex">
-				<Sidebar />
-
-				<main className="flex-1 p-6 md:p-8">
-					<div className="max-w-7xl mx-auto space-y-6">
-						{/* Greeting */}
-						<div>
-							<h1 className="text-3xl font-bold">Welcome back, {user?.name || 'Patient'} 👋</h1>
-							<p className="text-muted-foreground">Here’s a snapshot of your health and upcoming activities.</p>
-						</div>
-
-						{/* Top stats */}
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-							<Card>
-								<CardContent className="p-6 flex items-center justify-between">
-									<div>
-										<p className="text-sm text-muted-foreground">Upcoming</p>
-										<p className="text-2xl font-bold">{upcomingAppointments.length}</p>
-									</div>
-									<div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
-										<Calendar className="h-5 w-5 text-primary" />
-									</div>
-								</CardContent>
-							</Card>
-							<Card>
-								<CardContent className="p-6 flex items-center justify-between">
-									<div>
-										<p className="text-sm text-muted-foreground">Unread messages</p>
-										<p className="text-2xl font-bold">{messages.filter(m => m.unread).length}</p>
-									</div>
-									<div className="h-10 w-10 rounded-md bg-secondary/10 flex items-center justify-center">
-										<MessageSquare className="h-5 w-5 text-secondary" />
-									</div>
-								</CardContent>
-							</Card>
-							<Card>
-								<CardContent className="p-6 flex items-center justify-between">
-									<div>
-										<p className="text-sm text-muted-foreground">Recent records</p>
-										<p className="text-2xl font-bold">{recentRecords.length}</p>
-									</div>
-									<div className="h-10 w-10 rounded-md bg-emerald-500/10 flex items-center justify-center">
-										<FileText className="h-5 w-5 text-emerald-600" />
-									</div>
-								</CardContent>
-							</Card>
-							<Card>
-								<CardContent className="p-6 flex items-center justify-between">
-									<div>
-										<p className="text-sm text-muted-foreground">Bills due</p>
-										<p className="text-2xl font-bold">$120</p>
-									</div>
-									<div className="h-10 w-10 rounded-md bg-amber-500/10 flex items-center justify-center">
-										<CreditCard className="h-5 w-5 text-amber-600" />
-									</div>
-								</CardContent>
-							</Card>
-						</div>
-
-						<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-							{/* Left column */}
-							<div className="lg:col-span-2 space-y-6">
-								{/* Upcoming appointments */}
-								<Card className="shadow-card">
-									<CardHeader className="flex-row items-center justify-between">
-										<div>
-											<CardTitle className="text-xl">Upcoming appointments</CardTitle>
-											<CardDescription>Manage your visit plans and join teleconsultations on time.</CardDescription>
-										</div>
-										<Button asChild variant="outline" size="sm">
-											<Link to="/appointments">View all</Link>
-										</Button>
-									</CardHeader>
-									<CardContent>
-										{upcomingAppointments.length === 0 ? (
-											<div className="text-sm text-muted-foreground">No upcoming appointments. Book one now.</div>
-										) : (
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>Doctor</TableHead>
-														<TableHead>Type</TableHead>
-														<TableHead>Date & Time</TableHead>
-														<TableHead>Status</TableHead>
-														<TableHead className="text-right">Action</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{upcomingAppointments.map((a) => (
-														<TableRow key={a.id}>
-															<TableCell>
-																<div className="flex items-center gap-3">
-																	<Avatar className="h-8 w-8">
-																		<AvatarImage src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=80&h=80&fit=crop&crop=face" />
-																		<AvatarFallback>{a.doctor.charAt(0)}</AvatarFallback>
-																	</Avatar>
-																	<div>
-																		<div className="font-medium">{a.doctor}</div>
-																		<div className="text-xs text-muted-foreground">{a.specialty}</div>
-																	</div>
-																</div>
-															</TableCell>
-															<TableCell>
-																<div className="flex items-center gap-2">
-																	{a.mode === 'Teleconsultation' ? (
-																		<>
-																			<Video className="h-4 w-4 text-primary" />
-																			<span>Teleconsultation</span>
-																		</>
-																	) : (
-																		<>
-																			<Stethoscope className="h-4 w-4 text-primary" />
-																			<span>In-person</span>
-																		</>
-																	)}
-																</div>
-															</TableCell>
-															<TableCell>
-																<div>
-																	<div>{formatDate(a.datetime)}</div>
-																	{a.location && (
-																		<div className="text-xs text-muted-foreground">{a.location}</div>
-																	)}
-																</div>
-															</TableCell>
-															<TableCell>
-																<Badge variant={a.status === 'Confirmed' ? 'default' : a.status === 'Pending' ? 'secondary' : 'outline'}>
-																	{a.status}
-																</Badge>
-															</TableCell>
-															<TableCell className="text-right">
-																{a.mode === 'Teleconsultation' ? (
-																	<Button asChild size="sm">
-																		<Link to="/video-call">Join call</Link>
-																	</Button>
-																) : (
-																	<Button asChild variant="outline" size="sm">
-																		<Link to="/appointments">Details</Link>
-																	</Button>
-																)}
-															</TableCell>
-														</TableRow>
-													))}
-												</TableBody>
-											</Table>
-										)}
-									</CardContent>
-								</Card>
-
-								{/* Recent records */}
-								<Card>
-									<CardHeader className="flex-row items-center justify-between">
-										<div>
-											<CardTitle className="text-xl">Recent medical records</CardTitle>
-											<CardDescription>Your latest lab results, prescriptions, and visit summaries.</CardDescription>
-										</div>
-										<Button asChild variant="outline" size="sm">
-											<Link to="/medical-records">View all</Link>
-										</Button>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										{recentRecords.map((r) => (
-											<div key={r.id} className="flex items-center justify-between">
-												<div className="flex items-center gap-3">
-													<div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">
-														{r.type === 'Lab Result' ? (
-															<Activity className="h-4 w-4" />
-														) : r.type === 'Prescription' ? (
-															<Pill className="h-4 w-4" />
-														) : (
-															<FileText className="h-4 w-4" />
-														)}
-													</div>
-													<div>
-														<div className="font-medium">{r.title}</div>
-														<div className="text-xs text-muted-foreground">{r.type} • {new Date(r.date).toLocaleDateString()}</div>
-													</div>
-												</div>
-												<Button asChild variant="ghost" size="sm" className="text-primary">
-													<Link to="/medical-records" className="inline-flex items-center gap-1">Open <ArrowRight className="h-4 w-4" /></Link>
-												</Button>
-											</div>
-										))}
-									</CardContent>
-								</Card>
-							</div>
-
-							{/* Right column */}
-							<div className="space-y-6">
-								{/* Quick actions */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-xl">Quick actions</CardTitle>
-									</CardHeader>
-									<CardContent className="grid grid-cols-2 gap-3">
-										<Button asChild className="justify-start" variant="secondary">
-											<Link to="/appointments" className="flex items-center gap-2">
-												<Calendar className="h-4 w-4" /> Book appointment
-											</Link>
-										</Button>
-										<Button asChild className="justify-start" variant="secondary">
-											<Link to="/video-call" className="flex items-center gap-2">
-												<Video className="h-4 w-4" /> Start teleconsult
-											</Link>
-										</Button>
-										<Button asChild className="justify-start" variant="secondary">
-											<Link to="/messages" className="flex items-center gap-2">
-												<MessageSquare className="h-4 w-4" /> Message doctor
-											</Link>
-										</Button>
-										<Button asChild className="justify-start" variant="secondary">
-											<Link to="/medical-records" className="flex items-center gap-2">
-												<FileText className="h-4 w-4" /> Upload record
-											</Link>
-										</Button>
-									</CardContent>
-								</Card>
-
-								{/* Messages preview */}
-								<Card>
-									<CardHeader className="flex-row items-center justify-between">
-										<CardTitle className="text-xl">Messages</CardTitle>
-										<Button asChild variant="outline" size="sm">
-											<Link to="/messages">Open Inbox</Link>
-										</Button>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										{messages.map((m) => (
-											<div key={m.id} className="flex items-start justify-between">
-												<div>
-													<div className="font-medium flex items-center gap-2">
-														{m.from} {m.unread && <Badge>New</Badge>}
-													</div>
-													<div className="text-sm text-muted-foreground">{m.subject}</div>
-												</div>
-												<div className="text-xs text-muted-foreground whitespace-nowrap">{m.time}</div>
-											</div>
-										))}
-									</CardContent>
-								</Card>
-
-								{/* Billing & Insurance */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-xl">Billing & insurance</CardTitle>
-									</CardHeader>
-									<CardContent className="space-y-3">
-										<div className="flex items-center justify-between">
-											<div className="text-sm text-muted-foreground">Outstanding balance</div>
-											<div className="font-semibold">$120.00</div>
-										</div>
-										<div className="flex items-center justify-between">
-											<div className="text-sm text-muted-foreground">Next invoice due</div>
-											<div className="font-semibold">Nov 10, 2025</div>
-										</div>
-										<div className="flex items-center justify-between">
-											<div className="text-sm text-muted-foreground">Insurance</div>
-											<div className="flex items-center gap-2">
-												<ShieldCheck className="h-4 w-4 text-primary" />
-												<span className="font-medium">Aetna • Policy #SC-93721</span>
-											</div>
-										</div>
-									</CardContent>
-									<CardFooter className="justify-end">
-										<Button asChild size="sm">
-											<Link to="/financial-hub">Manage billing</Link>
-										</Button>
-									</CardFooter>
-								</Card>
-
-								{/* Health goals */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-xl">Health goals</CardTitle>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										{goals.map((g) => (
-											<div key={g.name}>
-												<div className="mb-1 flex items-center justify-between">
-													<span className="text-sm">{g.name}</span>
-													<span className="text-xs text-muted-foreground">{g.progress}%</span>
-												</div>
-												<Progress value={g.progress} />
-											</div>
-										))}
-									</CardContent>
-								</Card>
-
-								{/* Medications */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-xl">Current medications</CardTitle>
-									</CardHeader>
-									<CardContent className="space-y-3">
-										{medications.map((m) => (
-											<div key={m.name} className="flex items-center justify-between">
-												<div className="flex items-center gap-3">
-													<div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-														<Pill className="h-4 w-4 text-primary" />
-													</div>
-													<div>
-														<div className="font-medium">{m.name}</div>
-														<div className="text-xs text-muted-foreground">{m.dose} • {m.schedule}</div>
-													</div>
-												</div>
-												<Button variant="outline" size="sm">Refill</Button>
-											</div>
-										))}
-									</CardContent>
-								</Card>
-							</div>
-						</div>
-					</div>
-				</main>
+		<div ref={ref} className="relative w-full h-44 md:h-56 lg:h-64 rounded-2xl overflow-hidden">
+			<div className="absolute inset-0 -z-10 bg-gradient-to-r from-cyan-400 to-sky-600 opacity-30" style={{ mixBlendMode: 'overlay' }} />
+			<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+				<svg width="220" height="220" viewBox="0 0 120 120" fill="none" className="filter drop-shadow-[0_12px_30px_rgba(2,6,23,0.12)]">
+					<defs>
+						<linearGradient id="g2" x1="0" x2="1"><stop offset="0" stopColor="#a7f3d0" /><stop offset="1" stopColor="#06b6d4" /></linearGradient>
+					</defs>
+					<g>
+						<path d="M60 10 L90 40 L60 70 L30 40 Z" fill="url(#g2)" opacity="0.88" />
+						<path d="M60 20 L80 40 L60 60 L40 40 Z" fill="#fff" opacity="0.06" />
+					</g>
+				</svg>
 			</div>
-
-			<Footer />
+			<div className="absolute inset-0 flex items-start justify-start p-6 pointer-events-none">
+				<div className="backdrop-blur-md bg-white/40 rounded-xl px-4 py-3 shadow-2xl border border-white/20">
+					<div className="text-sm text-muted-foreground">{label},</div>
+					<div className="text-xl md:text-2xl font-semibold tracking-tight">Patient</div>
+				</div>
+			</div>
 		</div>
 	);
 };
 
-export default PatientDashboard;
+function Gauge({ label, value }: { label: string; value: number }) {
+	const radius = 28;
+	const circumference = 2 * Math.PI * radius;
+	const dash = (1 - Math.max(0, Math.min(1, value / 100))) * circumference;
+	return (
+		<div className="flex items-center gap-3">
+			<svg width="72" height="72" viewBox="0 0 80 80">
+				<g transform="translate(40,40)">
+					<circle r={radius} fill="rgba(255,255,255,0.03)" />
+					<circle r={radius} fill="transparent" stroke="#06b6d4" strokeWidth={6} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dash} style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
+					<text x="0" y="6" textAnchor="middle" style={{ fontSize: 12, fill: '#0f172a' }}>{Math.round(value)}%</text>
+				</g>
+			</svg>
+			<div>
+				<div className="text-sm text-muted-foreground">{label}</div>
+				<div className="font-medium">{Math.round((value / 100) * 200)} units</div>
+			</div>
+		</div>
+	);
+}
+
+export default function PatientDashboard(): JSX.Element {
+	const { user } = useAuth();
+	const [expanded, setExpanded] = React.useState<null | string>(null);
+	const vitals = [
+		{ id: 'v1', label: 'Heart Rate', value: 72 },
+		{ id: 'v2', label: 'Hydration', value: 80 },
+		{ id: 'v3', label: 'Sleep', value: 65 },
+	];
+
+	return (
+		<MotionProvider>
+			<div className="min-h-screen bg-background">
+				<Header />
+				<div className="flex">
+					<Sidebar />
+					<main className="flex-1 p-6">
+						<div className="max-w-7xl mx-auto">
+							<Hero3D label={`Good Morning, ${user?.name || 'Patient'}`} />
+
+							<div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+								<div className="lg:col-span-4">
+									<MotionCard className="mb-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<h3 className="text-lg font-semibold">Vitals</h3>
+												<p className="text-sm text-muted-foreground">Real-time snapshot</p>
+											</div>
+										</div>
+										<div className="mt-4 grid grid-cols-1 gap-3">
+											{vitals.map((v) => (
+												<div key={v.id} className="flex items-center justify-between">
+													<Gauge label={v.label} value={v.value} />
+												</div>
+											))}
+										</div>
+									</MotionCard>
+
+									<MotionCard>
+										<h4 className="text-md font-medium">Recent records</h4>
+										<div className="mt-3">
+											<div className="flex items-center justify-between">
+												<div className="flex items-center gap-3">
+													<div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">R</div>
+													<div>
+														<div className="font-medium">Annual Physical Exam</div>
+														<div className="text-xs text-muted-foreground">Visit summary • 12/2/2025</div>
+													</div>
+												</div>
+												<Link to="/medical-records" className="text-sm text-primary">Open</Link>
+											</div>
+										</div>
+									</MotionCard>
+								</div>
+
+								<div className="lg:col-span-5">
+									<MotionCard>
+										<div className="flex items-start justify-between">
+											<div>
+												<h3 className="text-xl font-semibold">Next appointment</h3>
+												<p className="text-sm text-muted-foreground">Keep track and join on time</p>
+											</div>
+										</div>
+										<div className="mt-4">
+											<div className="bg-white/6 rounded-lg p-4 border border-white/8 shadow-sm">
+												<div className="flex items-center justify-between">
+													<div>
+														<div className="font-medium">Dr. Sarah Smith</div>
+														<div className="text-xs text-muted-foreground">Cardiology • Teleconsultation</div>
+													</div>
+													<div className="text-right">
+														<div className="font-medium">Dec 10, 2025</div>
+														<div className="text-xs text-muted-foreground">12:30 AM</div>
+													</div>
+												</div>
+												<div className="mt-4 flex items-center gap-3">
+													<MotionButton onClick={() => setExpanded('appointment')} className="px-4 py-2">Book Appointment</MotionButton>
+													<MotionButton className="px-3 py-2"><Link to="/video-call">Join</Link></MotionButton>
+												</div>
+											</div>
+										</div>
+									</MotionCard>
+								</div>
+
+								<div className="lg:col-span-3">
+									<MotionCard>
+										<h4 className="text-lg font-semibold">Quick actions</h4>
+										<p className="text-sm text-muted-foreground">Common tasks</p>
+										<div className="mt-4 grid grid-cols-2 gap-3">
+											<MotionButton className="w-full py-3"><Link to="/appointments">Book</Link></MotionButton>
+											<MotionButton className="w-full py-3"><Link to="/video-call">Call</Link></MotionButton>
+											<MotionButton className="w-full py-3"><Link to="/messages">Message</Link></MotionButton>
+											<MotionButton className="w-full py-3"><Link to="/medical-records">Upload</Link></MotionButton>
+										</div>
+									</MotionCard>
+								</div>
+							</div>
+
+							<AnimatePresence>
+								{expanded === 'appointment' && (
+									<motion.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-6">
+										<motion.div layoutId="appointment-card" className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-6">
+											<div className="flex items-center justify-between">
+												<div>
+													<h3 className="text-2xl font-semibold">Book appointment</h3>
+													<p className="text-sm text-muted-foreground">Quickly schedule with your care team</p>
+												</div>
+												<button onClick={() => setExpanded(null)} aria-label="Close" className="text-muted-foreground">Close</button>
+											</div>
+											<div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+												<div>
+													<label className="text-sm text-muted-foreground">Reason</label>
+													<input className="w-full mt-2 p-3 rounded-md border" placeholder="Brief reason for visit" />
+												</div>
+												<div>
+													<label className="text-sm text-muted-foreground">When</label>
+													<input type="datetime-local" className="w-full mt-2 p-3 rounded-md border" />
+												</div>
+											</div>
+											<div className="mt-6 flex justify-end">
+												<MotionButton onClick={() => setExpanded(null)} className="px-4 py-2">Confirm</MotionButton>
+											</div>
+										</motion.div>
+									</motion.div>
+								)}
+							</AnimatePresence>
+
+						</div>
+					</main>
+				</div>
+				<Footer />
+			</div>
+		</MotionProvider>
+	);
+}
