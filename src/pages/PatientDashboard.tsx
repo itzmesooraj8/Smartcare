@@ -133,20 +133,33 @@ function Gauge({ label, value }: { label: string; value: number }) {
 export default function PatientDashboard(): JSX.Element {
 	const { user } = useAuth();
 	const [expanded, setExpanded] = React.useState<null | string>(null);
+	const [showSidebar, setShowSidebar] = React.useState<boolean>(false);
 	const vitals = [
 		{ id: 'v1', label: 'Heart Rate', value: 72 },
 		{ id: 'v2', label: 'Hydration', value: 80 },
 		{ id: 'v3', label: 'Sleep', value: 65 },
 	];
 
+	// Keep sidebar rendering in sync with viewport width (client-side only)
+	React.useEffect(() => {
+		if (typeof window === 'undefined') return;
+		const mq = window.matchMedia('(min-width: 1024px)');
+		const update = () => setShowSidebar(mq.matches);
+		update();
+		mq.addEventListener ? mq.addEventListener('change', update) : mq.addListener(update as any);
+		return () => { mq.removeEventListener ? mq.removeEventListener('change', update) : mq.removeListener(update as any); };
+	}, []);
+
 	return (
 		<MotionProvider>
 			<div className="min-h-screen bg-background">
 				<Header />
 				<div className="flex">
-					<div className="hidden lg:block">
-						<Sidebar />
-					</div>
+					{showSidebar && (
+						<div>
+							<Sidebar />
+						</div>
+					)}
 					<main className="flex-1 p-6 pb-20">
 						<div className="max-w-7xl mx-auto">
 							<Hero3D label={`Good Morning, ${user?.name || 'Patient'}`} />
