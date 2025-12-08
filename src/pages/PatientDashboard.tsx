@@ -86,7 +86,7 @@ const Hero3D: React.FC<{ label?: string }> = ({ label = 'Good Morning' }) => {
 	}, [reducedMotion]);
 
 	return (
-		<div ref={ref} className="relative w-full h-44 md:h-56 lg:h-64 rounded-2xl overflow-hidden">
+		<div ref={ref} className="relative w-full h-28 md:h-44 lg:h-64 rounded-2xl overflow-hidden">
 			<div className="absolute inset-0 -z-10 bg-gradient-to-r from-cyan-400 to-sky-600 opacity-30" style={{ mixBlendMode: 'overlay' }} />
 			<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
 				<svg width="220" height="220" viewBox="0 0 120 120" fill="none" className="filter drop-shadow-[0_12px_30px_rgba(2,6,23,0.12)]">
@@ -185,10 +185,16 @@ export default function PatientDashboard(): JSX.Element {
 												<p className="text-sm text-muted-foreground">Real-time snapshot</p>
 											</div>
 										</div>
-										<div className="mt-4 grid grid-cols-1 gap-3">
+										<div className="mt-4 space-y-4">
 											{vitals.map((v) => (
-												<div key={v.id} className="flex items-center justify-between">
-													<Gauge label={v.label} value={v.value} />
+												<div key={v.id} className="flex items-center justify-between bg-white/0 rounded-lg p-3">
+													<div className="flex items-center gap-3">
+														<div className="text-sm text-muted-foreground w-12 text-right">{Math.round((v.value))}%</div>
+														<div>
+															<div className="text-sm text-muted-foreground">{v.label}</div>
+															<div className="text-2xl font-semibold leading-none">{Math.round((v.value / 100) * 200)} units</div>
+														</div>
+													</div>
 												</div>
 											))}
 										</div>
@@ -308,34 +314,42 @@ export default function PatientDashboard(): JSX.Element {
 					</div>
 				)}
 				{/* Mobile bottom nav (visible on small screens) */}
-				<nav className="fixed left-0 right-0 bottom-0 z-50 lg:hidden">
-					<div className="mx-4 mb-4 bg-white/70 backdrop-blur border border-white/10 rounded-xl shadow-lg p-2 flex justify-around items-center">
-						<Link to="/dashboard" className="flex flex-col items-center text-xs text-muted-foreground">
-							<svg className="h-5 w-5 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
-								<path d="M3 13h8V3H3v10zM13 21h8V11h-8v10zM13 3v6h8V3h-8zM3 21h8v-6H3v6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-							</svg>
-							Dashboard
-						</Link>
-						<Link to="/appointments" className="flex flex-col items-center text-xs text-muted-foreground">
-							<Calendar className="h-5 w-5 mb-1" />
-							Appts
-						</Link>
-						<Link to="/messages" className="flex flex-col items-center text-xs text-muted-foreground">
-							<MessageSquare className="h-5 w-5 mb-1" />
-							Msgs
-						</Link>
-						<Link to="/video-call" className="flex flex-col items-center text-xs text-muted-foreground">
-							<Video className="h-5 w-5 mb-1" />
-							Call
-						</Link>
-						<Link to="/profile" className="flex flex-col items-center text-xs text-muted-foreground">
-							<svg className="h-5 w-5 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
-								<path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 5v1h18v-1c0-2.5-4-5-9-5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-							</svg>
-							Profile
-						</Link>
-					</div>
-				</nav>
+						<nav className="fixed left-0 right-0 bottom-0 z-50 lg:hidden">
+							<div className="mx-4 mb-4 bg-white/95 backdrop-blur border border-white/10 rounded-3xl shadow-lg p-3 flex items-center justify-between">
+								<div className="flex items-center gap-4 px-2">
+									<Link to="/dashboard" className="flex flex-col items-center text-xs text-muted-foreground">
+										<svg className="h-6 w-6 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
+											<path d="M3 13h8V3H3v10zM13 21h8V11h-8v10zM13 3v6h8V3h-8zM3 21h8v-6H3v6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+										</svg>
+										<span className="text-[11px]">Home</span>
+									</Link>
+									<Link to="/appointments" className="flex flex-col items-center text-xs text-muted-foreground">
+										<Calendar className="h-6 w-6 mb-1" />
+										<span className="text-[11px]">Appts</span>
+									</Link>
+								</div>
+
+								{/* center CTA */}
+								<div className="-translate-y-6">
+									<Link to="/appointments" className="inline-flex items-center justify-center bg-primary text-white h-14 w-14 rounded-full shadow-xl ring-4 ring-white/80">
+										<svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
+											<path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+										</svg>
+									</Link>
+								</div>
+
+								<div className="flex items-center gap-4 px-2">
+									<Link to="/messages" className="flex flex-col items-center text-xs text-muted-foreground">
+										<MessageSquare className="h-6 w-6 mb-1" />
+										<span className="text-[11px]">Msgs</span>
+									</Link>
+									<Link to="/video-call" className="flex flex-col items-center text-xs text-muted-foreground">
+										<Video className="h-6 w-6 mb-1" />
+										<span className="text-[11px]">Call</span>
+									</Link>
+								</div>
+							</div>
+						</nav>
 
 				<Footer />
 			</div>
