@@ -31,7 +31,7 @@ function useMotion() {
 	return ctx;
 }
 
-const MotionCard: React.FC<React.HTMLAttributes<HTMLDivElement> & { delay?: number }> = ({ children, className = '', delay = 0, ...props }) => {
+const MotionCard: React.FC<React.ComponentProps<typeof motion.div> & { delay?: number }> = ({ children, className = '', delay = 0, ...props }) => {
 	const { reducedMotion, tokens } = useMotion();
 	return (
 		<motion.div
@@ -42,7 +42,7 @@ const MotionCard: React.FC<React.HTMLAttributes<HTMLDivElement> & { delay?: numb
 			className={className}
 			{...props}
 		>
-			<div className="backdrop-blur bg-white/60 border border-white/10 shadow-md rounded-lg p-4">{children}</div>
+			<div className="backdrop-blur bg-white/60 border border-white/10 shadow-md rounded-lg p-4">{children as React.ReactNode}</div>
 		</motion.div>
 	);
 };
@@ -144,8 +144,10 @@ export default function PatientDashboard(): JSX.Element {
 			<div className="min-h-screen bg-background">
 				<Header />
 				<div className="flex">
-					<Sidebar />
-					<main className="flex-1 p-6">
+					<div className="hidden lg:block">
+						<Sidebar />
+					</div>
+					<main className="flex-1 p-6 pb-20">
 						<div className="max-w-7xl mx-auto">
 							<Hero3D label={`Good Morning, ${user?.name || 'Patient'}`} />
 
@@ -259,6 +261,36 @@ export default function PatientDashboard(): JSX.Element {
 						</div>
 					</main>
 				</div>
+				{/* Mobile bottom nav (visible on small screens) */}
+				<nav className="fixed left-0 right-0 bottom-0 z-50 lg:hidden">
+					<div className="mx-4 mb-4 bg-white/70 backdrop-blur border border-white/10 rounded-xl shadow-lg p-2 flex justify-around items-center">
+						<Link to="/dashboard" className="flex flex-col items-center text-xs text-muted-foreground">
+							<svg className="h-5 w-5 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
+								<path d="M3 13h8V3H3v10zM13 21h8V11h-8v10zM13 3v6h8V3h-8zM3 21h8v-6H3v6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+							</svg>
+							Dashboard
+						</Link>
+						<Link to="/appointments" className="flex flex-col items-center text-xs text-muted-foreground">
+							<Calendar className="h-5 w-5 mb-1" />
+							Appts
+						</Link>
+						<Link to="/messages" className="flex flex-col items-center text-xs text-muted-foreground">
+							<MessageSquare className="h-5 w-5 mb-1" />
+							Msgs
+						</Link>
+						<Link to="/video-call" className="flex flex-col items-center text-xs text-muted-foreground">
+							<Video className="h-5 w-5 mb-1" />
+							Call
+						</Link>
+						<Link to="/profile" className="flex flex-col items-center text-xs text-muted-foreground">
+							<svg className="h-5 w-5 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
+								<path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 5v1h18v-1c0-2.5-4-5-9-5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+							</svg>
+							Profile
+						</Link>
+					</div>
+				</nav>
+
 				<Footer />
 			</div>
 		</MotionProvider>
