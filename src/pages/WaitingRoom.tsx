@@ -1,90 +1,159 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { User } from 'lucide-react';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
+/** @jsxRuntime classic */
+import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Camera, Mic, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
+/** Clean WaitingRoom component */
 const WaitingRoom: React.FC = () => {
-  // Mock data for queue and doctor profile
-  const queuePosition = 2;
-  const [estimatedWait, setEstimatedWait] = React.useState(5); // in minutes
-  const doctor = {
-    name: 'Dr. Sarah Johnson',
-    specialty: 'Cardiology',
-    avatar: '',
-  };
-  // Mock other patients in queue
-  const otherPatients = [
-    { id: 1, avatar: '/placeholder.svg' },
-    { id: 2, avatar: '/placeholder.svg' },
-    { id: 3, avatar: '/placeholder.svg' },
-  ];
-  // Simulate estimated wait time countdown
-  React.useEffect(() => {
-    if (estimatedWait > 1) {
-      const timer = setTimeout(() => setEstimatedWait(estimatedWait - 1), 60000);
-      return () => clearTimeout(timer);
+  const navigate = useNavigate();
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [mockVolume, setMockVolume] = useState(0);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isMicActive, setIsMicActive] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then((s) => {
+        if (!mounted) return;
+        setStream(s);
+        setHasPermission(true);
+        if (videoRef.current) videoRef.current.srcObject = s;
+        setIsCameraActive(Boolean(s.getVideoTracks().length && s.getVideoTracks()[0].enabled));
+        setIsMicActive(Boolean(s.getAudioTracks().length && s.getAudioTracks()[0].enabled));
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const source = ctx.createMediaStreamSource(s);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          analyserRef.current = analyser;
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          const loop = () => {
+            analyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i];
+            const avg = sum / data.length / 255;
+            setMockVolume(avg);
+            rafRef.current = requestAnimationFrame(loop);
+          };
+          loop();
+        } catch (e) {
+          // no analyser available
+        }
+      })
+      .catch(() => setHasPermission(false));
+
+    return () => {
+      mounted = false;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setIsCameraActive(false);
+      setIsMicActive(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const requestAccess = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setStream(s);
+      setHasPermission(true);
+      if (videoRef.current) videoRef.current.srcObject = s;
+      setIsCameraActive(Boolean(s.getVideoTracks().length && s.getVideoTracks()[0].enabled));
+      setIsMicActive(Boolean(s.getAudioTracks().length && s.getAudioTracks()[0].enabled));
+    } catch (err) {
+      setHasPermission(false);
     }
-  }, [estimatedWait]);
-  // Soft music toggle (mock)
-  const [musicOn, setMusicOn] = React.useState(false);
-  const handleTestDevices = () => {
-    alert('Camera and microphone test successful!');
   };
+
+  const barCount = 5;
 
   return (
-    <div className={`min-h-screen flex flex-col ${musicOn ? 'bg-gradient-to-br from-blue-200 via-indigo-200 to-blue-100 animate-pulse' : 'bg-gradient-to-br from-blue-50 to-blue-100'}`}>
-      <Header />
-      <main className="flex-1 flex flex-col items-center justify-center">
-        <Card className="max-w-md w-full shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <User className="w-7 h-7 text-blue-600" /> Virtual Waiting Room
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center mb-4">
-              <div className="text-lg font-semibold">Your Position in Queue</div>
-              <div className="text-3xl font-bold text-blue-700">{queuePosition}</div>
-              <div className="flex justify-center gap-2 mt-2 mb-2">
-                {otherPatients.map(p => (
-                  <img key={p.id} src={p.avatar} alt="Patient" className="w-8 h-8 rounded-full border border-blue-300" />
-                ))}
+    <div className="min-h-screen bg-gradient-to-br from-white via-pink-50 to-purple-50 flex items-center justify-center p-6">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-4xl">
+        <div className="mb-6">
+          <button aria-label="Go back" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 bg-white/90 px-3 py-2 rounded-full shadow-sm">
+            <ArrowLeft className="w-4 h-4" /> <span className="font-medium">Back</span>
+          </button>
+        </div>
+
+        <div className="bg-white/80 rounded-2xl p-6 md:p-8 shadow-2xl" style={{ backdropFilter: 'blur(6px)' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Preparing your consultation</h1>
+              <p className="mt-3 text-gray-700">Welcome to the Green Room — a calm spot to quickly verify your camera and mic. Large, clear controls help everyone join confidently.</p>
+
+              <div className="mt-6 flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm text-gray-700"><Camera className="w-5 h-5 text-indigo-600" /> Camera preview</div>
+                <div className="flex items-center gap-2 text-sm text-gray-700"><Mic className="w-5 h-5 text-indigo-600" /> Microphone levels</div>
               </div>
-              <div className="w-full bg-blue-100 rounded-full h-3 mt-2 mb-2">
-                <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${(estimatedWait/5)*100}%` }}></div>
-              </div>
-              <div className="text-sm text-gray-600">Estimated Wait: {estimatedWait} min</div>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-full bg-blue-200 flex items-center justify-center">
-                <User className="w-10 h-10 text-blue-700" />
-              </div>
-              <div className="font-bold text-blue-700">{doctor.name}</div>
-              <div className="text-sm text-gray-600">{doctor.specialty}</div>
-            </div>
-            <div className="mt-6 text-blue-600 text-sm text-center">
-              Please wait while your doctor prepares for your consultation. Relax and keep your device ready.
-            </div>
-            <div className="mt-6">
-              <div className="font-semibold mb-2">Tips for a Successful Video Consult:</div>
-              <ul className="list-disc pl-6 text-gray-700 text-left">
-                <li>Check your internet connection</li>
-                <li>Test your camera and microphone</li>
-                <li>Prepare your questions and documents</li>
-                <li>Find a quiet, well-lit space</li>
-              </ul>
-              <div className="flex gap-4 mt-4 justify-center">
-                <button className="bg-blue-600 text-white px-4 py-2 rounded shadow" onClick={handleTestDevices}>Test Devices</button>
-                <button className={`px-4 py-2 rounded shadow ${musicOn ? 'bg-indigo-400 text-white' : 'bg-gray-200 text-blue-700'}`} onClick={()=>setMusicOn(!musicOn)}>
-                  {musicOn ? 'Turn Off Music' : 'Play Calming Music'}
+
+              <div className="mt-8 flex items-center gap-4">
+                <motion.button
+                  layoutId="joinButton"
+                  onClick={() => navigate('/video-call')}
+                  className="px-8 py-4 rounded-full text-white font-semibold shadow-lg text-base"
+                  style={{ background: 'linear-gradient(90deg,#6b46ff,#ff7ab6)' }}
+                  whileHover={{ scale: 1.03 }}
+                >
+                  Join Consultation
+                </motion.button>
+
+                <button onClick={requestAccess} className="px-4 py-3 rounded-full bg-white border shadow" aria-label="Preview and test camera and microphone">
+                  {hasPermission === false ? 'Retry Permissions' : 'Preview & Test'}
                 </button>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </main>
-      <Footer />
+
+            <div className="flex justify-center">
+              <div className="w-full max-w-sm rounded-lg overflow-hidden relative bg-black/5">
+                <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                  {hasPermission === false && (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-gray-200">
+                      <div className="text-lg font-semibold">Allow Camera & Microphone</div>
+                      <div className="text-sm mt-2 text-gray-300">Tap the button below and follow the browser prompt.</div>
+                      <button onClick={requestAccess} className="mt-4 px-4 py-2 bg-white text-gray-900 rounded-lg">Allow Access</button>
+                    </div>
+                  )}
+                  {hasPermission !== false && (
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  )}
+                </div>
+
+                <div className="absolute top-3 left-3 flex items-center gap-2">
+                  <div className={`px-2 py-1 rounded-full text-xs font-semibold ${isCameraActive ? 'bg-green-600 text-white' : 'bg-black/30 text-white/80'}`} aria-live="polite">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <div className={`px-2 py-1 rounded-full text-xs font-semibold ${isMicActive ? 'bg-green-600 text-white' : 'bg-black/30 text-white/80'}`} aria-live="polite">
+                    <Mic className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between pointer-events-none">
+                  <div className="w-full max-w-xs bg-black/40 rounded-full p-2 flex items-end gap-3 pointer-events-auto">
+                    <div className="flex gap-1 items-end" aria-hidden>
+                      {Array.from({ length: barCount }).map((_, i) => {
+                        const height = Math.max(4, Math.round((mockVolume * 40) * (0.6 + i * 0.2)));
+                        return (
+                          <div key={i} style={{ height }} className="w-1.5 bg-green-400 rounded-sm transition-all duration-120" />
+                        );
+                      })}
+                    </div>
+                    <div className="text-xs text-white/90">Preview</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

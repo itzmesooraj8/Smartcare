@@ -5,354 +5,430 @@ import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Calendar, MessageSquare, FileText, CreditCard, Video } from 'lucide-react';
+import { ShieldCheck, User, Phone, MessageSquare, FileText, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-// Inlined motion primitives and a lightweight 3D hero.
-type MotionTokens = { snappy: any; luxury: any; gentle: any };
+// Single-file Masterpiece: Patient Dashboard
+// - Medical Glass 2.0 visual identity
+// - Holographic Hero (mouse-aware 3D tilt)
+// - BreathingLine sparklines (SVG + Framer Motion)
+// - SpotlightCard (radial spotlight following mouse)
+// - JellyButton (springy tactile button)
+// All components are internal to this file. Sidebar is preserved.
 
-const MotionContext = React.createContext<{ reducedMotion: boolean; tokens: MotionTokens } | null>(null);
+type Appointment = { id: string; date: string; time: string; doctor: string; type?: string; note?: string };
+type RecordItem = { id: string; title: string; date: string; summary?: string };
+type Stat = { id: string; label: string; value: number; trend: string };
 
-const MotionProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
-	const reducedMotion = useReducedMotion();
-	const tokens = React.useMemo(
-		() => ({
-			snappy: { type: 'spring', stiffness: 320, damping: 28 },
-			luxury: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
-			gentle: { duration: 0.36, ease: [0.25, 0.1, 0.25, 1] },
-		}),
-		[]
-	);
-	return <MotionContext.Provider value={{ reducedMotion, tokens }}>{children}</MotionContext.Provider>;
+// Motion tokens helper
+const useMotionTokens = () => {
+  const reduced = useReducedMotion();
+  return {
+    reduced,
+    snappy: reduced ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 28 },
+    gentle: reduced ? { duration: 0 } : { duration: 0.45, ease: [0.2, 0.9, 0.2, 1] },
+  } as const;
 };
 
-function useMotion() {
-	const ctx = React.useContext(MotionContext);
-	if (!ctx) return { reducedMotion: true, tokens: { snappy: {}, luxury: {}, gentle: {} } };
-	return ctx;
-}
+// SpotlightCard: creates a subtle radial spotlight that follows the cursor inside the card
+const SpotlightCard: React.FC<React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }> = ({ children, className = '', ...props }) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = React.useState({ x: 50, y: 50, active: false });
 
-const MotionCard: React.FC<React.ComponentProps<typeof motion.div> & { delay?: number }> = ({ children, className = '', delay = 0, ...props }) => {
-	const { reducedMotion, tokens } = useMotion();
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 8 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={!reducedMotion ? { ...tokens.gentle, delay } : undefined}
-			whileHover={!reducedMotion ? { y: -6 } : undefined}
-			className={className}
-			{...props}
-		>
-			<div className="backdrop-blur bg-white/60 border border-white/10 shadow-md rounded-lg p-4">{children as React.ReactNode}</div>
-		</motion.div>
-	);
+  return (
+    <div
+      ref={ref}
+      onMouseMove={(e) => {
+        const r = ref.current?.getBoundingClientRect();
+        if (!r) return;
+        const x = ((e.clientX - r.left) / r.width) * 100;
+        const y = ((e.clientY - r.top) / r.height) * 100;
+        setPos({ x, y, active: true });
+      }}
+      onMouseLeave={() => setPos((s) => ({ ...s, active: false }))}
+      style={{ ['--spot-x' as any]: `${pos.x}%`, ['--spot-y' as any]: `${pos.y}%` }}
+      className={`${className} relative overflow-hidden`}
+      {...props}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 transition-opacity"
+        style={{
+          background: `radial-gradient(400px at var(--spot-x) var(--spot-y), rgba(255,255,255,0.12), rgba(255,255,255,0.03) 20%, transparent 45%)`,
+          opacity: pos.active ? 1 : 0,
+        }}
+      />
+
+      {children}
+    </div>
+  );
 };
 
-const MotionButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ children, className = '', ...props }, ref) => {
-	const { reducedMotion, tokens } = useMotion();
-	return (
-		<motion.div whileTap={!reducedMotion ? { scale: 0.96 } : undefined} whileHover={!reducedMotion ? { scale: 1.02 } : undefined} transition={tokens.snappy} className="inline-block">
-			<button ref={ref as any} {...props} className={`${className} px-3 py-2 rounded-md bg-white/10 hover:bg-white/20`}>{children}</button>
-		</motion.div>
-	);
-});
-MotionButton.displayName = 'MotionButton';
+// BreathingLine: draws a smooth path and animates it on load
+const BreathingLine: React.FC<{ values?: number[]; color?: string; height?: number; ariaLabel?: string }> = ({ values = [20, 40, 30, 60, 45, 70, 55, 80], color = '#0ea5a6', height = 48, ariaLabel }) => {
+  const w = 200;
+  const h = height;
+  const step = w / (values.length - 1);
+  const points = values.map((v, i) => `${i * step},${h - (v / 100) * h}`);
+  const d = `M ${points.join(' L ')}`;
 
-const Hero3D: React.FC<{ label?: string }> = ({ label = 'Good Morning' }) => {
-	const ref = React.useRef<HTMLDivElement | null>(null);
-	const reducedMotion = useReducedMotion();
-
-	React.useEffect(() => {
-		if (reducedMotion) return;
-		const el = ref.current;
-		if (!el) return;
-		let raf = 0;
-		const onMove = (e: MouseEvent) => {
-			const rect = el.getBoundingClientRect();
-			const cx = rect.left + rect.width / 2;
-			const cy = rect.top + rect.height / 2;
-			const dx = e.clientX - cx;
-			const dy = e.clientY - cy;
-			const ry = (dx / rect.width) * 8;
-			const rx = -(dy / rect.height) * 6;
-			if (!raf) raf = requestAnimationFrame(() => {
-				if (el) el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg)`;
-				raf = 0;
-			});
-		};
-		const onLeave = () => { if (ref.current) ref.current.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg)'; };
-		el.addEventListener('mousemove', onMove);
-		el.addEventListener('mouseleave', onLeave);
-		return () => { el.removeEventListener('mousemove', onMove); el.removeEventListener('mouseleave', onLeave); if (raf) cancelAnimationFrame(raf); };
-	}, [reducedMotion]);
-
-	return (
-		<div ref={ref} className="relative w-full h-28 md:h-44 lg:h-64 rounded-2xl overflow-hidden">
-			<div className="absolute inset-0 -z-10 bg-gradient-to-r from-cyan-400 to-sky-600 opacity-30" style={{ mixBlendMode: 'overlay' }} />
-			<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-				<svg width="220" height="220" viewBox="0 0 120 120" fill="none" className="filter drop-shadow-[0_12px_30px_rgba(2,6,23,0.12)]">
-					<defs>
-						<linearGradient id="g2" x1="0" x2="1"><stop offset="0" stopColor="#a7f3d0" /><stop offset="1" stopColor="#06b6d4" /></linearGradient>
-					</defs>
-					<g>
-						<path d="M60 10 L90 40 L60 70 L30 40 Z" fill="url(#g2)" opacity="0.88" />
-						<path d="M60 20 L80 40 L60 60 L40 40 Z" fill="#fff" opacity="0.06" />
-					</g>
-				</svg>
-			</div>
-			<div className="absolute inset-0 flex items-start justify-start p-6 pointer-events-none">
-				<div className="backdrop-blur-md bg-white/40 rounded-xl px-4 py-3 shadow-2xl border border-white/20">
-					<div className="text-sm text-muted-foreground">{label},</div>
-					<div className="text-xl md:text-2xl font-semibold tracking-tight">Patient</div>
-				</div>
-			</div>
-		</div>
-	);
+  return (
+    <svg role="img" aria-label={ariaLabel} width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="block">
+      <defs>
+        <linearGradient id="g" x1="0%" x2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.4" />
+        </linearGradient>
+      </defs>
+      <motion.path
+        d={d}
+        fill="transparent"
+        stroke="url(#g)"
+        strokeWidth={3}
+        strokeLinecap="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 1.6, ease: 'easeInOut' }}
+      />
+    </svg>
+  );
 };
 
-function Gauge({ label, value }: { label: string; value: number }) {
-	const radius = 28;
-	const circumference = 2 * Math.PI * radius;
-	const dash = (1 - Math.max(0, Math.min(1, value / 100))) * circumference;
-	return (
-		<div className="flex items-center gap-3">
-			<svg width="72" height="72" viewBox="0 0 80 80">
-				<g transform="translate(40,40)">
-					<circle r={radius} fill="rgba(255,255,255,0.03)" />
-					<circle r={radius} fill="transparent" stroke="#06b6d4" strokeWidth={6} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dash} style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
-					<text x="0" y="6" textAnchor="middle" style={{ fontSize: 12, fill: '#0f172a' }}>{Math.round(value)}%</text>
-				</g>
-			</svg>
-			<div>
-				<div className="text-sm text-muted-foreground">{label}</div>
-				<div className="font-medium">{Math.round((value / 100) * 200)} units</div>
-			</div>
-		</div>
-	);
-}
+// HolographicHero: 3D tilt container with a glowing health shield
+const HolographicHero: React.FC<{ name?: string }> = ({ name = 'Patient' }) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const tokens = useMotionTokens();
+  const [rot, setRot] = React.useState({ rx: 0, ry: 0 });
 
+  React.useEffect(() => {
+    if (tokens.reduced) return;
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const onMove = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      if (!raf) raf = requestAnimationFrame(() => {
+        setRot({ rx: -py * 9, ry: px * 14 });
+        raf = 0;
+      });
+    };
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', () => setRot({ rx: 0, ry: 0 }));
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+    };
+  }, [tokens.reduced]);
+
+  return (
+    <div className="relative">
+      <div className="absolute inset-0 -z-20 bg-[radial-gradient(ellipse_at_top_left,_#e8f8ff_0,_#f8ffff_25%,_#ffffff_60%)] opacity-90 animate-[pulse_8s_ease-in-out_infinite]" />
+      <div ref={ref} className="relative max-w-4xl mx-auto">
+        <motion.div
+          style={{ transformStyle: 'preserve-3d', perspective: 1200 }}
+          animate={{ rotateX: rot.rx, rotateY: rot.ry }}
+          transition={tokens.reduced ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 18 }}
+          className="bg-white/70 backdrop-blur-2xl border border-white/20 shadow-[0_20px_40px_rgba(2,6,23,0.18),inset_0_1px_0_rgba(255,255,255,0.06)] rounded-3xl p-6 md:p-10"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm tracking-wide text-zinc-700">Good morning,</div>
+              <div className="text-5xl font-thin tracking-tight leading-tight text-black">{name}</div>
+              <div className="mt-2 text-sm text-zinc-600">Your health, reimagined — quick insights below</div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full blur-xl opacity-60 bg-gradient-to-tr from-cyan-200 to-sky-300" />
+                <svg width="96" height="96" viewBox="0 0 96 96" className="relative">
+                  <defs>
+                    <radialGradient id="pulse" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.95" />
+                      <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.12" />
+                    </radialGradient>
+                  </defs>
+                  <motion.circle cx="48" cy="48" r="28" fill="url(#pulse)" initial={{ scale: 0.9, opacity: 0.8 }} animate={{ scale: [1, 1.06, 1], opacity: [1, 0.85, 1] }} transition={{ duration: 2, repeat: Infinity }} />
+                  <circle cx="48" cy="48" r="18" fill="#fff" opacity={0.85} />
+                  <motion.path d="M42 52 Q48 44 54 52" stroke="#06b6d4" strokeWidth={3} strokeLinecap="round" fill="none" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.2 }} />
+                </svg>
+              </div>
+              <div className="hidden md:block text-right">
+                <div className="text-xs text-zinc-600">Overall status</div>
+                <div className="text-lg font-semibold text-black">Stable</div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+// JellyButton: tactile springy button
+const JellyButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }> = ({ children, className = '', ...props }) => {
+  const { reduced, snappy } = useMotionTokens();
+  return (
+    <motion.button
+      whileTap={!reduced ? { scale: [1, 0.92, 1.02, 1], borderRadius: ['12px', '16px', '12px'] } : undefined}
+      transition={!reduced ? { ...snappy, duration: 0.45 } : { duration: 0 }}
+      className={`${className} px-4 py-3 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary/30`}
+      {...(props as any)}
+    >
+      {children}
+    </motion.button>
+  );
+};
+
+// Main page component
 export default function PatientDashboard(): JSX.Element {
-	const { user } = useAuth();
-	const [expanded, setExpanded] = React.useState<null | string>(null);
-	const [showSidebar, setShowSidebar] = React.useState<boolean>(false);
-	const [mobileMenuOpen, setMobileMenuOpen] = React.useState<boolean>(false);
-	const vitals = [
-		{ id: 'v1', label: 'Heart Rate', value: 72 },
-		{ id: 'v2', label: 'Hydration', value: 80 },
-		{ id: 'v3', label: 'Sleep', value: 65 },
-	];
+  const { user } = useAuth();
 
-	// Keep sidebar rendering in sync with viewport width (client-side only)
-	React.useEffect(() => {
-		if (typeof window === 'undefined') return;
-		const mq = window.matchMedia('(min-width: 1024px)');
-		const update = () => setShowSidebar(mq.matches);
-		update();
-		mq.addEventListener ? mq.addEventListener('change', update) : mq.addListener(update as any);
-		return () => { mq.removeEventListener ? mq.removeEventListener('change', update) : mq.removeListener(update as any); };
-	}, []);
+  // richer mock data
+  const stats: Stat[] = [
+    // Removed Heart Rate per request; keep hydration and sleep and add Wellness Score
+    { id: 's2', label: 'Hydration', value: 80, trend: '+2% vs last week' },
+    { id: 's3', label: 'Sleep Quality', value: 65, trend: '-1% vs last week' },
+    { id: 's4', label: 'Wellness Score', value: 88, trend: '+5% vs last week' },
+  ];
 
-	return (
-		<MotionProvider>
-			<div className="min-h-screen bg-background">
-				<Header />
-				<div className="flex">
-					{showSidebar && (
-						<div>
-							<Sidebar />
-						</div>
-					)}
-					{/* Mobile hamburger (fixed, visible on small screens) */}
-					<button
-						aria-label="Open menu"
-						onClick={() => setMobileMenuOpen(true)}
-						className="lg:hidden fixed top-3 left-3 z-60 inline-flex items-center justify-center h-10 w-10 rounded-md bg-white/90 shadow-md"
-					>
-						<svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-							<path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-						</svg>
-					</button>
+  const appointments: Appointment[] = [
+    { id: 'a1', date: '2025-12-10', time: '12:30', doctor: 'Dr. Sarah Smith', type: 'Teleconsult', note: 'Bring previous bloodwork' },
+  ];
 
-					<main className="flex-1 p-6 pb-28">
-						<div className="max-w-7xl mx-auto">
-							<Hero3D label={`Good Morning, ${user?.name || 'Patient'}`} />
+  const records: RecordItem[] = [
+    { id: 'r1', title: 'Annual Physical Exam', date: '2025-12-02', summary: 'Normal; follow-up in 6 months' },
+    { id: 'r2', title: 'Lipid Panel', date: '2025-11-15', summary: 'Slightly elevated LDL' },
+  ];
 
-							<div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-								<div className="lg:col-span-4">
-									<MotionCard className="mb-4">
-										<div className="flex items-center justify-between">
-											<div>
-												<h3 className="text-lg font-semibold">Vitals</h3>
-												<p className="text-sm text-muted-foreground">Real-time snapshot</p>
-											</div>
-										</div>
-										<div className="mt-4 space-y-4">
-											{vitals.map((v) => (
-												<div key={v.id} className="flex items-center justify-between bg-white/0 rounded-lg p-3">
-													<div className="flex items-center gap-3">
-														<div className="text-sm text-muted-foreground w-12 text-right">{Math.round((v.value))}%</div>
-														<div>
-															<div className="text-sm text-muted-foreground">{v.label}</div>
-															<div className="text-2xl font-semibold leading-none">{Math.round((v.value / 100) * 200)} units</div>
-														</div>
-													</div>
-												</div>
-											))}
-										</div>
-									</MotionCard>
+  return (
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_#e8f8ff_0,_#f8ffff_25%,_#ffffff_60%)]">
+      <Header />
 
-									<MotionCard>
-										<h4 className="text-md font-medium">Recent records</h4>
-										<div className="mt-3">
-											<div className="flex items-center justify-between">
-												<div className="flex items-center gap-3">
-													<div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">R</div>
-													<div>
-														<div className="font-medium">Annual Physical Exam</div>
-														<div className="text-xs text-muted-foreground">Visit summary • 12/2/2025</div>
-													</div>
-												</div>
-												<Link to="/medical-records" className="text-sm text-primary">Open</Link>
-											</div>
-										</div>
-									</MotionCard>
-								</div>
+      <div className="flex">
+        <Sidebar />
 
-								<div className="lg:col-span-5">
-									<MotionCard>
-										<div className="flex items-start justify-between">
-											<div>
-												<h3 className="text-xl font-semibold">Next appointment</h3>
-												<p className="text-sm text-muted-foreground">Keep track and join on time</p>
-											</div>
-										</div>
-										<div className="mt-4">
-											<div className="bg-white/6 rounded-lg p-4 border border-white/8 shadow-sm">
-												<div className="flex items-center justify-between">
-													<div>
-														<div className="font-medium">Dr. Sarah Smith</div>
-														<div className="text-xs text-muted-foreground">Cardiology • Teleconsultation</div>
-													</div>
-													<div className="text-right">
-														<div className="font-medium">Dec 10, 2025</div>
-														<div className="text-xs text-muted-foreground">12:30 AM</div>
-													</div>
-												</div>
-												<div className="mt-4 flex items-center gap-3">
-													<MotionButton onClick={() => setExpanded('appointment')} className="px-4 py-2">Book Appointment</MotionButton>
-													<MotionButton className="px-3 py-2"><Link to="/video-call">Join</Link></MotionButton>
-												</div>
-											</div>
-										</div>
-									</MotionCard>
-								</div>
+        <main className="flex-1 p-6 md:p-8 lg:p-10">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <HolographicHero name={user?.name || 'Patient'} />
 
-								<div className="lg:col-span-3">
-									<MotionCard>
-										<h4 className="text-lg font-semibold">Quick actions</h4>
-										<p className="text-sm text-muted-foreground">Common tasks</p>
-										<div className="mt-4 grid grid-cols-2 gap-3">
-											<MotionButton className="w-full py-3"><Link to="/appointments">Book</Link></MotionButton>
-											<MotionButton className="w-full py-3"><Link to="/video-call">Call</Link></MotionButton>
-											<MotionButton className="w-full py-3"><Link to="/messages">Message</Link></MotionButton>
-											<MotionButton className="w-full py-3"><Link to="/medical-records">Upload</Link></MotionButton>
-										</div>
-									</MotionCard>
-								</div>
-							</div>
+            <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+              {/* Left column (lg:3): Care Plan + Recent Labs */}
+              <div className="lg:col-span-3 space-y-4">
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_30px_rgba(2,6,23,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] p-5 lg:p-6 rounded-2xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm text-zinc-700">Care Plan</div>
+                        <div className="mt-2 text-2xl font-semibold text-black">Daily tasks & reminders</div>
+                        <div className="mt-2 text-sm text-zinc-600">Follow your clinician's recommended tasks for today.</div>
 
-							<AnimatePresence>
-								{expanded === 'appointment' && (
-									<motion.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-6">
-										<motion.div layoutId="appointment-card" className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-6">
-											<div className="flex items-center justify-between">
-												<div>
-													<h3 className="text-2xl font-semibold">Book appointment</h3>
-													<p className="text-sm text-muted-foreground">Quickly schedule with your care team</p>
-												</div>
-												<button onClick={() => setExpanded(null)} aria-label="Close" className="text-muted-foreground">Close</button>
-											</div>
-											<div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-												<div>
-													<label className="text-sm text-muted-foreground">Reason</label>
-													<input className="w-full mt-2 p-3 rounded-md border" placeholder="Brief reason for visit" />
-												</div>
-												<div>
-													<label className="text-sm text-muted-foreground">When</label>
-													<input type="datetime-local" className="w-full mt-2 p-3 rounded-md border" />
-												</div>
-											</div>
-											<div className="mt-6 flex justify-end">
-												<MotionButton onClick={() => setExpanded(null)} className="px-4 py-2">Confirm</MotionButton>
-											</div>
-										</motion.div>
-									</motion.div>
-								)}
-							</AnimatePresence>
+                        <ul className="mt-4 space-y-3">
+                          <li className="flex items-center gap-3">
+                            <input aria-label="Med reminder" type="checkbox" className="h-5 w-5 rounded-md" />
+                            <div>
+                              <div className="font-medium text-black">Take morning medications</div>
+                              <div className="text-xs text-zinc-600">7:30 AM • 2 pills</div>
+                            </div>
+                          </li>
+                          <li className="flex items-center gap-3">
+                            <input aria-label="Walk" type="checkbox" className="h-5 w-5 rounded-md" />
+                            <div>
+                              <div className="font-medium text-black">30-minute walk</div>
+                              <div className="text-xs text-zinc-600">Recommended activity</div>
+                            </div>
+                          </li>
+                          <li className="flex items-center gap-3">
+                            <input aria-label="Hydration" type="checkbox" className="h-5 w-5 rounded-md" />
+                            <div>
+                              <div className="font-medium text-black">Drink water (500ml)</div>
+                              <div className="text-xs text-zinc-600">Keep hydrated throughout the day</div>
+                            </div>
+                          </li>
+                        </ul>
 
-						</div>
-					</main>
-				</div>
+                        <div className="mt-4 flex gap-3">
+                          <JellyButton className="bg-primary text-white">Start today's tasks</JellyButton>
+                          <JellyButton className="bg-white/10">View care plan</JellyButton>
+                        </div>
+                      </div>
 
-				{/* Slide-over sidebar for mobile */}
-				{mobileMenuOpen && (
-					<div className="fixed inset-0 z-70 lg:hidden">
-						{/* backdrop */}
-						<button aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-black/40" />
-						<div className="absolute left-0 top-0 bottom-0 w-72 bg-background p-4 overflow-auto shadow-2xl">
-							<div className="flex items-center justify-between mb-4">
-								<div className="text-lg font-semibold">Menu</div>
-								<button aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-md">
-									<span className="sr-only">Close</span>
-									<svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-										<path d="M6 6l12 12M6 18L18 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-									</svg>
-								</button>
-							</div>
-							{/* reuse Sidebar component inside slide-over */}
-							<Sidebar />
-						</div>
-					</div>
-				)}
-				{/* Mobile bottom nav (visible on small screens) */}
-						<nav className="fixed left-0 right-0 bottom-0 z-50 lg:hidden">
-							<div className="mx-4 mb-4 bg-white/95 backdrop-blur border border-white/10 rounded-3xl shadow-lg p-3 flex items-center justify-between">
-								<div className="flex items-center gap-4 px-2">
-									<Link to="/dashboard" className="flex flex-col items-center text-xs text-muted-foreground">
-										<svg className="h-6 w-6 mb-1" viewBox="0 0 24 24" fill="none" aria-hidden>
-											<path d="M3 13h8V3H3v10zM13 21h8V11h-8v10zM13 3v6h8V3h-8zM3 21h8v-6H3v6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-										</svg>
-										<span className="text-[11px]">Home</span>
-									</Link>
-									<Link to="/appointments" className="flex flex-col items-center text-xs text-muted-foreground">
-										<Calendar className="h-6 w-6 mb-1" />
-										<span className="text-[11px]">Appts</span>
-									</Link>
-								</div>
+                      <div className="hidden md:flex flex-shrink-0 flex-col items-center justify-center ml-4">
+                        {/* Tighter progress ring (improved alignment + aria) */}
+                        <div role="img" aria-label="Adherence 76 percent" className="flex items-center justify-center">
+                          <svg width="76" height="76" viewBox="0 0 100 100" className="block">
+                            <circle cx="50" cy="50" r="40" stroke="#e6eef0" strokeWidth="10" fill="none" />
+                            <circle cx="50" cy="50" r="40" stroke="#06b6d4" strokeWidth="10" strokeLinecap="round" strokeDasharray="251.2" strokeDashoffset="60" transform="rotate(-90 50 50)" />
+                            <text x="50" y="55" textAnchor="middle" fontSize="14" fill="#0f172a">76%</text>
+                          </svg>
+                        </div>
+                        <div className="mt-2 text-xs text-zinc-600">Adherence</div>
+                      </div>
+                    </div>
+                  </div>
+                </SpotlightCard>
 
-								{/* center CTA */}
-								<div className="-translate-y-6">
-									<Link to="/appointments" className="inline-flex items-center justify-center bg-primary text-white h-14 w-14 rounded-full shadow-xl ring-4 ring-white/80">
-										<svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
-											<path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-										</svg>
-									</Link>
-								</div>
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
+                    <div className="text-sm text-zinc-700">Recent lab results</div>
+                    <div className="mt-3 space-y-2">
+                      <div className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">L</div>
+                        <div className="flex-1">
+                          <div className="font-medium text-black">Lipid Panel</div>
+                          <div className="text-xs text-zinc-600">Slightly elevated LDL • 2025-11-15</div>
+                        </div>
+                        <div className="hidden md:block">
+                          <BreathingLine values={[30,45,40,55,48,60,58,62]} color="#0ea5a6" height={36} ariaLabel="Lipid trend" />
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">B</div>
+                        <div className="flex-1">
+                          <div className="font-medium text-black">Blood Sugar</div>
+                          <div className="text-xs text-zinc-600">Within range • 2025-11-02</div>
+                        </div>
+                        <div className="hidden md:block">
+                          <BreathingLine values={[60,55,62,58,64,60,63,66]} color="#0891b2" height={36} ariaLabel="Glucose trend" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-right">
+                      <Link to="/lab-results" className="text-xs text-primary underline">View all labs</Link>
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </div>
 
-								<div className="flex items-center gap-4 px-2">
-									<Link to="/messages" className="flex flex-col items-center text-xs text-muted-foreground">
-										<MessageSquare className="h-6 w-6 mb-1" />
-										<span className="text-[11px]">Msgs</span>
-									</Link>
-									<Link to="/video-call" className="flex flex-col items-center text-xs text-muted-foreground">
-										<Video className="h-6 w-6 mb-1" />
-										<span className="text-[11px]">Call</span>
-									</Link>
-								</div>
-							</div>
-						</nav>
+              {/* Center column (lg:1): Appointment / Teleconsult CTA */}
+              <div className="lg:col-span-1 space-y-4">
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl h-full flex flex-col justify-between">
+                    <div>
+                      <div className="text-sm text-zinc-700">Next appointment</div>
+                      <div className="text-lg font-semibold text-black">{appointments[0].doctor}</div>
+                      <div className="text-xs text-zinc-600">{appointments[0].type} • {appointments[0].date} • {appointments[0].time}</div>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-2">
+                      <JellyButton className="bg-white/10 text-black">Join</JellyButton>
+                      <JellyButton className="bg-primary text-white">Book</JellyButton>
+                    </div>
+                  </div>
+                </SpotlightCard>
 
-				<Footer />
-			</div>
-		</MotionProvider>
-	);
+                {/* Medications card: added to fill center gap and surface high-value info */}
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl min-h-[160px]">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm text-zinc-700">Medications</div>
+                        <div className="mt-1 text-xs text-zinc-600">Active prescriptions & reminders</div>
+                      </div>
+                      <div className="text-xs text-zinc-600">Next dose • 07:30</div>
+                    </div>
+
+                    <ul className="mt-3 space-y-3">
+                      <li className="flex items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="h-8 w-8 rounded-md bg-muted/20 flex items-center justify-center">P</div>
+                          <div>
+                            <div className="font-medium text-black">Atorvastatin 20mg</div>
+                            <div className="text-xs text-zinc-600">Once daily • Lipid control</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-zinc-600">Morning</div>
+                      </li>
+
+                      <li className="flex items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="h-8 w-8 rounded-md bg-muted/20 flex items-center justify-center">M</div>
+                          <div>
+                            <div className="font-medium text-black">Metformin 500mg</div>
+                            <div className="text-xs text-zinc-600">Twice daily • Glycemic control</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-zinc-600">Morning / Night</div>
+                      </li>
+                    </ul>
+
+                    <div className="mt-4 text-right">
+                      <JellyButton className="bg-primary text-white">Refill / Manage</JellyButton>
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </div>
+
+              {/* Right column: Quick Actions (top) + Recent Records (below) */}
+              <div className="lg:col-span-2 space-y-4">
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_22px_36px_rgba(2,6,23,0.14),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-zinc-700">Quick actions</div>
+                        <div className="mt-1 text-xs text-zinc-600">Large, accessible shortcuts for common tasks</div>
+                      </div>
+                      <div />
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
+                        <Phone className="h-6 w-6" />
+                        <span className="text-sm font-medium">Call Clinic</span>
+                      </JellyButton>
+
+                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
+                        <MessageSquare className="h-6 w-6" />
+                        <span className="text-sm font-medium">Messages</span>
+                      </JellyButton>
+
+                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
+                        <Calendar className="h-6 w-6" />
+                        <span className="text-sm font-medium">Book</span>
+                      </JellyButton>
+
+                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
+                        <FileText className="h-6 w-6" />
+                        <span className="text-sm font-medium">Records</span>
+                      </JellyButton>
+                    </div>
+                  </div>
+                </SpotlightCard>
+
+                <SpotlightCard className="rounded-2xl">
+                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_30px_rgba(2,6,23,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-zinc-700">Recent records</div>
+                        <div className="text-xs text-zinc-600">Quick summary of recent activity</div>
+                      </div>
+                      <div>
+                        <Link to="/medical-records" className="text-xs text-primary underline">View all</Link>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {records.map((r) => (
+                        <div key={r.id} className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">R</div>
+                          <div>
+                            <div className="font-medium text-black">{r.title}</div>
+                            <div className="text-xs text-zinc-600">{r.summary} • {r.date}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </div>
+            </div>
+
+            <div className="pt-6">
+              <Footer />
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }

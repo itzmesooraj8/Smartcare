@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
+import { NAVIGATION as SIDEBAR_NAV } from '@/components/layout/Sidebar';
 import { User, Settings, LogOut, Bell, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -96,7 +97,7 @@ const Header = () => {
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => void logout()} className="cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
                       Log out
                     </DropdownMenuItem>
@@ -123,7 +124,26 @@ const Header = () => {
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                 <div className="flex flex-col space-y-4 mt-4">
-                  <NavigationItems mobile />
+                  {/* If user is logged in, show role-specific app navigation (dashboard, appointments, messages, etc.) */}
+                  {user ? (
+                    <div className="flex flex-col space-y-2">
+                      {SIDEBAR_NAV.filter(Boolean)
+                        .filter((item) => item.roles.includes(user.role))
+                        .map((item) => (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            className="block py-2 text-lg text-foreground hover:text-primary"
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
+                      <div className="pt-2 border-t" />
+                    </div>
+                  ) : (
+                    <NavigationItems mobile />
+                  )}
+
                   {!user && (
                     <div className="flex flex-col space-y-2 pt-4 border-t">
                       <Button variant="ghost" asChild>
