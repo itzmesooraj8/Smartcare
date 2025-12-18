@@ -256,7 +256,7 @@ export default function MedicalRecordsPage() {
 					<div className="max-w-7xl mx-auto">
 						{/* Floating control bar (Cockpit) */}
 						<div className="relative mb-6">
-							<motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.45 }} className="sticky top-6 z-20 bg-white border border-gray-200 rounded-3xl p-4 flex items-center gap-4 shadow-sm">
+							<motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.45 }} className="sticky top-6 z-20 bg-white border border-gray-200 rounded-3xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shadow-sm">
 								<div className="flex-1">
 									<div className="relative">
 										<div className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-300"><Search /></div>
@@ -275,7 +275,7 @@ export default function MedicalRecordsPage() {
 												width: `${100 / filterOptions.length}%`,
 											}}
 										/>
-										<div className="relative flex">
+										<div className="relative flex overflow-x-auto no-scrollbar touch-pan-x gap-1">
 											{filterOptions.map((t, i) => (
 												<button
 													key={t}
@@ -286,11 +286,11 @@ export default function MedicalRecordsPage() {
 														if (e.key === 'ArrowRight') setFilter(filterOptions[(i + 1) % filterOptions.length]);
 														if (e.key === 'ArrowLeft') setFilter(filterOptions[(i - 1 + filterOptions.length) % filterOptions.length]);
 													}}
-													className={`flex-1 relative z-10 px-4 py-2 text-sm flex items-center gap-2 justify-center ${filter === t ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
-													{/** icon and label */}
+													className={`min-w-[88px] flex-shrink-0 relative z-10 px-3 py-2 text-sm flex items-center gap-2 justify-center ${filter === t ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
 													<div className="flex items-center gap-2">
 														{FilterIcon({ t })}
 														<span className="truncate">{t}</span>
+														<span className="ml-2 text-xs text-slate-400 hidden sm:inline">{counts[t]}</span>
 													</div>
 												</button>
 											))}
@@ -298,7 +298,7 @@ export default function MedicalRecordsPage() {
 									</div>
 								</div>
 
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-2 mt-2 sm:mt-0">
 									{isEditor ? (
 										<button onClick={() => setPanelOpen(true)} aria-label="Add record" className="inline-flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-full shadow hover:scale-105 transform transition">
 											<Plus /> Add Record
@@ -315,7 +315,7 @@ export default function MedicalRecordsPage() {
 						{/* Upload Drawer (Interaction) */}
 						<AnimatePresence>
 								{uploadDrawerOpen && (
-									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed right-6 bottom-6 z-40 w-[480px] bg-white rounded-2xl p-4 border border-gray-200 shadow-lg">
+									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed z-40 sm:right-6 sm:bottom-6 right-4 left-4 bottom-6 w-auto sm:w-[480px] bg-white sm:rounded-2xl rounded-t-xl p-4 border border-gray-200 shadow-lg">
 										<div className="flex items-center justify-between mb-3">
 											<div className="flex items-center gap-3">
 												<div className="text-lg font-semibold text-slate-800">Secure Upload</div>
@@ -365,7 +365,7 @@ export default function MedicalRecordsPage() {
 							) : (
 								<motion.div layout variants={vaultVariants.container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[160px]">
 									{filtered.map((rec, idx) => {
-										const spanClass = idx % 7 === 2 ? 'row-span-2' : idx % 5 === 0 ? 'row-span-3' : 'row-span-1';
+											const spanClass = idx % 7 === 2 ? 'row-span-2' : idx % 5 === 0 ? 'row-span-3' : 'row-span-1';
 										return (
 											<motion.div layout variants={vaultVariants.item} key={rec.id} className={`${spanClass} transform-gpu`}> 
 												<div className="h-full flex">
@@ -451,9 +451,9 @@ export default function MedicalRecordsPage() {
 			)}
 
 			{/* Preview modal (secure viewer) */}
-			{preview && (
+						{preview && (
 				<div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setPreview(null)}>
-					<div className="bg-gradient-to-b from-slate-900 to-slate-800 text-white rounded-lg max-w-6xl w-full p-4" onClick={(e) => e.stopPropagation()}>
+					<div className="bg-gradient-to-b from-slate-900 to-slate-800 text-white rounded-lg max-w-6xl w-full sm:p-4 p-2 sm:rounded-lg h-auto sm:h-auto" onClick={(e) => e.stopPropagation()}>
 						<div className="flex items-center justify-between mb-3">
 							<div className="flex items-center gap-3">
 								<div className="text-lg font-semibold">{preview.name}</div>
@@ -465,7 +465,7 @@ export default function MedicalRecordsPage() {
 								<button className="px-3 py-1 border rounded" onClick={() => setPreview(null)}>Close</button>
 							</div>
 						</div>
-						<div className="h-[72vh] flex items-center justify-center bg-black/50 rounded">
+						<div className="h-[60vh] sm:h-[72vh] flex items-center justify-center bg-black/50 rounded">
 							{preview.mime === 'application/pdf' ? (
 								<iframe src={preview.url} className="w-full h-full rounded" />
 							) : (
