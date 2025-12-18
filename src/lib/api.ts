@@ -1,4 +1,7 @@
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Prefer an explicit VITE_API_URL at build time. In production, if not provided,
+// fall back to the same origin so the client calls the backend on the app host
+// (this avoids trying to call localhost from user devices which causes long timeouts).
+export const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
 
 type FetchOpts = RequestInit & { auth?: boolean };
 
@@ -14,11 +17,23 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...opts, headers, credentials: "include" });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${await res.text()}`);
+  // Fail fast with a reasonable timeout to avoid long stalls on mobile/clients
+  const controller = new AbortController();
+  const timeoutMs = (opts as any).timeout ?? 8000; // 8s default
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, { ...opts, headers, credentials: "include", signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`API ${res.status}: ${await res.text()}`);
+    }
+    return (await res.json()) as T;
+  } catch (err: any) {
+    if (err.name === 'AbortError') throw new Error('Network timeout');
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return (await res.json()) as T;
 }
 
 // Backend helpers
