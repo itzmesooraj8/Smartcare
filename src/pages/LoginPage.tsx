@@ -30,7 +30,7 @@ const fieldVariants = {
 };
 
 const LoginPage: React.FC = () => {
-  const { login, isLoading, mockLogin } = useAuth();
+  const { login, isLoading, mockLogin, updateUser, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,12 +62,27 @@ const LoginPage: React.FC = () => {
   }, []);
 
   const onSubmit = async (data: FormValues) => {
+    // Optimistic UI: set a temporary user immediately so navigation appears instant.
+    setButtonState('loading');
+    const tempUser = {
+      id: data.email,
+      email: data.email,
+      name: data.email.split('@')[0],
+      role: data.role as any,
+    };
+
+    // Apply optimistic user state locally (will be replaced by real login result)
     try {
-      setButtonState('loading');
+      updateUser(tempUser);
+    } catch {}
+
+    // Navigate right away for perceived speed; complete login in background.
+    navigate(redirect, { replace: true });
+
+    try {
       await login(data.email, data.password, data.remember);
       setButtonState('success');
       toast({ title: 'Welcome back!', description: 'Signed in successfully.' });
-      setTimeout(() => navigate(redirect, { replace: true }), 700);
     } catch (err: any) {
       // If backend login fails, allow demo access for local/demo accounts
       const demoEmails = demoCredentials.map((d) => d.email);
@@ -82,14 +97,21 @@ const LoginPage: React.FC = () => {
         mockLogin(demoUser, data.remember);
         setButtonState('success');
         toast({ title: 'Signed in (demo)', description: 'Demo account signed in locally.' });
-        setTimeout(() => navigate(redirect, { replace: true }), 400);
         return;
       }
 
+      // Revert optimistic state and bring user back to login
+      try {
+        await logout(false);
+      } catch {}
+
       setButtonState('error');
       toast({ title: 'Sign in failed', description: err?.message || 'Invalid credentials', variant: 'destructive' });
-      // subtle shake handled by animation state
-      setTimeout(() => setButtonState('idle'), 800);
+      // subtle shake handled by animation state; reset quickly
+      setTimeout(() => setButtonState('idle'), 250);
+
+      // Navigate back to login so user can retry
+      navigate(`/login?redirect=${encodeURIComponent(redirect)}`, { replace: true });
     }
   };
 

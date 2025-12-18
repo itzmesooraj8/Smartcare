@@ -121,14 +121,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // On mount, try silent session check
+  // On mount, start a silent session check but don't block the UI.
+  // This prevents the app from showing a full-screen loading state while
+  // the refresh endpoint (network) completes, improving perceived latency.
   useEffect(() => {
     let mounted = true;
+    // Do not set `isLoading` true here — keep UI responsive and allow
+    // optimistic navigation. Run refresh in background and update user when done.
     (async () => {
-      setIsLoading(true);
       const ok = await refreshToken();
       if (!ok && mounted) {
-        // not authenticated
         setUser(null);
       }
       if (mounted) setIsLoading(false);

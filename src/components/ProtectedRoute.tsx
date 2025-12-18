@@ -17,8 +17,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
-  // Still determining session
-  if (isLoading) {
+  // Still determining session — but if we already have a user, allow rendering.
+  // This prevents showing a full-screen spinner during optimistic or in-flight logins
+  // while the app still has a valid `user` object available.
+  if (isLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="p-6 rounded-lg shadow-md bg-white/60 backdrop-blur">
