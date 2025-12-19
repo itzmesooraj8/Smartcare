@@ -215,6 +215,8 @@ export default function MedicalRecordsPage() {
 	const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
 	const gridRef = useRef<HTMLDivElement | null>(null);
 
+	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
 	// keyboard navigation: arrow keys navigate cards
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
@@ -252,11 +254,26 @@ export default function MedicalRecordsPage() {
 			<Header />
 			<div className="flex">
 				<div className="hidden md:block"><Sidebar /></div>
-				<main className="flex-1 p-4 sm:p-8">
+				<main className={`flex-1 p-4 sm:p-8 ${uploadDrawerOpen ? 'pb-36 sm:pb-8' : ''}`}>
+					{/* Mobile menu button (shows sidebar as overlay) */}
+					<div className="md:hidden mb-3">
+						<button onClick={() => setMobileSidebarOpen(true)} aria-label="Open menu" className="px-3 py-2 bg-white border rounded shadow">☰ Menu</button>
+					</div>
+
+					{/* Mobile sidebar overlay */}
+					{mobileSidebarOpen && (
+						<div className="fixed inset-0 z-50 md:hidden">
+							<div className="absolute inset-0 bg-black/30" onClick={() => setMobileSidebarOpen(false)} />
+							<aside className="relative w-72 h-full bg-white p-4 overflow-auto">
+								<div className="flex items-center justify-end mb-4"><button onClick={() => setMobileSidebarOpen(false)} className="text-slate-600">Close</button></div>
+								<Sidebar />
+							</aside>
+						</div>
+					)}
 					<div className="max-w-7xl mx-auto">
 						{/* Floating control bar (Cockpit) */}
 						<div className="relative mb-6">
-							<motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.45 }} className="sticky top-6 z-20 bg-white border border-gray-200 rounded-3xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shadow-sm">
+								<motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.45 }} className="sticky top-4 sm:top-6 z-20 bg-white border border-gray-200 rounded-3xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 shadow-sm">
 								<div className="flex-1">
 									<div className="relative">
 										<div className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-300"><Search /></div>
@@ -315,7 +332,7 @@ export default function MedicalRecordsPage() {
 						{/* Upload Drawer (Interaction) */}
 						<AnimatePresence>
 								{uploadDrawerOpen && (
-									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed z-40 sm:right-6 sm:bottom-6 right-4 left-4 bottom-6 w-full sm:w-[480px] bg-white sm:rounded-2xl rounded-t-xl p-4 border border-gray-200 shadow-lg">
+									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed z-40 sm:right-6 sm:bottom-6 right-0 left-0 bottom-4 sm:bottom-6 px-4 sm:px-0 mx-auto w-full sm:w-[480px] bg-white sm:rounded-2xl rounded-t-xl p-4 border border-gray-200 shadow-lg">
 										<div className="flex items-center justify-between mb-3">
 											<div className="flex items-center gap-3">
 												<div className="text-lg font-semibold text-slate-800">Secure Upload</div>
@@ -364,8 +381,8 @@ export default function MedicalRecordsPage() {
 								</div>
 							) : (
 								<motion.div layout variants={vaultVariants.container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[120px] sm:auto-rows-[160px]">
-									{filtered.map((rec, idx) => {
-											const spanClass = idx % 7 === 2 ? 'row-span-2' : idx % 5 === 0 ? 'row-span-3' : 'row-span-1';
+									    {filtered.map((rec, idx) => {
+										    const spanClass = idx % 7 === 2 ? 'sm:row-span-2 row-span-1' : idx % 5 === 0 ? 'sm:row-span-3 row-span-1' : 'row-span-1';
 										return (
 											<motion.div layout variants={vaultVariants.item} key={rec.id} className={`${spanClass} transform-gpu`}> 
 												<div className="h-full flex">
