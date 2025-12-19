@@ -71,9 +71,9 @@ const RecordCard = React.forwardRef<HTMLDivElement, RecordCardProps>(({ rec, idx
 								<div className="mt-3">
 									<div className="text-xs text-slate-500">{rec.attachments[0].name}</div>
 									{rec.attachments[0].mime?.startsWith('image') ? (
-										<div className={`mt-2 w-full h-44 rounded-lg overflow-hidden bg-gray-100 ${privacyBlur ? 'filter blur-sm' : ''}`}>
-											<img src={rec.attachments[0].url} alt={rec.attachments[0].name} className="w-full h-full object-cover" />
-										</div>
+											<div className={`mt-2 w-full h-36 sm:h-44 rounded-lg overflow-hidden bg-gray-100 ${privacyBlur ? 'filter blur-sm' : ''}`}>
+												<img src={rec.attachments[0].url} alt={rec.attachments[0].name} className="w-full h-full object-cover" />
+											</div>
 									) : (
 										<div className="mt-2 flex items-center gap-3 text-slate-600">
 											<FileText /> <div className="truncate">{rec.attachments[0].name}</div>
@@ -251,8 +251,8 @@ export default function MedicalRecordsPage() {
 		<div className="min-h-screen bg-background">
 			<Header />
 			<div className="flex">
-				<Sidebar />
-				<main className="flex-1 p-8">
+				<div className="hidden md:block"><Sidebar /></div>
+				<main className="flex-1 p-4 sm:p-8">
 					<div className="max-w-7xl mx-auto">
 						{/* Floating control bar (Cockpit) */}
 						<div className="relative mb-6">
@@ -315,7 +315,7 @@ export default function MedicalRecordsPage() {
 						{/* Upload Drawer (Interaction) */}
 						<AnimatePresence>
 								{uploadDrawerOpen && (
-									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed z-40 sm:right-6 sm:bottom-6 right-4 left-4 bottom-6 w-auto sm:w-[480px] bg-white sm:rounded-2xl rounded-t-xl p-4 border border-gray-200 shadow-lg">
+									<motion.div initial={{ y: 200, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 200, opacity: 0 }} transition={{ type: 'spring' }} className="fixed z-40 sm:right-6 sm:bottom-6 right-4 left-4 bottom-6 w-full sm:w-[480px] bg-white sm:rounded-2xl rounded-t-xl p-4 border border-gray-200 shadow-lg">
 										<div className="flex items-center justify-between mb-3">
 											<div className="flex items-center gap-3">
 												<div className="text-lg font-semibold text-slate-800">Secure Upload</div>
@@ -363,7 +363,7 @@ export default function MedicalRecordsPage() {
 									<div className="max-w-xl mx-auto">No records match your search or filters. Use <strong>Add Record</strong> or <strong>Upload</strong> to add medical files.</div>
 								</div>
 							) : (
-								<motion.div layout variants={vaultVariants.container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[160px]">
+								<motion.div layout variants={vaultVariants.container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[120px] sm:auto-rows-[160px]">
 									{filtered.map((rec, idx) => {
 											const spanClass = idx % 7 === 2 ? 'row-span-2' : idx % 5 === 0 ? 'row-span-3' : 'row-span-1';
 										return (
@@ -465,7 +465,7 @@ export default function MedicalRecordsPage() {
 								<button className="px-3 py-1 border rounded" onClick={() => setPreview(null)}>Close</button>
 							</div>
 						</div>
-						<div className="h-[60vh] sm:h-[72vh] flex items-center justify-center bg-black/50 rounded">
+						<div className="h-[50vh] sm:h-[72vh] flex items-center justify-center bg-black/50 rounded">
 							{preview.mime === 'application/pdf' ? (
 								<iframe src={preview.url} className="w-full h-full rounded" />
 							) : (
