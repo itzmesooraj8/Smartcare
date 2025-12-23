@@ -94,13 +94,7 @@ export const Navbar = () => {
             </NavLink>
           </div>
 
-          {/* Mobile centered logo (visible on mobile only) */}
-          <div className="flex-1 flex md:hidden justify-center">
-            <NavLink to="/" className="flex items-center gap-2">
-              <Activity className={`w-6 h-6 transition-colors duration-500 ${styles.logoIcon}`} />
-              <span className={`font-semibold text-base tracking-tight transition-colors duration-500 ${styles.logoText}`}>SmartCare</span>
-            </NavLink>
-          </div>
+          {/* mobile centered logo removed to avoid duplication with panel header */}
 
           {/* Links - Desktop */}
           <nav className="hidden md:flex gap-2 justify-center flex-1">
