@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-  import { MessageCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import SentientOrb from '../components/ui/SentientOrb';
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,10 +10,10 @@ const Chatbot = () => {
       {!isOpen && (
           <button 
             onClick={() => setIsOpen(true)} 
-            className="bg-black text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg hover:bg-gray-800 transition-colors"
+            className="bg-transparent rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors"
             aria-label="Open chat"
           >
-            <MessageCircle className="w-6 h-6" />
+            <SentientOrb className="w-12 h-12" isThinking={isOpen} />
           </button>
       )}
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Header from '@/components/layout/Header';
+import { Navbar } from '@/components/ui/mini-navbar';
 import Footer from '@/components/layout/Footer';
 import { 
   Heart, 
@@ -96,8 +96,8 @@ const HomePage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="pt-32 min-h-screen bg-background">
+      <Navbar />
       
       {/* Hero Section */}
       <section className="relative py-20 lg:py-32 overflow-hidden">
