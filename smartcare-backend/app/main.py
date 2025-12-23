@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +17,20 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 app = FastAPI(title="SmartCare Backend (Auth Only)")
 
+# Configure CORS from settings.ALLOWED_ORIGINS (supports CSV string or list)
+raw_allowed = getattr(settings, "ALLOWED_ORIGINS", None)
+if raw_allowed is None:
+    allow_origins = ["*"]
+elif isinstance(raw_allowed, str):
+    allow_origins = [o.strip() for o in raw_allowed.split(",") if o.strip()]
+elif isinstance(raw_allowed, (list, tuple)):
+    allow_origins = list(raw_allowed)
+else:
+    allow_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,7 +92,7 @@ def get_password_hash(password: str) -> str:
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "mode": "serverless"}
 
 
 @app.post("/api/v1/auth/register", status_code=201)

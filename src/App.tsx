@@ -1,13 +1,12 @@
 import React, { Suspense, useEffect, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import Chatbot from './pages/Chatbot';
-import queryClient from '@/lib/react-query';
+const queryClient = new QueryClient();
 const PageLoader = (): JSX.Element => (
   <div style={{ minHeight: '100vh' }} className="flex items-center justify-center">
     Loading...
@@ -39,6 +38,7 @@ import PatientsPage from './pages/PatientsPage';
 import ReportsAnalyticsPage from './pages/ReportsAnalyticsPage';
 import NotFound from './pages/NotFound';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import Chatbot from './pages/Chatbot';
 
 // Lazy / heavy pages
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -57,6 +57,7 @@ const App = (): JSX.Element => {
         <AuthProvider>
           <Toaster />
           <Sonner />
+          <Chatbot />
           <BrowserRouter>
             <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -108,7 +109,6 @@ const App = (): JSX.Element => {
               </Routes>
             </Suspense>
           </BrowserRouter>
-          <Chatbot />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

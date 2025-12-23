@@ -9,6 +9,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const SIGNALING_SERVER = '/'; // kept for compatibility
 
@@ -33,13 +35,15 @@ const VideoCallPage: React.FC = () => {
   const [connectionQuality, setConnectionQuality] = useState<'Excellent' | 'Good' | 'Fair' | 'Poor'>('Excellent');
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [joined, setJoined] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
 
   // Initialize local media and attach to refs
   useEffect(() => {
     let mounted = true;
     const init = async () => {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacing, width: 1280, height: 720 }, audio: true });
         if (!mounted) return;
         console.log('[VideoCall] Acquired local media stream');
         setLocalStream(s);
@@ -49,6 +53,7 @@ const VideoCallPage: React.FC = () => {
         if (localVideoRef.current) localVideoRef.current.srcObject = s;
       } catch (err) {
         console.warn('Media access denied or not available', err);
+        toast.error('Camera access denied. Please check permissions.');
       }
     };
     init();
@@ -161,6 +166,7 @@ const VideoCallPage: React.FC = () => {
       console.log('[Supabase] subscribed to', 'room_' + roomId);
     }).catch((err: any) => {
       console.warn('[Supabase] subscribe error', err);
+      toast.error('Realtime subscription failed');
     });
 
     return () => {
@@ -236,8 +242,13 @@ const VideoCallPage: React.FC = () => {
     setCallStatus('ended');
     // cleanup
     try { localStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
+    try { remoteStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
     try { pcRef.current?.close(); } catch (e) {}
     try { channelRef.current?.unsubscribe(); } catch (e) {}
+    pcRef.current = null;
+    setJoined(false);
+    setJoining(false);
+    toast.success('Call ended');
     // Redirect to role-based dashboard route
     navigate('/dashboard');
   };
@@ -284,8 +295,15 @@ const VideoCallPage: React.FC = () => {
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
       if (s === 'connected') setCallStatus('connected');
-      if (s === 'disconnected' || s === 'failed') setIsReconnecting(true);
-      else setIsReconnecting(false);
+      if (s === 'connected') {
+        setJoined(true);
+        setJoining(false);
+      }
+      if (s === 'disconnected' || s === 'failed') {
+        setIsReconnecting(true);
+        setJoining(false);
+        setJoined(false);
+      } else setIsReconnecting(false);
     };
 
     return pc;
@@ -295,6 +313,8 @@ const VideoCallPage: React.FC = () => {
   const startCall = async () => {
     if (!localStreamRef.current) {
       console.warn('No local stream available');
+      setJoining(false);
+      toast.error('No local media available');
       return;
     }
     await createPeerConnection();
@@ -308,6 +328,8 @@ const VideoCallPage: React.FC = () => {
       } catch (e) { console.warn('Failed to send offer', e); }
     } catch (e) {
       console.warn('Failed to create offer', e);
+      setJoining(false);
+      toast.error('Failed to create offer');
     }
   };
 
@@ -341,14 +363,47 @@ const VideoCallPage: React.FC = () => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => {
         console.log('[VideoCall] invite copied to clipboard');
+        toast.success('Room link copied!');
       }).catch((err) => {
         console.warn('[VideoCall] clipboard.writeText failed, using fallback', err);
         fallbackCopy(url);
+        toast.success('Room link copied!');
       });
     } else {
       fallbackCopy(url);
+      toast.success('Room link copied!');
     }
   }
+
+  // Flip camera (user <-> environment). Re-acquire stream and replace senders.
+  const flipCamera = async () => {
+    const next = cameraFacing === 'user' ? 'environment' : 'user';
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next, width: 1280, height: 720 }, audio: true });
+      // stop old tracks
+      try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) {}
+      setLocalStream(s);
+      localStreamRef.current = s;
+      if (localVideoRef.current) localVideoRef.current.srcObject = s;
+      // replace tracks on existing peer connection
+      const pc = pcRef.current;
+      if (pc) {
+        const senders = pc.getSenders();
+        const audioTrack = s.getAudioTracks()[0];
+        const videoTrack = s.getVideoTracks()[0];
+        for (const sender of senders) {
+          try {
+            if (sender.track?.kind === 'video' && videoTrack) await sender.replaceTrack(videoTrack);
+            if (sender.track?.kind === 'audio' && audioTrack) await sender.replaceTrack(audioTrack);
+          } catch (e) { console.warn('replaceTrack failed', e); }
+        }
+      }
+      setCameraFacing(next);
+    } catch (e) {
+      console.warn('flipCamera failed', e);
+      toast.error('Unable to access alternate camera');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black/80 via-transparent to-black/80 text-white">
@@ -392,7 +447,7 @@ const VideoCallPage: React.FC = () => {
           )}
 
             {/* Draggable self view */}
-            <DraggableSelfView videoRef={localVideoRef} enabled={isVideoEnabled} />
+            <DraggableSelfView videoRef={localVideoRef} enabled={isVideoEnabled} onFlip={flipCamera} />
         </div>
 
         {/* Command center */}
@@ -405,13 +460,24 @@ const VideoCallPage: React.FC = () => {
                 onToggleMute={toggleMute}
                 onToggleVideo={toggleVideo}
                 onEndCall={endCall}
-                onJoinCall={async () => { setJoined(true); await startCall(); }}
+                onJoinCall={async () => { setJoining(true); await startCall(); }}
+                joining={joining}
+                joined={joined}
               />
 
               {!joined && (
-                <button onClick={async () => { setJoined(true); await startCall(); }} className="md:hidden px-3 py-2 rounded-full bg-green-600 text-white font-semibold">
-                  Join Call
-                </button>
+                <>
+                  {!joining ? (
+                    <button onClick={async () => { setJoining(true); await startCall(); }} className="md:hidden px-3 py-2 rounded-full bg-green-600 text-white font-semibold">
+                      Join Call
+                    </button>
+                  ) : (
+                    <div className="md:hidden px-3 py-2 rounded-full bg-yellow-500 text-white font-semibold flex items-center gap-2">
+                      <LoadingSpinner />
+                      <span>Connecting...</span>
+                    </div>
+                  )}
+                </>
               )}
               {joined && (
                 <div className="px-3 py-2 rounded-full bg-green-700 text-white font-semibold">Connected</div>
@@ -437,15 +503,28 @@ const VideoControls: React.FC<{
   onToggleVideo: () => void;
   onEndCall: () => void;
   onJoinCall: () => void;
-}> = ({ isMuted, isVideoEnabled, onToggleMute, onToggleVideo, onEndCall, onJoinCall }) => {
+  joining?: boolean;
+  joined?: boolean;
+}> = ({ isMuted, isVideoEnabled, onToggleMute, onToggleVideo, onEndCall, onJoinCall, joining, joined }) => {
   return (
     <div className="flex items-center gap-2 md:gap-3">
-      <button
-        onClick={onJoinCall}
-        className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold hover:brightness-105"
-      >
-        Join Call
-      </button>
+      {!joined && (
+        <>
+          {!joining ? (
+            <button
+              onClick={onJoinCall}
+              className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold hover:brightness-105"
+            >
+              Join Call
+            </button>
+          ) : (
+            <div className="hidden md:inline-flex px-3 py-2 rounded-full bg-yellow-500 text-white font-semibold items-center gap-2">
+              <LoadingSpinner />
+              <span>Connecting...</span>
+            </div>
+          )}
+        </>
+      )}
       <button
         aria-label={isMuted ? 'Unmute (M)' : 'Mute (M)'}
         title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
@@ -477,12 +556,12 @@ const VideoControls: React.FC<{
   );
 };
 
-const DraggableSelfView: React.FC<{ videoRef: React.RefObject<HTMLVideoElement>; enabled: boolean }> = ({ videoRef, enabled }) => {
+const DraggableSelfView: React.FC<{ videoRef: React.RefObject<HTMLVideoElement>; enabled: boolean; onFlip?: () => void }> = ({ videoRef, enabled, onFlip }) => {
   return (
     <motion.div
       drag
       dragElastic={0.2}
-      className="absolute bottom-6 right-6 md:bottom-8 md:right-8 w-40 md:w-48 h-28 md:h-36 rounded-xl overflow-hidden z-50 cursor-grab touch-none"
+      className="absolute top-4 right-4 md:bottom-6 md:right-6 w-36 md:w-48 h-24 md:h-36 rounded-xl overflow-hidden z-50 cursor-grab touch-none"
       whileTap={{ cursor: 'grabbing' }}
     >
       <div className={`w-full h-full bg-gray-800 rounded-xl border-2 border-white/10 overflow-hidden ${!enabled ? 'opacity-50' : ''}`}>
@@ -492,6 +571,13 @@ const DraggableSelfView: React.FC<{ videoRef: React.RefObject<HTMLVideoElement>;
             <Camera className="w-6 h-6 text-white/80" />
           </div>
         )}
+        <div className="absolute top-2 right-2 z-60 flex items-center gap-2">
+          {onFlip && (
+            <button onClick={onFlip} title="Flip camera" className="bg-white/8 text-white p-1 rounded-md hover:bg-white/12">
+              Flip
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
