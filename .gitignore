@@ -60,3 +60,10 @@ node_modules/
 dist/
 .vscode/
 .github/
+
+# Backend-specific secrets and dev artifacts
+smartcare-backend/.env
+smartcare-backend/venv/
+smartcare-backend/__pycache__/
+smartcare-backend/*.pyc
+smartcare-backend/mock_xai.py
