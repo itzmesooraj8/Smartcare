@@ -81,7 +81,7 @@ export const Navbar = () => {
   };
 
   return (
-    <header className="fixed inset-x-0 top-6 z-40 flex justify-center pointer-events-none transition-all duration-500">
+    <div className="fixed inset-x-0 top-6 z-40 flex justify-center pointer-events-none transition-all duration-500">
       <div className="pointer-events-auto w-full max-w-5xl px-4">
         <div
           className={`rounded-full border py-2 px-4 flex items-center justify-between gap-4 transition-all duration-500 ease-in-out ${styles.navContainer}`}
@@ -127,7 +127,7 @@ export const Navbar = () => {
           </div>
 
           {/* Mobile logo (left) + Hamburger (right) */}
-          <div className="md:hidden flex items-center gap-3">
+          <div className="md:hidden flex items-center justify-between w-full">
             <NavLink to="/" className="flex items-center gap-2"> 
               <Activity className={`w-6 h-6 transition-colors duration-500 ${styles.logoIcon}`} />
               <span className={`font-semibold text-sm transition-colors duration-500 ${styles.logoText}`}>SmartCare</span>
@@ -150,16 +150,7 @@ export const Navbar = () => {
           style={{ maxHeight: open ? 520 : 0 }}
         >
           <div className={`rounded-xl overflow-hidden shadow-lg border border-white/10 bg-white/95 backdrop-blur-md`}> 
-            {/* panel header with logo + close */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <NavLink to="/" onClick={() => setOpen(false)} className="flex items-center gap-3">
-                <Activity className={`w-6 h-6 ${styles.logoIcon}`} />
-                <span className={`font-semibold ${styles.logoText}`}>SmartCare</span>
-              </NavLink>
-              <button aria-label="Close menu" onClick={() => setOpen(false)} className="p-2 rounded-md text-gray-700">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+            {/* panel header with logo + close */}   
 
             <div className="px-4 pb-4">
               <div className="flex flex-col gap-3 py-2">
@@ -195,6 +186,6 @@ export const Navbar = () => {
           </div>
         </div>
       </div>
-    </header>
+    </div>
   );
 };
