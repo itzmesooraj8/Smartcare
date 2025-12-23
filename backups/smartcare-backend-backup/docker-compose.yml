@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - minio
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  
+  minio:
+    image: minio/minio
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - minio_data:/data
+    command: server /data
+    ports:
+      - "9000:9000"
+
+  worker:
+    build: .
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+      - db
+
+  coturn:
+    image: instrumentisto/coturn
+    ports:
+      - "3478:3478"    # UDP/TCP
+      - "3478:3478/udp"
+    environment:
+      - REALM=yourdomain.com
+      - LISTENING_PORT=3478
+      - MIN_PORT=49152
+      - MAX_PORT=65535
+      - USERS=user:pass  # or configure static users or turnserv
+
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: smartcare
+      POSTGRES_PASSWORD: smartcare123
+      POSTGRES_DB: smartcare
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
+  minio_data:

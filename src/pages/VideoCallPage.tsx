@@ -7,18 +7,19 @@ import {
   Camera,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { io, Socket } from 'socket.io-client';
+import supabase from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-const SIGNALING_SERVER = '/'; // Replace with real socket URL when ready
+const SIGNALING_SERVER = '/'; // kept for compatibility
 
 const VideoCallPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pcRef = useRef<any>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const channelRef = useRef<any>(null);
+  const pendingCandidatesRef = useRef<Array<any>>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
 
@@ -31,6 +32,7 @@ const VideoCallPage: React.FC = () => {
   const [callStatus, setCallStatus] = useState<'connecting' | 'connected' | 'ended'>('connecting');
   const [connectionQuality, setConnectionQuality] = useState<'Excellent' | 'Good' | 'Fair' | 'Poor'>('Excellent');
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [joined, setJoined] = useState(false);
 
   // Initialize local media and attach to refs
   useEffect(() => {
@@ -75,35 +77,98 @@ const VideoCallPage: React.FC = () => {
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler);
   }, []);
 
-  // Socket + Peer skeleton
+  // Setup Supabase channel and signaling handler
+  const [roomId, setRoomId] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const r = params.get('room');
+      if (r) return r;
+      // generate UUID
+      if (typeof crypto !== 'undefined' && (crypto as any).randomUUID) return (crypto as any).randomUUID();
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    } catch (e) {
+      return 'global';
+    }
+  });
+
   useEffect(() => {
-    socketRef.current = io(SIGNALING_SERVER, { autoConnect: false });
-    const socket = socketRef.current;
-    socket.connect();
+    const channel = supabase.channel('room_' + roomId);
+    channelRef.current = channel;
 
-    socket.on('connect', () => {
-      console.log('socket connected', socket.id);
-      setCallStatus('connected');
-    });
+    const handler = async (payload: any) => {
+      try {
+        const message = payload?.payload;
+        if (!message) return;
+        const { type, data } = message;
+        console.log('[Supabase] signal received', type, data);
 
-    // Placeholder handlers for future signaling events
-    socket.on('offer', async (offer: any) => {
-      // Implement when backend ready
-      console.log('received offer', offer);
-    });
+        if (type === 'candidate') {
+          // Queue until remote description present
+          const cand = data;
+          const pc = pcRef.current;
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try { await pc.addIceCandidate(cand); } catch (e) { console.warn('addIceCandidate failed', e); }
+          } else {
+            pendingCandidatesRef.current.push(cand);
+          }
+          return;
+        }
 
-    socket.on('candidate', (candidate: any) => {
-      if (pcRef.current) pcRef.current.addIceCandidate(candidate).catch(console.warn);
-    });
+        if (type === 'offer') {
+          // act as callee
+          await createPeerConnection();
+          const pc = pcRef.current;
+          try {
+            await pc.setRemoteDescription(data);
+          } catch (e) {
+            console.warn('setRemoteDescription (offer) failed', e);
+            return;
+          }
+          try {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', data: pc.localDescription } });
+            // flush any pending candidates
+            while (pendingCandidatesRef.current.length) {
+              const c = pendingCandidatesRef.current.shift();
+              try { await pc.addIceCandidate(c); } catch (e) { console.warn('flushing candidate failed', e); }
+            }
+          } catch (e) {
+            console.warn('Failed creating/sending answer', e);
+          }
+        } else if (type === 'answer') {
+          const pc = pcRef.current;
+          if (!pc) return;
+          try {
+            await pc.setRemoteDescription(data);
+            // flush pending candidates
+            while (pendingCandidatesRef.current.length) {
+              const c = pendingCandidatesRef.current.shift();
+              try { await pc.addIceCandidate(c); } catch (e) { console.warn('flushing candidate failed', e); }
+            }
+          } catch (e) {
+            console.warn('setRemoteDescription (answer) failed', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed handling incoming signal', e);
+      }
+    };
 
-    socket.on('disconnect', () => {
-      setCallStatus('connecting');
+    channel.on('broadcast', { event: 'signal' }, handler);
+
+    channel.subscribe().then(() => {
+      console.log('[Supabase] subscribed to', 'room_' + roomId);
+    }).catch((err: any) => {
+      console.warn('[Supabase] subscribe error', err);
     });
 
     return () => {
-      socket.disconnect();
+      try { channel.unsubscribe(); } catch (e) {}
+      channelRef.current = null;
+      pendingCandidatesRef.current = [];
     };
-  }, []);
+  }, [roomId]);
 
   // Attach remote stream to element
   useEffect(() => {
@@ -118,7 +183,7 @@ const VideoCallPage: React.FC = () => {
       try { localStreamRef.current?.getTracks().forEach(t => { t.stop(); console.log('[VideoCall] stopped local track', t.kind); }); } catch (e) {}
       try { remoteStreamRef.current?.getTracks().forEach(t => { t.stop(); console.log('[VideoCall] stopped remote track', t.kind); }); } catch (e) {}
       try { pcRef.current?.close(); console.log('[VideoCall] closed RTCPeerConnection'); } catch (e) {}
-      try { socketRef.current?.disconnect(); console.log('[VideoCall] disconnected socket'); } catch (e) {}
+      try { channelRef.current?.unsubscribe(); console.log('[VideoCall] unsubscribed channel'); } catch (e) {}
       localStreamRef.current = null;
       remoteStreamRef.current = null;
       setIsCameraActive(false);
@@ -172,9 +237,78 @@ const VideoCallPage: React.FC = () => {
     // cleanup
     try { localStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
     try { pcRef.current?.close(); } catch (e) {}
-    socketRef.current?.disconnect();
+    try { channelRef.current?.unsubscribe(); } catch (e) {}
     // Redirect to role-based dashboard route
     navigate('/dashboard');
+  };
+
+  // Create RTCPeerConnection and wire tracks/ICE/remote track handling
+  const createPeerConnection = async () => {
+    if (pcRef.current) return pcRef.current;
+    const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const pc = new RTCPeerConnection(servers as any);
+    pcRef.current = pc;
+
+    // Add local tracks
+    try {
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getTracks()) {
+          pc.addTrack(track, localStreamRef.current);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to add local tracks', e);
+    }
+
+    // Remote stream handling
+    const remote = new MediaStream();
+    setRemoteStream(remote);
+
+    pc.ontrack = (ev: any) => {
+      try {
+        ev.streams?.[0]?.getTracks().forEach((t: MediaStreamTrack) => remote.addTrack(t));
+      } catch (e) {
+        // fallback: add individual track
+        if (ev.track) remote.addTrack(ev.track);
+      }
+    };
+
+    pc.onicecandidate = (ev: any) => {
+      if (ev.candidate) {
+        try {
+          channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'candidate', data: ev.candidate } });
+        } catch (e) { console.warn('Failed to send candidate', e); }
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState;
+      if (s === 'connected') setCallStatus('connected');
+      if (s === 'disconnected' || s === 'failed') setIsReconnecting(true);
+      else setIsReconnecting(false);
+    };
+
+    return pc;
+  };
+
+  // Start a call as caller (create offer)
+  const startCall = async () => {
+    if (!localStreamRef.current) {
+      console.warn('No local stream available');
+      return;
+    }
+    await createPeerConnection();
+    const pc = pcRef.current;
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      // send offer
+      try {
+        await channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', data: pc.localDescription } });
+      } catch (e) { console.warn('Failed to send offer', e); }
+    } catch (e) {
+      console.warn('Failed to create offer', e);
+    }
   };
 
   // Keyboard shortcuts
@@ -188,21 +322,56 @@ const VideoCallPage: React.FC = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleMute, toggleVideo]);
+  function copyInvite(event: React.MouseEvent<HTMLButtonElement>): void {
+    event.preventDefault();
+    const url = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomId)}`;
+
+    const fallbackCopy = (text: string) => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); console.log('[VideoCall] invite copied (fallback)'); }
+      catch (e) { console.warn('[VideoCall] fallback copy failed', e); }
+      document.body.removeChild(ta);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        console.log('[VideoCall] invite copied to clipboard');
+      }).catch((err) => {
+        console.warn('[VideoCall] clipboard.writeText failed, using fallback', err);
+        fallbackCopy(url);
+      });
+    } else {
+      fallbackCopy(url);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black/80 via-transparent to-black/80 text-white">
       <div className="relative h-screen flex flex-col">
         {/* Camera/Mic active indicator (top-left) */}
-        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-          <div className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${isCameraActive ? 'bg-green-600 text-white' : 'bg-black/40 text-white/80'}`} aria-live="polite">
-            <Camera className="w-4 h-4" />
-            <span className="hidden md:inline">Camera</span>
-          </div>
-          <div className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${isMicActive ? 'bg-green-600 text-white' : 'bg-black/40 text-white/80'}`} aria-live="polite">
-            <Mic className="w-4 h-4" />
-            <span className="hidden md:inline">Mic</span>
-          </div>
-        </div>
+            <div className="absolute top-4 left-4 z-50 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${isCameraActive ? 'bg-green-600 text-white' : 'bg-black/40 text-white/80'}`} aria-live="polite">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${isMicActive ? 'bg-green-600 text-white' : 'bg-black/40 text-white/80'}`} aria-live="polite">
+                  <Mic className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="ml-2 flex items-center gap-2 bg-black/40 px-3 py-1 rounded-md">
+                <span className="text-sm font-medium">Room:</span>
+                <span className="text-sm font-mono truncate max-w-[12rem]">{roomId}</span>
+                <button onClick={copyInvite} title="Copy invite link" className="ml-2 p-1 bg-white/8 rounded-md hover:bg-white/12">
+                  Copy
+                </button>
+              </div>
+            </div>
         {/* Network indicator */}
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
           <div className={`px-2 py-1 rounded text-xs font-bold ${connectionQuality==='Excellent'?'bg-green-600':'bg-yellow-500'} ${connectionQuality==='Fair'?'bg-orange-500':''} ${connectionQuality==='Poor'?'bg-red-600':''}`}>{connectionQuality}</div>
@@ -229,13 +398,25 @@ const VideoCallPage: React.FC = () => {
         {/* Command center */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-[90%]">
           <motion.div className="mx-auto bg-white/6 backdrop-blur-md px-3 md:px-4 py-2 md:py-3 rounded-full flex items-center gap-3 md:gap-4 shadow-lg justify-center" initial={{ y: 40 }} animate={{ y: 0 }}>
-            <VideoControls
-              isMuted={isMuted}
-              isVideoEnabled={isVideoEnabled}
-              onToggleMute={toggleMute}
-              onToggleVideo={toggleVideo}
-              onEndCall={endCall}
-            />
+            <div className="flex items-center gap-3">
+              <VideoControls
+                isMuted={isMuted}
+                isVideoEnabled={isVideoEnabled}
+                onToggleMute={toggleMute}
+                onToggleVideo={toggleVideo}
+                onEndCall={endCall}
+                onJoinCall={async () => { setJoined(true); await startCall(); }}
+              />
+
+              {!joined && (
+                <button onClick={async () => { setJoined(true); await startCall(); }} className="md:hidden px-3 py-2 rounded-full bg-green-600 text-white font-semibold">
+                  Join Call
+                </button>
+              )}
+              {joined && (
+                <div className="px-3 py-2 rounded-full bg-green-700 text-white font-semibold">Connected</div>
+              )}
+            </div>
 
             {/* layoutId for join transition (shared with WaitingRoom) */}
             <motion.div layoutId="joinButton" className="hidden" />
@@ -255,9 +436,16 @@ const VideoControls: React.FC<{
   onToggleMute: () => void;
   onToggleVideo: () => void;
   onEndCall: () => void;
-}> = ({ isMuted, isVideoEnabled, onToggleMute, onToggleVideo, onEndCall }) => {
+  onJoinCall: () => void;
+}> = ({ isMuted, isVideoEnabled, onToggleMute, onToggleVideo, onEndCall, onJoinCall }) => {
   return (
     <div className="flex items-center gap-2 md:gap-3">
+      <button
+        onClick={onJoinCall}
+        className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold hover:brightness-105"
+      >
+        Join Call
+      </button>
       <button
         aria-label={isMuted ? 'Unmute (M)' : 'Mute (M)'}
         title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
