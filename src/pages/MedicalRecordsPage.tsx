@@ -190,7 +190,7 @@ function DocumentPreviewModal({ doc, onClose, onDelete, onDownload, onShare }: {
                     <div className="text-sm font-medium text-gray-900">{doc.type}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-gray-500">Dimensions</div>
+                    <div className="text-xs uppercase tracking-wider text-gray-500">Doctor</div>
                     <div className="text-sm font-medium text-gray-900">—</div>
                   </div>
                   <div>

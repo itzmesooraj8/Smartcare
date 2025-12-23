@@ -31,6 +31,12 @@ export default defineConfig(({ mode }) => ({
       }
     }
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'src/**/__tests__/**/*.{ts,tsx}'],
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {

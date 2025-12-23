@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from app.core.config import validate_env
 from app.tasks.audit import record_audit_async
 from app.signaling import router as signaling_router
 from app.api.v1 import ehr, appointments, availability, profile, auth, tele, finance
@@ -13,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Validate environment at startup (will raise on critical missing vars in production)
+validate_env()
 
 app = FastAPI(title="Smartcare Backend")
 

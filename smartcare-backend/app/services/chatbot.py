@@ -1,33 +1,38 @@
-"""
-Chatbot service with Google Gemini AI integration and fallback to rule-based responses.
+"""Chatbot service using XAI/Grok (preferred) with rule-based fallback.
+
+Secrets must remain on the backend (see `smartcare-backend/.env`). This module
+prefers `GROK_API_KEY` (or `XAI_API_KEY`) if present and will call the
+provider's HTTP endpoint configured via `XAI_API_URL`. If no XAI key is
+available or the provider call fails, it falls back to a rule-based responder.
 """
 import os
 import logging
 from typing import Optional
+from pathlib import Path
 from dotenv import load_dotenv
-import google.generativeai as genai
+import httpx
 
-# Load environment variables from .env file
-load_dotenv()
+# Try to explicitly load the backend .env for deterministic behavior
+backend_env = Path(__file__).resolve().parents[2] / ".env"
+if backend_env.exists():
+    load_dotenv(dotenv_path=str(backend_env))
+else:
+    # fallback to any .env found on the environment
+    load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Configure Gemini AI
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-USE_AI = GEMINI_API_KEY is not None
+# Prefer Grok/XAI provider if configured
+GROK_API_KEY = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
+XAI_API_URL = os.getenv("XAI_API_URL")  # optional, provider-specific
+USE_XAI = GROK_API_KEY is not None
 
-if USE_AI:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-pro')
-        logger.info("Gemini AI initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize Gemini AI: {e}")
-        USE_AI = False
-        model = None
-else:
+# Only XAI/Grok is used. If not configured, we fall back to the rule-based chatbot.
+if not USE_XAI:
     model = None
-    logger.warning("GEMINI_API_KEY not found. Using rule-based chatbot.")
+    logger.warning("GROK_API_KEY/XAI_API_KEY not configured. Using rule-based chatbot.")
+else:
+    model = None  # kept for API parity if needed later
 
 
 class ChatbotService:
@@ -98,29 +103,65 @@ What would you like to know?"""
 
     @staticmethod
     async def get_ai_response(message: str, conversation_history: Optional[list] = None) -> str:
-        """Get AI-powered response using Google Gemini."""
+        """Get AI-powered response using XAI/Grok via `get_xai_response`.
+
+        Falls back to the rule-based responder on error.
+        """
         try:
-            # Build conversation context
-            chat_history = []
-            if conversation_history:
-                for msg in conversation_history[-10:]:  # Keep last 10 messages for context
-                    role = "user" if msg.get("sender") == "user" else "model"
-                    chat_history.append({
-                        "role": role,
-                        "parts": [msg.get("content", "")]
-                    })
-            
-            # Start chat with history
-            chat = model.start_chat(history=chat_history)
-            
-            # Send message with system context
-            full_prompt = f"{ChatbotService.SYSTEM_PROMPT}\n\nUser: {message}"
-            response = chat.send_message(full_prompt)
-            
-            return response.text
+                # Use XAI/Grok via HTTP endpoint if configured
+                if USE_XAI and XAI_API_URL:
+                    return await ChatbotService.get_xai_response(message, conversation_history)
+
+                # If XAI is not configured or request fails, fall back to rule-based
+                return ChatbotService.get_rule_based_response(message)
         except Exception as e:
             logger.error(f"AI response error: {e}")
             # Fallback to rule-based
+            return ChatbotService.get_rule_based_response(message)
+
+    @staticmethod
+    async def get_xai_response(message: str, conversation_history: Optional[list] = None) -> str:
+        """Call an XAI/Grok HTTP endpoint. Requires `GROK_API_KEY` and `XAI_API_URL`.
+
+        This implementation is intentionally generic: set `XAI_API_URL` to your
+        provider's chat/completion endpoint and ensure the auth header uses the
+        `GROK_API_KEY` value. Adjust payload/response parsing to match the
+        target API.
+        """
+        if not XAI_API_URL or not GROK_API_KEY:
+            logger.error("XAI API URL or GROK API key not configured")
+            return ChatbotService.get_rule_based_response(message)
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                payload = {
+                    "input": message,
+                    # Provider-specific fields go here; adapt as needed
+                }
+                headers = {
+                    "Authorization": f"Bearer {GROK_API_KEY}",
+                    "Content-Type": "application/json",
+                }
+                resp = await client.post(XAI_API_URL, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+
+                # Attempt to extract text from common fields; adapt per provider
+                if isinstance(data, dict):
+                    # Common patterns: data['output'], data['text'], data['choices'][0]['text']
+                    if "output" in data and isinstance(data["output"], str):
+                        return data["output"]
+                    if "text" in data and isinstance(data["text"], str):
+                        return data["text"]
+                    if "choices" in data and isinstance(data["choices"], list) and data["choices"]:
+                        first = data["choices"][0]
+                        if isinstance(first, dict) and "text" in first:
+                            return first["text"]
+
+                # As a last resort, return the raw JSON as a string
+                return str(data)
+        except Exception as e:
+            logger.error(f"XAI request failed: {e}")
             return ChatbotService.get_rule_based_response(message)
 
     @staticmethod
@@ -137,8 +178,9 @@ What would you like to know?"""
         """
         if not message or not message.strip():
             return "I didn't catch that. Could you please say that again?"
-        
-        if USE_AI and model:
+
+        # Use XAI (Grok) if available; otherwise fall back to rules
+        if USE_XAI:
             return await ChatbotService.get_ai_response(message, conversation_history)
-        else:
-            return ChatbotService.get_rule_based_response(message)
+
+        return ChatbotService.get_rule_based_response(message)

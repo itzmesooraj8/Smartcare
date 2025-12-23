@@ -1,314 +1,118 @@
-import VideoCallPage from "./pages/VideoCallPage";
-import WaitingRoom from "./pages/WaitingRoom";
-import LabResultsCenter from "./pages/LabResultsCenter";
-import DoctorMessagesPage from "./pages/DoctorMessagesPage";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Chatbot from "./components/Chatbot";
+import React, { Suspense, useEffect, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Chatbot from './pages/Chatbot';
+import queryClient from '@/lib/react-query';
+const PageLoader = (): JSX.Element => (
+  <div style={{ minHeight: '100vh' }} className="flex items-center justify-center">
+    Loading...
+  </div>
+);
 
-// Pages
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import DashboardPage from "./pages/DashboardPage";
-import AboutPage from "./pages/AboutPage";
-import ServicesPage from "./pages/ServicesPage";
-import DoctorsPage from "./pages/DoctorsPage";
-import ContactPage from "./pages/ContactPage";
-import AppointmentBookingPage from "./pages/AppointmentBookingPage";
-import AppointmentPage from "./pages/AppointmentPage";
-import PatientDashboard from "./pages/PatientDashboard";
-import DoctorDashboard from "./pages/DoctorDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import MedicalRecordsPage from "./pages/MedicalRecordsPage";
-import DoctorProfilePage from "./pages/DoctorProfilePage";
-import FinancialHub from "./pages/FinancialHub";
-import ResourcesCenter from "./pages/ResourcesCenter";
-// Ensure the file exists or update the path if necessary
-// import PatientProfilePage from "./pages/PatientProfilePage";
-import MessagesPage from "./pages/MessagesPage";
-import ProfilePage from "./pages/ProfilePage";
-import SettingsPage from "./pages/SettingsPage";
-import PatientsPage from "./pages/PatientsPage";
-import ReportsAnalyticsPage from "./pages/ReportsAnalyticsPage";
-import NotFound from "./pages/NotFound";
-import UnauthorizedPage from "./pages/UnauthorizedPage";
+// Core pages
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import AboutPage from './pages/AboutPage';
+import ServicesPage from './pages/ServicesPage';
+import DoctorsPage from './pages/DoctorsPage';
+import ContactPage from './pages/ContactPage';
+import AppointmentBookingPage from './pages/AppointmentBookingPage';
+import AppointmentPage from './pages/AppointmentPage';
+import PatientDashboard from './pages/PatientDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
+import DoctorProfilePage from './pages/DoctorProfilePage';
+import FinancialHub from './pages/FinancialHub';
+import ResourcesCenter from './pages/ResourcesCenter';
+import LabResultsCenter from './pages/LabResultsCenter';
+import DoctorMessagesPage from './pages/DoctorMessagesPage';
+import MessagesPage from './pages/MessagesPage';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
+import PatientsPage from './pages/PatientsPage';
+import ReportsAnalyticsPage from './pages/ReportsAnalyticsPage';
+import NotFound from './pages/NotFound';
+import UnauthorizedPage from './pages/UnauthorizedPage';
 
-const queryClient = new QueryClient();
+// Lazy / heavy pages
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const MedicalRecordsPage = lazy(() => import('./pages/MedicalRecordsPage'));
+const VideoCallPage = lazy(() => import('./pages/VideoCallPage'));
+const WaitingRoom = lazy(() => import('./pages/WaitingRoom'));
 
-const App = () => (
-  <>
+const App = (): JSX.Element => {
+  useEffect(() => {
+    document.title = 'SmartCare';
+  }, []);
+
+  return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<HomePage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/services" element={<ServicesPage />} />
-              <Route path="/doctors" element={<DoctorsPage />} />
-              <Route path="/doctors/:id" element={<DoctorProfilePage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              
-              {/* Auth Routes */}
-              <Route 
-                path="/login" 
-                element={
-                  <ProtectedRoute requireAuth={false}>
-                    <LoginPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/register" 
-                element={
-                  <ProtectedRoute requireAuth={false}>
-                    <RegisterPage />
-                  </ProtectedRoute>
-                } 
-              />
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Public */}
+                <Route path="/" element={<HomePage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/services" element={<ServicesPage />} />
+                <Route path="/doctors" element={<DoctorsPage />} />
+                <Route path="/doctors/:id" element={<DoctorProfilePage />} />
+                <Route path="/contact" element={<ContactPage />} />
 
-              {/* Protected Routes */}
-              <Route 
-                path="/video-call" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor', 'patient']}>
-                    <VideoCallPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/waiting-room" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor', 'patient']}>
-                    <WaitingRoom />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/dashboard" 
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/appointments" 
-                element={
-                  <ProtectedRoute>
-                    <AppointmentPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/book-appointment" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <AppointmentBookingPage />
-                  </ProtectedRoute>
-                } 
-              />
-              {/* Patient Routes */}
-              <Route 
-                path="/patient/dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <PatientDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/appointments" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <AppointmentPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/medical-records" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <MedicalRecordsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/messages" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <MessagesPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/profile" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/settings" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/video-call" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <VideoCallPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/lab-results" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <LabResultsCenter />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Legacy Patient Routes - redirect to new paths */}
-              <Route 
-                path="/patient-dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <PatientDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/lab-results" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <LabResultsCenter />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/doctor-dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor']}>
-                    <DoctorDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin-dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Additional Protected Routes */}
-              <Route 
-                path="/financial-hub" 
-                element={
-                  <ProtectedRoute>
-                    <FinancialHub />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/resources" 
-                element={
-                  <ProtectedRoute>
-                    <ResourcesCenter />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patients" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor']}>
-                    <PatientsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/reports-analytics" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor']}>
-                    <ReportsAnalyticsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/medical-records" 
-                element={
-                  <ProtectedRoute>
-                    <MedicalRecordsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/doctor/messages" 
-                element={
-                  <ProtectedRoute allowedRoles={['doctor']}>
-                    <DoctorMessagesPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/patient/messages" 
-                element={
-                  <ProtectedRoute allowedRoles={['patient']}>
-                    <MessagesPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/messages" 
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <MessagesPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/profile" 
-                element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/settings" 
-                element={
-                  <ProtectedRoute>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                } 
-              />
+                {/* Auth */}
+                <Route path="/login" element={<ProtectedRoute requireAuth={false}><LoginPage /></ProtectedRoute>} />
+                <Route path="/register" element={<ProtectedRoute requireAuth={false}><RegisterPage /></ProtectedRoute>} />
 
-              {/* Error Pages */}
-              <Route path="/unauthorized" element={<UnauthorizedPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Protected */}
+                <Route path="/video-call" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
+                <Route path="/waiting-room" element={<ProtectedRoute allowedRoles={['doctor','patient']}><WaitingRoom /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                <Route path="/appointments" element={<ProtectedRoute><AppointmentPage /></ProtectedRoute>} />
+                <Route path="/book-appointment" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentBookingPage /></ProtectedRoute>} />
+
+                {/* Patient */}
+                <Route path="/patient/dashboard" element={<ProtectedRoute allowedRoles={['patient']}><PatientDashboard /></ProtectedRoute>} />
+                <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentPage /></ProtectedRoute>} />
+                <Route path="/patient/medical-records" element={<ProtectedRoute allowedRoles={['patient']}><MedicalRecordsPage /></ProtectedRoute>} />
+                <Route path="/patient/messages" element={<ProtectedRoute allowedRoles={['patient']}><MessagesPage /></ProtectedRoute>} />
+                <Route path="/patient/profile" element={<ProtectedRoute allowedRoles={['patient']}><ProfilePage /></ProtectedRoute>} />
+                <Route path="/patient/settings" element={<ProtectedRoute allowedRoles={['patient']}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/patient/video-call" element={<ProtectedRoute allowedRoles={['patient']}><VideoCallPage /></ProtectedRoute>} />
+                <Route path="/patient/lab-results" element={<ProtectedRoute allowedRoles={['patient']}><LabResultsCenter /></ProtectedRoute>} />
+
+                {/* Admin / Doctor */}
+                <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/patients" element={<ProtectedRoute allowedRoles={['doctor']}><PatientsPage /></ProtectedRoute>} />
+                <Route path="/reports-analytics" element={<ProtectedRoute allowedRoles={['doctor']}><ReportsAnalyticsPage /></ProtectedRoute>} />
+                <Route path="/doctor/messages" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorMessagesPage /></ProtectedRoute>} />
+
+                {/* Misc Protected */}
+                <Route path="/financial-hub" element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />
+                <Route path="/resources" element={<ProtectedRoute><ResourcesCenter /></ProtectedRoute>} />
+                <Route path="/medical-records" element={<ProtectedRoute><MedicalRecordsPage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+                {/* Errors */}
+                <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </BrowserRouter>
           <Chatbot />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
-  </>
-);
+  );
+};
 
 export default App;

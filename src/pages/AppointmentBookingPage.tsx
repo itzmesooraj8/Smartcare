@@ -5,21 +5,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  User,
-  ArrowRight,
-  Check,
-  Heart,
-  AlertCircle
-} from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, ArrowRight, Check, Heart, AlertCircle } from 'lucide-react';
+import { useForm, Controller } from 'react-hook-form';
+import * as z from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import FormField from '@/components/ui/form-field';
+import { useBookAppointment } from '@/hooks/useAppointments';
 
 const AppointmentBookingPage = () => {
   const { user } = useAuth();
@@ -28,8 +24,31 @@ const AppointmentBookingPage = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [selectedService, setSelectedService] = useState('');
-  const [reason, setReason] = useState('');
-  const [isUrgent, setIsUrgent] = useState(false);
+  const book = useBookAppointment();
+
+  const schema = z.object({
+    service: z.string().min(1, 'Please select a service'),
+    consultType: z.enum(['video', 'audio', 'chat']).optional(),
+    doctorId: z.string().min(1, 'Please select a doctor'),
+    date: z.date(),
+    time: z.string().min(1, 'Please select a time'),
+    reason: z.string().optional(),
+    urgent: z.boolean().optional(),
+  });
+
+  type FormValues = z.infer<typeof schema>;
+
+  const { register, control, handleSubmit, formState: { errors }, setValue } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      service: selectedService,
+      doctorId: selectedDoctor,
+      date: selectedDate ?? new Date(),
+      time: selectedTime,
+      reason: '',
+      urgent: false,
+    },
+  });
   const [currentStep, setCurrentStep] = useState(1);
   const [visitType, setVisitType] = useState<'in-person' | 'video'>();
   const [consultType, setConsultType] = useState<'video' | 'audio' | 'chat' | undefined>(undefined);
@@ -60,23 +79,21 @@ const AppointmentBookingPage = () => {
     '4:00 PM', '4:30 PM', '5:00 PM'
   ];
 
-  const handleSubmit = async () => {
-    if (!selectedDate || !selectedTime || !selectedDoctor || !selectedService) {
-      toast({
-        title: 'Missing Fields',
-        description: 'Please fill in all required fields before booking.',
-        variant: 'destructive',
+  const onSubmit = async (values: FormValues) => {
+    try {
+      await book.mutateAsync({
+        patientId: user?.id ?? 'me',
+        doctorId: values.doctorId,
+        service: values.service,
+        date: values.date.toISOString(),
+        time: values.time,
+        reason: values.reason,
+        urgent: values.urgent,
       });
-      return;
+      toast({ title: 'Appointment booked', description: 'Your appointment was scheduled.' });
+    } catch (e: unknown) {
+      toast({ title: 'Booking failed', description: e instanceof Error ? e.message : 'Unable to book', variant: 'destructive' });
     }
-    // Reset form
-    setSelectedDate(new Date());
-    setSelectedTime('');
-    setSelectedDoctor('');
-    setSelectedService('');
-    setReason('');
-    setIsUrgent(false);
-    setCurrentStep(1);
   };
 
   const nextStep = () => {
@@ -105,72 +122,66 @@ const AppointmentBookingPage = () => {
       case 1:
         return (
           <div className="space-y-6">
-            <div>
-              <Label className="text-base font-semibold">Type of Service *</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                What type of appointment do you need?
-              </p>
-              <Select value={selectedService} onValueChange={setSelectedService}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map(service => (
-                    <SelectItem key={service} value={service}>{service}</SelectItem>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <FormField label="Type of Service *" name="service" register={register} error={errors.service?.message as string | undefined}>
+                <Select value={selectedService} onValueChange={(v) => { setSelectedService(v); setValue('service', v); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.map(service => (
+                      <SelectItem key={service} value={service}>{service}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField label="Consultation Type" name="consultType" register={register} error={errors.consultType?.message as string | undefined}>
+                <Select value={undefined} onValueChange={(v) => setValue('consultType', v as any)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select consultation type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="audio">Audio</SelectItem>
+                    <SelectItem value="chat">Chat</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField label="Choose Doctor *" name="doctorId" register={register} error={errors.doctorId?.message as string | undefined}>
+                <div className="grid gap-3">
+                  {doctors.map((doctor) => (
+                    <Card 
+                      key={doctor.id} 
+                      className={`cursor-pointer transition-all ${
+                        selectedDoctor === doctor.id 
+                          ? 'ring-2 ring-primary bg-primary/5' 
+                          : 'hover:shadow-md'
+                      }`}
+                      onClick={() => { setSelectedDoctor(doctor.id); setValue('doctorId', doctor.id); }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">{doctor.name}</h4>
+                            <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Next available</p>
+                            <p className="text-sm font-medium text-primary">{doctor.nextAvailable}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
+              </FormField>
 
-            <div>
-              <Label className="text-base font-semibold">Consultation Type *</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Choose how you want to consult (video, audio, or chat)
-              </p>
-              <Select value={consultType} onValueChange={v => setConsultType(v as 'video' | 'audio' | 'chat')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select consultation type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="video">Video</SelectItem>
-                  <SelectItem value="audio">Audio</SelectItem>
-                  <SelectItem value="chat">Chat</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-base font-semibold">Choose Doctor *</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Select your preferred healthcare provider
-              </p>
-              <div className="grid gap-3">
-                {doctors.map((doctor) => (
-                  <Card 
-                    key={doctor.id} 
-                    className={`cursor-pointer transition-all ${
-                      selectedDoctor === doctor.id 
-                        ? 'ring-2 ring-primary bg-primary/5' 
-                        : 'hover:shadow-md'
-                    }`}
-                    onClick={() => setSelectedDoctor(doctor.id)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{doctor.name}</h4>
-                          <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Next available</p>
-                          <p className="text-sm font-medium text-primary">{doctor.nextAvailable}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="flex justify-end">
+                <Button type="submit" disabled={!selectedService || !selectedDoctor}>Save & Continue</Button>
               </div>
-            </div>
+            </form>
           </div>
         );
 
@@ -183,12 +194,18 @@ const AppointmentBookingPage = () => {
                 Choose your preferred appointment date
               </p>
               <div className="flex justify-center">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date() || date.getDay() === 0}
-                  className="rounded-md border"
+                <Controller
+                  control={control}
+                  name="date"
+                  render={({ field }) => (
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(d: Date) => { field.onChange(d); setSelectedDate(d); }}
+                      disabled={(date) => date < new Date() || date.getDay() === 0}
+                      className="rounded-md border"
+                    />
+                  )}
                 />
               </div>
             </div>
@@ -204,7 +221,7 @@ const AppointmentBookingPage = () => {
                     key={time}
                     variant={selectedTime === time ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setSelectedTime(time)}
+                    onClick={() => { setSelectedTime(time); setValue('time', time); }}
                     className="justify-center"
                   >
                     {time}
@@ -218,30 +235,25 @@ const AppointmentBookingPage = () => {
       case 3:
         return (
           <div className="space-y-6">
-            <div>
-              <Label className="text-base font-semibold">Reason for Visit</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Please describe your symptoms or reason for the appointment
-              </p>
-              <Textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Describe your symptoms, concerns, or reason for visit..."
-                rows={4}
-              />
-            </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <FormField label="Reason for Visit" name="reason" register={register} error={errors.reason?.message as string | undefined}>
+                <Textarea {...register('reason')} placeholder="Describe your symptoms, concerns, or reason for visit..." rows={4} />
+              </FormField>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="urgent"
-                checked={isUrgent}
-                onCheckedChange={(checked) => setIsUrgent(checked === true)}
-              />
-              <Label htmlFor="urgent" className="flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 text-warning" />
-                <span>This is an urgent medical matter</span>
-              </Label>
-            </div>
+              <div className="flex items-center space-x-2">
+                <input id="urgent" type="checkbox" {...register('urgent')} />
+                <Label htmlFor="urgent" className="flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-warning" />
+                  <span>This is an urgent medical matter</span>
+                </Label>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="submit">
+                  <Check className="mr-2 h-4 w-4" /> Confirm Booking
+                </Button>
+              </div>
+            </form>
 
             {isUrgent && (
               <Card className="border-warning/50 bg-warning/5">
