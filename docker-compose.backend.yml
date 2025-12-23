@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+  backend:
+    build: ./smartcare-backend
+    env_file: .env
+    ports:
+      - '8000:8000'
+    depends_on:
+      - redis
