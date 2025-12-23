@@ -86,12 +86,20 @@ export const Navbar = () => {
         <div
           className={`rounded-full border py-2 px-4 flex items-center justify-between gap-4 transition-all duration-500 ease-in-out ${styles.navContainer}`}
         >
-          {/* Logo */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <a href="#" className="flex items-center gap-2 group">
+          {/* Desktop logo (hidden on mobile) */}
+          <div className="hidden md:flex items-center gap-3 flex-1 min-w-0">
+            <NavLink to="/" className="flex items-center gap-2 group">
               <Activity className={`w-6 h-6 transition-colors duration-500 ${styles.logoIcon}`} />
               <span className={`font-semibold text-lg tracking-tight transition-colors duration-500 ${styles.logoText}`}>SmartCare</span>
-            </a>
+            </NavLink>
+          </div>
+
+          {/* Mobile centered logo (visible on mobile only) */}
+          <div className="flex-1 flex md:hidden justify-center">
+            <NavLink to="/" className="flex items-center gap-2">
+              <Activity className={`w-6 h-6 transition-colors duration-500 ${styles.logoIcon}`} />
+              <span className={`font-semibold text-base tracking-tight transition-colors duration-500 ${styles.logoText}`}>SmartCare</span>
+            </NavLink>
           </div>
 
           {/* Links - Desktop */}
@@ -124,8 +132,8 @@ export const Navbar = () => {
             </div>
           </div>
 
-          {/* Mobile Hamburger */}
-          <div className="md:hidden flex items-center justify-end">
+          {/* Mobile Hamburger (right) */}
+          <div className="flex-1 flex md:hidden items-center justify-end">
             <button
               aria-label="Toggle menu"
               onClick={() => setOpen((v) => !v)}
@@ -138,35 +146,51 @@ export const Navbar = () => {
 
         {/* Mobile panel */}
         <div
-          className={`mx-auto mt-2 overflow-hidden rounded-xl backdrop-blur-md border md:hidden transition-all duration-500 ${styles.mobileMenuBg}`}
-          style={{ maxHeight: open ? 320 : 0 }}
+          className={`mx-auto mt-2 overflow-hidden rounded-xl md:hidden transition-all duration-500`}
+          style={{ maxHeight: open ? 520 : 0 }}
         >
-          <div className="px-4 py-4 flex flex-col gap-2">
-            {links.map((link) => (
-              <NavLink
-                key={link.label}
-                to={link.to}
-                onClick={() => setOpen(false)}
-                className={`px-3 py-2 rounded-md transition-colors ${styles.mobileLink}`}
-              >
-                {link.label}
+          <div className={`rounded-xl overflow-hidden shadow-lg border border-white/10 bg-white/95 backdrop-blur-md`}> 
+            {/* panel header with logo + close */}
+            <div className="px-4 py-3 flex items-center justify-between">
+              <NavLink to="/" onClick={() => setOpen(false)} className="flex items-center gap-3">
+                <Activity className={`w-6 h-6 ${styles.logoIcon}`} />
+                <span className={`font-semibold ${styles.logoText}`}>SmartCare</span>
               </NavLink>
-            ))}
-            <div className={`border-t mt-2 pt-4 flex gap-3 ${isOverWhiteSection ? 'border-gray-200' : 'border-white/10'}`}>
-              <NavLink
-                to="/login"
-                onClick={() => setOpen(false)}
-                className={`flex-1 text-center px-3 py-2 rounded-full border transition-all ${styles.loginBtn}`}
-              >
-                Log In
-              </NavLink>
-              <NavLink
-                to="/register"
-                onClick={() => setOpen(false)}
-                className={`flex-1 text-center px-3 py-2 rounded-full font-semibold transition-all ${styles.signupBtn}`}
-              >
-                Sign Up
-              </NavLink>
+              <button aria-label="Close menu" onClick={() => setOpen(false)} className="p-2 rounded-md text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-4">
+              <div className="flex flex-col gap-3 py-2">
+                {links.map((link) => (
+                  <NavLink
+                    key={link.label}
+                    to={link.to}
+                    onClick={() => setOpen(false)}
+                    className="px-3 py-3 rounded-md text-gray-800 hover:text-blue-600 transition-colors"
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
+              </div>
+
+              <div className="border-t border-gray-200 mt-4 pt-4 flex gap-3">
+                <NavLink
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className="flex-1 text-center px-3 py-2 rounded-full border border-gray-200 text-gray-700 bg-white/60"
+                >
+                  Log In
+                </NavLink>
+                <NavLink
+                  to="/register"
+                  onClick={() => setOpen(false)}
+                  className="flex-1 text-center px-3 py-2 rounded-full font-semibold bg-gradient-to-r from-emerald-400 to-cyan-500 text-black shadow-[0_8px_24px_rgba(57,224,121,0.12)]"
+                >
+                  Sign Up
+                </NavLink>
+              </div>
             </div>
           </div>
         </div>
