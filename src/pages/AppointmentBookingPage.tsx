@@ -1,20 +1,13 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, User, ArrowRight, Check, Heart, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, User, ArrowRight, Check, Heart, AlertCircle } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import FormField from '@/components/ui/form-field';
 import { useBookAppointment } from '@/hooks/useAppointments';
 
 const AppointmentBookingPage = () => {
@@ -49,6 +42,8 @@ const AppointmentBookingPage = () => {
       urgent: false,
     },
   });
+  const { register: registerFn, watch } = { register } as any;
+  const isUrgent = watch ? watch('urgent') : false;
   const [currentStep, setCurrentStep] = useState(1);
   const [visitType, setVisitType] = useState<'in-person' | 'video'>();
   const [consultType, setConsultType] = useState<'video' | 'audio' | 'chat' | undefined>(undefined);
@@ -123,63 +118,65 @@ const AppointmentBookingPage = () => {
         return (
           <div className="space-y-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <FormField label="Type of Service *" name="service" register={register} error={errors.service?.message as string | undefined}>
-                <Select value={selectedService} onValueChange={(v) => { setSelectedService(v); setValue('service', v); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select service type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {services.map(service => (
-                      <SelectItem key={service} value={service}>{service}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
+              <div>
+                <label className="block text-sm font-medium mb-2">Type of Service *</label>
+                <select
+                  className="border p-2 rounded w-full"
+                  value={selectedService}
+                  onChange={(e) => { const v = e.target.value; setSelectedService(v); setValue('service', v); }}
+                >
+                  <option value="">Select service type</option>
+                  {services.map(service => (
+                    <option key={service} value={service}>{service}</option>
+                  ))}
+                </select>
+                {errors.service && <p className="text-sm text-red-500 mt-1">{errors.service.message as string}</p>}
+              </div>
 
-              <FormField label="Consultation Type" name="consultType" register={register} error={errors.consultType?.message as string | undefined}>
-                <Select value={undefined} onValueChange={(v) => setValue('consultType', v as any)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select consultation type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="video">Video</SelectItem>
-                    <SelectItem value="audio">Audio</SelectItem>
-                    <SelectItem value="chat">Chat</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
+              <div>
+                <label className="block text-sm font-medium mb-2">Consultation Type</label>
+                <select
+                  className="border p-2 rounded w-full"
+                  onChange={(e) => setValue('consultType', e.target.value as any)}
+                >
+                  <option value="">Select consultation type</option>
+                  <option value="video">Video</option>
+                  <option value="audio">Audio</option>
+                  <option value="chat">Chat</option>
+                </select>
+              </div>
 
-              <FormField label="Choose Doctor *" name="doctorId" register={register} error={errors.doctorId?.message as string | undefined}>
+              <div>
+                <label className="block text-sm font-medium mb-2">Choose Doctor *</label>
                 <div className="grid gap-3">
                   {doctors.map((doctor) => (
-                    <Card 
-                      key={doctor.id} 
-                      className={`cursor-pointer transition-all ${
-                        selectedDoctor === doctor.id 
-                          ? 'ring-2 ring-primary bg-primary/5' 
-                          : 'hover:shadow-md'
-                      }`}
+                    <div
+                      key={doctor.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => { setSelectedDoctor(doctor.id); setValue('doctorId', doctor.id); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { setSelectedDoctor(doctor.id); setValue('doctorId', doctor.id); } }}
+                      className={`cursor-pointer p-4 border rounded transition-all ${
+                        selectedDoctor === doctor.id ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'hover:shadow-md'
+                      }`}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{doctor.name}</h4>
-                            <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Next available</p>
-                            <p className="text-sm font-medium text-primary">{doctor.nextAvailable}</p>
-                          </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{doctor.name}</h4>
+                          <p className="text-sm text-gray-500">{doctor.specialty}</p>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">Next available</p>
+                          <p className="text-sm font-medium text-indigo-600">{doctor.nextAvailable}</p>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </FormField>
+              </div>
 
               <div className="flex justify-end">
-                <Button type="submit" disabled={!selectedService || !selectedDoctor}>Save & Continue</Button>
+                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded" disabled={!selectedService || !selectedDoctor}>Save & Continue</button>
               </div>
             </form>
           </div>
@@ -189,21 +186,19 @@ const AppointmentBookingPage = () => {
         return (
           <div className="space-y-6">
             <div>
-              <Label className="text-base font-semibold">Select Date *</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Choose your preferred appointment date
-              </p>
+              <label className="text-base font-semibold block mb-2">Select Date *</label>
+              <p className="text-sm text-gray-500 mb-3">Choose your preferred appointment date</p>
               <div className="flex justify-center">
                 <Controller
                   control={control}
                   name="date"
                   render={({ field }) => (
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={(d: Date) => { field.onChange(d); setSelectedDate(d); }}
-                      disabled={(date) => date < new Date() || date.getDay() === 0}
-                      className="rounded-md border"
+                    <input
+                      type="date"
+                      className="border p-2 rounded"
+                      value={field.value ? new Date(field.value).toISOString().slice(0, 10) : ''}
+                      onChange={(e) => { const d = e.target.value ? new Date(e.target.value) : undefined; field.onChange(d); setSelectedDate(d); }}
+                      min={new Date().toISOString().slice(0, 10)}
                     />
                   )}
                 />
@@ -211,21 +206,18 @@ const AppointmentBookingPage = () => {
             </div>
 
             <div>
-              <Label className="text-base font-semibold">Select Time *</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Available time slots for {selectedDate?.toDateString()}
-              </p>
+              <label className="text-base font-semibold block mb-2">Select Time *</label>
+              <p className="text-sm text-gray-500 mb-3">Available time slots for {selectedDate?.toDateString()}</p>
               <div className="grid grid-cols-3 gap-2">
                 {timeSlots.map((time) => (
-                  <Button
+                  <button
                     key={time}
-                    variant={selectedTime === time ? "default" : "outline"}
-                    size="sm"
+                    type="button"
                     onClick={() => { setSelectedTime(time); setValue('time', time); }}
-                    className="justify-center"
+                    className={`px-3 py-2 rounded text-sm border ${selectedTime === time ? 'bg-indigo-600 text-white' : 'bg-white'}`}
                   >
                     {time}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -236,72 +228,72 @@ const AppointmentBookingPage = () => {
         return (
           <div className="space-y-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <FormField label="Reason for Visit" name="reason" register={register} error={errors.reason?.message as string | undefined}>
-                <Textarea {...register('reason')} placeholder="Describe your symptoms, concerns, or reason for visit..." rows={4} />
-              </FormField>
+              <div>
+                <label className="block text-sm font-medium mb-2">Reason for Visit</label>
+                <textarea
+                  {...register('reason')}
+                  placeholder="Describe your symptoms, concerns, or reason for visit..."
+                  rows={4}
+                  className="border p-2 rounded w-full"
+                />
+                {errors.reason && <p className="text-sm text-red-500 mt-1">{errors.reason.message as string}</p>}
+              </div>
 
               <div className="flex items-center space-x-2">
                 <input id="urgent" type="checkbox" {...register('urgent')} />
-                <Label htmlFor="urgent" className="flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 text-warning" />
+                <label htmlFor="urgent" className="flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-500" />
                   <span>This is an urgent medical matter</span>
-                </Label>
+                </label>
               </div>
 
               <div className="flex justify-end">
-                <Button type="submit">
-                  <Check className="mr-2 h-4 w-4" /> Confirm Booking
-                </Button>
+                <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+                  <Check className="mr-2 h-4 w-4 inline" /> Confirm Booking
+                </button>
               </div>
             </form>
 
             {isUrgent && (
-              <Card className="border-warning/50 bg-warning/5">
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-2">
-                    <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="font-medium text-warning">Urgent Care Notice</p>
-                      <p className="text-sm text-muted-foreground">
-                        For immediate medical emergencies, please call 911 or visit our Emergency Department. 
-                        Urgent appointments will be prioritized and you may be contacted sooner.
-                      </p>
-                    </div>
+              <div className="border-yellow-200 bg-yellow-50 p-4 rounded">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-yellow-700">Urgent Care Notice</p>
+                    <p className="text-sm text-gray-600">
+                      For immediate medical emergencies, please call 911 or visit our Emergency Department. Urgent appointments will be prioritized and you may be contacted sooner.
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
 
             {/* Appointment Summary */}
-            <Card className="bg-muted/30">
-              <CardHeader>
-                <CardTitle className="text-lg">Appointment Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="text-lg font-medium mb-2">Appointment Summary</div>
+              <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Service:</span>
+                  <span className="text-gray-500">Service:</span>
                   <span className="font-medium">{selectedService}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Doctor:</span>
-                  <span className="font-medium">
-                    {doctors.find(d => d.id === selectedDoctor)?.name}
-                  </span>
+                  <span className="text-gray-500">Doctor:</span>
+                  <span className="font-medium">{doctors.find(d => d.id === selectedDoctor)?.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date:</span>
+                  <span className="text-gray-500">Date:</span>
                   <span className="font-medium">{selectedDate?.toDateString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Time:</span>
+                  <span className="text-gray-500">Time:</span>
                   <span className="font-medium">{selectedTime}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Patient:</span>
+                  <span className="text-gray-500">Patient:</span>
                   <span className="font-medium">{user?.name}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         );
 
@@ -369,9 +361,9 @@ const AppointmentBookingPage = () => {
             </div>
 
             {/* Main Content */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <div className="shadow-card bg-white rounded">
+              <div className="p-4 border-b">
+                <div className="flex items-center space-x-2">
                   {currentStep === 1 && <User className="w-5 h-5" />}
                   {currentStep === 2 && <CalendarIcon className="w-5 h-5" />}
                   {currentStep === 3 && <Check className="w-5 h-5" />}
@@ -382,38 +374,41 @@ const AppointmentBookingPage = () => {
                       'Review & Confirm'
                     }
                   </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+                </div>
+              </div>
+              <div className="p-4">
                 {renderStepContent()}
-                
+
                 {/* Navigation Buttons */}
                 <div className="flex justify-between pt-6 mt-6 border-t">
-                  <Button
-                    variant="outline"
+                  <button
+                    type="button"
                     onClick={prevStep}
                     disabled={currentStep === 1}
+                    className="px-4 py-2 border rounded bg-white"
                   >
                     Previous
-                  </Button>
+                  </button>
                   
                   {currentStep < 3 ? (
-                    <Button
+                    <button
+                      type="button"
                       onClick={nextStep}
                       disabled={!isStepComplete(currentStep)}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded"
                     >
                       Next Step
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
+                      <ArrowRight className="ml-2 h-4 w-4 inline" />
+                    </button>
                   ) : (
-                    <Button onClick={handleSubmit}>
-                      <Heart className="mr-2 h-4 w-4" />
+                    <button type="button" onClick={handleSubmit(onSubmit)} className="px-4 py-2 bg-pink-600 text-white rounded">
+                      <Heart className="mr-2 h-4 w-4 inline" />
                       Book Appointment
-                    </Button>
+                    </button>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </main>
       </div>

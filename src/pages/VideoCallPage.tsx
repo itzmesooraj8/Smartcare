@@ -162,12 +162,13 @@ const VideoCallPage: React.FC = () => {
 
     channel.on('broadcast', { event: 'signal' }, handler);
 
-    channel.subscribe().then(() => {
+    try {
+      channel.subscribe();
       console.log('[Supabase] subscribed to', 'room_' + roomId);
-    }).catch((err: any) => {
+    } catch (err: any) {
       console.warn('[Supabase] subscribe error', err);
       toast.error('Realtime subscription failed');
-    });
+    }
 
     return () => {
       try { channel.unsubscribe(); } catch (e) {}
