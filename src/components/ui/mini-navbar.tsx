@@ -139,22 +139,21 @@ export const Navbar = () => {
         </div>
 
         {/* Mobile panel */}
+        <div className="px-4 py-3 flex items-center justify-between">
+              <NavLink to="/" onClick={() => setOpen(false)} className="flex items-center gap-3">
+                <Activity className={`w-6 h-6 ${styles.logoIcon}`} />
+                <span className={`font-semibold ${styles.logoText}`}>SmartCare</span>
+              </NavLink>
+               <button aria-label="Close menu" onClick={() => setOpen(false)} className="p-2 rounded-md text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
         <div
           className={`mx-auto mt-2 overflow-hidden rounded-xl md:hidden transition-all duration-500`}
           style={{ maxHeight: open ? 520 : 0 }}
         >
           <div className={`rounded-xl overflow-hidden shadow-lg border border-white/10 bg-white/95 backdrop-blur-md`}> 
             {/* panel header with logo + close */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <NavLink to="/" onClick={() => setOpen(false)} className="flex items-center gap-3">
-                <Activity className={`w-6 h-6 ${styles.logoIcon}`} />
-                <span className={`font-semibold ${styles.logoText}`}>SmartCare</span>
-              </NavLink>
-              <button aria-label="Close menu" onClick={() => setOpen(false)} className="p-2 rounded-md text-gray-700">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
             <div className="px-4 pb-4">
               <div className="flex flex-col gap-3 py-2">
                 {links.map((link) => (
