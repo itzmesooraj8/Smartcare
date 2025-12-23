@@ -126,15 +126,21 @@ export const Navbar = () => {
             </div>
           </div>
 
-          {/* Mobile Hamburger (right) */}
-          <div className="flex-1 flex md:hidden items-center justify-end">
-            <button
-              aria-label="Toggle menu"
-              onClick={() => setOpen((v) => !v)}
-              className={`p-2 rounded-md transition-colors duration-500 ${styles.hamburger}`}
-            >
-              {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+          {/* Mobile logo (left) + Hamburger (right) */}
+          <div className="md:hidden flex items-center gap-3">
+            <NavLink to="/" className="flex items-center gap-2"> 
+              <Activity className={`w-6 h-6 transition-colors duration-500 ${styles.logoIcon}`} />
+              <span className={`font-semibold text-sm transition-colors duration-500 ${styles.logoText}`}>SmartCare</span>
+            </NavLink>
+            <div className="ml-auto">
+              <button
+                aria-label="Toggle menu"
+                onClick={() => setOpen((v) => !v)}
+                className={`p-2 rounded-md transition-colors duration-500 ${styles.hamburger}`}
+              >
+                {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
 
