@@ -42,6 +42,21 @@ server/.env
 # Optional: ignore Bun lockfile if using npm
 bun.lockb
 
+.vercel/
 .vercel
 .env*.local
 .env*
+
+# Project cleanup - ignore large, backup and generated artifacts
+repo-backup.bundle
+smartcare-backend/smartcare.db
+run_chatbot_direct.py
+ws_test_remote.py
+smartcare-backend/run_chatbot_direct_backend.py
+smartcare-backend/ws_test.py
+db/
+smartcare-backend/db/
+node_modules/
+dist/
+.vscode/
+.github/
