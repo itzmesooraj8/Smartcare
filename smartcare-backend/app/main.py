@@ -18,7 +18,12 @@ from . import signaling as signaling_module
 from .api.v1 import dashboard as dashboard_module
 from .api.v1 import appointments as appointments_module
 from .api.v1 import medical_records as medical_records_module
-from .database import engine, get_db
+from .database import engine, get_db, Base
+
+# Import ALL models so Base knows about them when creating tables
+from .models.user import User
+from .models.appointment import Appointment
+from .models.medical_record import MedicalRecord
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -69,41 +74,15 @@ class TokenResponse(BaseModel):
 
 @app.on_event("startup")
 def ensure_tables():
-    # Create a users table compatible with the configured database dialect.
-    # If DATABASE_URL is not provided, fallback to sqlite-compatible DDL.
-    db_url = getattr(settings, "DATABASE_URL", "") or "sqlite:///./smartcare.db"
-
-    if db_url.startswith("sqlite"):
-        sql = """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            hashed_password TEXT NOT NULL,
-            full_name TEXT,
-            is_active BOOLEAN DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    else:
-        # PostgreSQL-compatible DDL
-        sql = """
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            hashed_password TEXT NOT NULL,
-            full_name TEXT,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMPTZ DEFAULT now()
-        );
-        """
-
-    with engine.connect() as conn:
-        conn.execute(text(sql))
-        try:
-            conn.commit()
-        except Exception:
-            # some engines / drivers don't require/ support explicit commit
-            pass
+    # Create all tables for ORM models (users, appointments, medical_records, etc.)
+    # This uses SQLAlchemy metadata so it's compatible with SQLite and Postgres.
+    try:
+        print("🏗️ Creating database tables...")
+        Base.metadata.create_all(bind=engine)
+        print("✅ Tables created successfully.")
+    except Exception as e:
+        print("⚠️ Failed to create tables:", str(e))
+        raise
 
 
 def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
