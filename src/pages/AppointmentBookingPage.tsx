@@ -5,6 +5,8 @@ import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { bookAppointment } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
 
 const AppointmentBookingPage = () => {
   const { user } = useAuth();
@@ -39,14 +41,28 @@ const AppointmentBookingPage = () => {
     if (currentStep > 1) setCurrentStep(c => c - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate booking
-    toast({
-      title: "Appointment Booked",
-      description: `Booked with ${doctors.find(d => d.id === formData.doctor)?.name} on ${formData.date}`
-    });
-    // Reset or redirect could go here
+    try {
+      const doctorId = Number(formData.doctor);
+      if (!doctorId) throw new Error('Please select a doctor');
+      if (!formData.date || !formData.time) throw new Error('Please select date and time');
+      const appointmentTime = new Date(`${formData.date}T${formData.time}`);
+      const payload = {
+        doctor_id: doctorId,
+        appointment_time: appointmentTime.toISOString(),
+        reason: formData.reason || undefined,
+        type: formData.service === 'Emergency' ? 'in-person' : 'video',
+      };
+
+      await bookAppointment(payload as any);
+      toast({ title: 'Success', description: 'Appointment booked' });
+      navigate('/dashboard');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Booking failed' });
+    }
   };
 
   return (

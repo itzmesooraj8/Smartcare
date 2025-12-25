@@ -42,3 +42,22 @@ export const listPatientRecords = (patientId: string) => apiFetch(`/api/v1/ehr/p
 
 // Fetch patient dashboard data: stats, upcoming appointments, recent records
 export const getPatientDashboardData = () => apiFetch(`/api/v1/patient/dashboard`, { auth: true });
+
+// Book a new appointment
+export type AppointmentPayload = {
+  doctor_id: number;
+  appointment_time: string; // ISO datetime
+  reason?: string;
+  type?: 'video' | 'in-person';
+};
+export const bookAppointment = (payload: AppointmentPayload) => apiFetch(`/api/v1/appointments/`, { method: 'POST', body: JSON.stringify(payload), auth: true });
+
+// Create a medical record
+export type MedicalRecordPayload = {
+  title: string;
+  doctor_name: string;
+  diagnosis: string;
+  date: string; // ISO date
+  file_url?: string;
+};
+export const createMedicalRecord = (payload: MedicalRecordPayload) => apiFetch(`/api/v1/medical-records/`, { method: 'POST', body: JSON.stringify(payload), auth: true });

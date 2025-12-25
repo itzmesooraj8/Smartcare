@@ -16,6 +16,8 @@ from .core.config import settings
 from .services.chatbot import ChatbotService
 from . import signaling as signaling_module
 from .api.v1 import dashboard as dashboard_module
+from .api.v1 import appointments as appointments_module
+from .api.v1 import medical_records as medical_records_module
 from .database import engine, get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -41,6 +43,8 @@ app.add_middleware(
 # Include signaling router for WebSocket endpoint
 app.include_router(signaling_module.router)
 app.include_router(dashboard_module.router, prefix="/api/v1/patient")
+app.include_router(appointments_module.router, prefix="/api/v1/appointments")
+app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
 
 
 class RegisterRequest(BaseModel):
