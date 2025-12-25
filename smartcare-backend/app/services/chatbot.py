@@ -1,55 +1,36 @@
-import json
-from typing import Optional
-import httpx
-from ..core.config import settings
-
-
-SYSTEM_PROMPT = "You are the SmartCare medical assistant. Be professional, concise, and helpful with appointment scheduling and symptom checking."
+import os
+import asyncio
+import google.generativeai as genai
+from fastapi import HTTPException
 
 
 class ChatbotService:
     @staticmethod
     async def get_response(message: str) -> str:
-        url = "https://api.x.ai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.XAI_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": "grok-beta",
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": message},
-            ],
-            "max_tokens": 512,
-        }
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Server Configuration Error: GEMINI_API_KEY is missing.")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            genai.configure(api_key=api_key)
 
-        # Try common response shapes, be robust to provider differences
-        content: Optional[str] = None
-        if isinstance(data, dict):
-            choices = data.get("choices") or []
-            if choices and isinstance(choices, list):
-                first = choices[0]
-                # common: choice.message.content
-                if isinstance(first, dict):
-                    msg = first.get("message") or first.get("delta")
-                    if isinstance(msg, dict) and msg.get("content"):
-                        content = msg.get("content")
-                    elif first.get("text"):
-                        content = first.get("text")
-                    elif first.get("content"):
-                        content = first.get("content")
+            # Run blocking Gemini call in a thread to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
 
-        if not content:
-            # fallback to stringified object
-            try:
-                content = json.dumps(data)
-            except Exception:
-                content = str(data)
+            def call_gemini():
+                model = genai.GenerativeModel("gemini-pro")
+                # `generate_content` is used per example; handle returned shape
+                resp = model.generate_content(message)
+                # Try common attribute names
+                if hasattr(resp, "text") and resp.text:
+                    return resp.text
+                # Fallback to string conversion
+                return str(resp)
 
-        return content
+            result = await loop.run_in_executor(None, call_gemini)
+            return result or "I'm sorry, I couldn't generate a response."
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI Provider Error: {e}")

@@ -9,5 +9,6 @@ python-multipart
 redis>=5.0.0
 httpx
 alembic
+google-generativeai
 
 uvicorn
