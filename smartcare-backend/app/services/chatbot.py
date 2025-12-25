@@ -32,8 +32,8 @@ class ChatbotService:
         for model_name in candidate_models:
             try:
                 logger.info(f"Attempting to use model: {model_name}")
-                # Use the model confirmed by your API key check
-                model = genai.GenerativeModel("models/gemini-2.0-flash")
+                # Use the generic alias that maps to your valid free tier
+                model = genai.GenerativeModel("models/gemini-flash-latest")
                 response = model.generate_content(message)
                 
                 # If we get here, it worked!
