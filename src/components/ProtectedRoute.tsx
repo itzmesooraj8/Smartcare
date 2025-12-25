@@ -2,7 +2,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from './LoadingSpinner';
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+type Props = {
+  children: React.ReactNode;
+  requireAuth?: boolean; // default true
+  allowedRoles?: Array<'patient' | 'doctor' | 'admin'>;
+};
+
+export default function ProtectedRoute({ children, requireAuth = true, allowedRoles }: Props) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -14,12 +20,23 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     );
   }
 
-  // Failsafe: check token storage directly while context initializes
   const hasToken = !!localStorage.getItem('smartcare_token');
 
-  // Only redirect if BOTH User state and Token storage are empty
+  // If the route is public (requireAuth === false), allow access when not authenticated.
+  if (!requireAuth) {
+    // If user is already authenticated, redirect to dashboard
+    if (user || hasToken) return <Navigate to="/dashboard" replace />;
+    return <>{children}</>;
+  }
+
+  // For protected routes: ensure there's a user or token
   if (!user && !hasToken) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If allowedRoles provided, enforce role check
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;
