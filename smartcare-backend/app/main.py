@@ -145,20 +145,31 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
     res = db.execute(q, {"email": payload.email}).first()
     if res:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-
     hashed = get_password_hash(payload.password)
+
+    # Safe insert without RETURNING to support older SQLite on some hosts
     insert = text(
-        "INSERT INTO users (email, hashed_password, full_name, is_active) VALUES (:email, :hp, :fn, true) RETURNING id, email, full_name, is_active, created_at"
+        "INSERT INTO users (email, hashed_password, full_name, is_active) VALUES (:email, :hp, :fn, true)"
     )
-    result = db.execute(insert, {"email": payload.email, "hp": hashed, "fn": payload.full_name})
-    # fetch the returned row before committing to avoid SQLite "statements in progress"
-    row = result.first()
+    db.execute(insert, {"email": payload.email, "hp": hashed, "fn": payload.full_name})
+
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
-    return {"id": row[0], "email": row[1], "full_name": row[2], "is_active": row[3], "created_at": str(row[4])}
+
+    # Fetch the created user row explicitly (works on all SQLite/Postgres versions)
+    q_fetch = text("SELECT id, email, full_name, is_active, created_at FROM users WHERE email = :email")
+    row = db.execute(q_fetch, {"email": payload.email}).first()
+
+    return {
+        "id": row[0],
+        "email": row[1],
+        "full_name": row[2],
+        "is_active": row[3],
+        "created_at": str(row[4]),
+    }
 
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
