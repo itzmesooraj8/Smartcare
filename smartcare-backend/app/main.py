@@ -52,6 +52,55 @@ app.add_middleware(
 
 # Include signaling router for WebSocket endpoint
 app.include_router(signaling_module.router)
+from datetime import datetime, timedelta
+from typing import Optional
+import uuid
+
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+from jose import jwt
+from sqlalchemy import text
+
+from app.core.config import settings
+from app.services.chatbot import ChatbotService
+from app import signaling as signaling_module
+from app.api.v1 import dashboard as dashboard_module
+from app.api.v1 import appointments as appointments_module
+from app.api.v1 import medical_records as medical_records_module
+
+# FIX: Import Base and Models for Auto-Creation
+from app.database import engine, get_db, Base
+from app.models.user import User
+from app.models.appointment import Appointment
+from app.models.medical_record import MedicalRecord
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+app = FastAPI(title="SmartCare Backend")
+
+# FIX: Explicit Origins (Render + Vercel)
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://smartcare-zflo.onrender.com",
+    "https://smartcare-six.vercel.app",
+    "https://smartcare-six.vercel.app/",
+    "https://www.smartcare-six.vercel.app"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(signaling_module.router)
 app.include_router(dashboard_module.router, prefix="/api/v1/patient")
 app.include_router(appointments_module.router, prefix="/api/v1/appointments")
 app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
@@ -73,17 +122,16 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class ChatRequest(BaseModel):
+    message: str
+
+
+# FIX: Auto-Create Tables (Robust)
 @app.on_event("startup")
 def ensure_tables():
-    # Create all tables for ORM models (users, appointments, medical_records, etc.)
-    # This uses SQLAlchemy metadata so it's compatible with SQLite and Postgres.
-    try:
-        print("🏗️ Creating database tables...")
-        Base.metadata.create_all(bind=engine)
-        print("✅ Tables created successfully.")
-    except Exception as e:
-        print("⚠️ Failed to create tables:", str(e))
-        raise
+    print("🏗️ Creating database tables...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tables created successfully.")
 
 
 def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
@@ -94,15 +142,7 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     return encoded_jwt
 
 
-# Chat API model
-class ChatRequest(BaseModel):
-    message: str
-
-
-@app.post("/api/v1/chat")
-async def chat_endpoint(payload: ChatRequest):
-    resp = await ChatbotService.get_response(payload.message)
-    return {"response": resp}
+pwd_context = pwd_context
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -118,40 +158,46 @@ def health():
     return {"status": "ok", "mode": "serverless"}
 
 
+@app.post("/api/v1/chat")
+async def chat_endpoint(payload: ChatRequest):
+    # Note: Frontend handles 429 errors gracefully
+    resp = await ChatbotService.get_response(payload.message)
+    return {"response": resp}
+
+
+# FIX: Register with UUID and No RETURNING Clause
 @app.post("/api/v1/auth/register", status_code=201)
 def register(payload: RegisterRequest, db=Depends(get_db)):
-    # check existing
+    # 1. Check existing
     q = text("SELECT id FROM users WHERE email = :email")
     res = db.execute(q, {"email": payload.email}).first()
     if res:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
     hashed = get_password_hash(payload.password)
+    
+    # 2. Generate UUID explicitly
+    new_id = str(uuid.uuid4()) 
 
-    # FIX: Generate UUID explicitly for the ID column (SQLite won't apply Python defaults in raw SQL)
-    new_id = str(uuid.uuid4())
-
-    # Safe insert with explicit id to support older SQLite on some hosts
+    # 3. Insert without RETURNING (SQLite Safe)
     insert = text(
         "INSERT INTO users (id, email, hashed_password, full_name, is_active) VALUES (:id, :email, :hp, :fn, true)"
     )
     db.execute(insert, {"id": new_id, "email": payload.email, "hp": hashed, "fn": payload.full_name})
-
+    
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
 
-    # Fetch the created user row explicitly (works on all SQLite/Postgres versions)
-    q_fetch = text("SELECT id, email, full_name, is_active, created_at FROM users WHERE email = :email")
-    row = db.execute(q_fetch, {"email": payload.email}).first()
-
+    # 4. Return Data
     return {
-        "id": row[0],
-        "email": row[1],
-        "full_name": row[2],
-        "is_active": row[3],
-        "created_at": str(row[4]),
+        "id": new_id,
+        "email": payload.email,
+        "full_name": payload.full_name,
+        "is_active": True,
+        "created_at": datetime.utcnow().isoformat()
     }
 
 
@@ -168,5 +214,3 @@ def login(payload: LoginRequest, db=Depends(get_db)):
 
     token = create_access_token(subject=str(user_id))
     return {"access_token": token, "token_type": "bearer"}
-
-# Force Deploy: small comment to trigger Render rebuild when needed
