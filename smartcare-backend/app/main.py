@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import uuid
 from typing import Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -126,11 +127,14 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     hashed = get_password_hash(payload.password)
 
-    # Safe insert without RETURNING to support older SQLite on some hosts
+    # FIX: Generate UUID explicitly for the ID column (SQLite won't apply Python defaults in raw SQL)
+    new_id = str(uuid.uuid4())
+
+    # Safe insert with explicit id to support older SQLite on some hosts
     insert = text(
-        "INSERT INTO users (email, hashed_password, full_name, is_active) VALUES (:email, :hp, :fn, true)"
+        "INSERT INTO users (id, email, hashed_password, full_name, is_active) VALUES (:id, :email, :hp, :fn, true)"
     )
-    db.execute(insert, {"email": payload.email, "hp": hashed, "fn": payload.full_name})
+    db.execute(insert, {"id": new_id, "email": payload.email, "hp": hashed, "fn": payload.full_name})
 
     try:
         db.commit()
