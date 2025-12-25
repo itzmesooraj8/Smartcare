@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 from jose import jwt, JWTError
-from ...core.config import settings
-from ...database import get_db
-# Import models (adjust if your model paths differ)
-from ...models.appointment import Appointment
-from ...models.medical_record import MedicalRecord
+
+# FIX: Use absolute imports starting from the app package root
+from app.core.config import settings
+from app.database import get_db
+from app.models.appointment import Appointment
+from app.models.medical_record import MedicalRecord
 
 router = APIRouter()
 
