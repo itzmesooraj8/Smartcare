@@ -1,7 +1,5 @@
-// Prefer an explicit VITE_API_URL at build time. In production, if not provided,
-// fall back to the same origin so the client calls the backend on the app host
-// (this avoids trying to call localhost from user devices which causes long timeouts).
-export const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+// Explicitly pointing to your LIVE Render Backend
+export const API_URL = "https://smartcare-zflo.onrender.com";
 
 type FetchOpts = RequestInit & { auth?: boolean };
 
@@ -13,23 +11,30 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
   }
   // If you later store a token in localStorage, this will send it
   if (opts.auth) {
+    // Note: Your AuthContext uses cookies mostly, but if you use tokens:
     const token = localStorage.getItem("smartcare_token");
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // Fail fast with a reasonable timeout to avoid long stalls on mobile/clients
+  // Fail fast with a reasonable timeout to avoid long stalls
   const controller = new AbortController();
-  const timeoutMs = (opts as any).timeout ?? 8000; // 8s default
+  const timeoutMs = (opts as any).timeout ?? 15000; // Increased to 15s for Render "Cold Starts"
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${API_URL}${path}`, { ...opts, headers, credentials: "include", signal: controller.signal });
     if (!res.ok) {
-      throw new Error(`API ${res.status}: ${await res.text()}`);
+      const errorText = await res.text();
+      try {
+         const jsonErr = JSON.parse(errorText);
+         throw new Error(jsonErr.detail || `API ${res.status}`);
+      } catch {
+         throw new Error(`API ${res.status}: ${errorText}`);
+      }
     }
     return (await res.json()) as T;
   } catch (err: any) {
-    if (err.name === 'AbortError') throw new Error('Network timeout');
+    if (err.name === 'AbortError') throw new Error('Network timeout - Server might be waking up!');
     throw err;
   } finally {
     clearTimeout(timeoutId);
