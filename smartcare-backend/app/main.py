@@ -147,13 +147,13 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
         "INSERT INTO users (email, hashed_password, full_name, is_active) VALUES (:email, :hp, :fn, true) RETURNING id, email, full_name, is_active, created_at"
     )
     result = db.execute(insert, {"email": payload.email, "hp": hashed, "fn": payload.full_name})
+    # fetch the returned row before committing to avoid SQLite "statements in progress"
+    row = result.first()
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
-
-    row = result.first()
     return {"id": row[0], "email": row[1], "full_name": row[2], "is_active": row[3], "created_at": str(row[4])}
 
 
