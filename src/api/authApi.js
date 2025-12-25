@@ -13,14 +13,10 @@ export const registerUser = async (userData) => {
 };
 
 export const loginUser = async (loginData) => {
-  const formData = new URLSearchParams();
-  formData.append('username', loginData.email);
-  formData.append('password', loginData.password);
-
-  const response = await fetch(`${BASE_URL}/token`, {
+  const response = await fetch(`${BASE_URL}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: loginData.email, password: loginData.password }),
   });
 
   const data = await response.json();

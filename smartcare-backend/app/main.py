@@ -26,15 +26,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 app = FastAPI(title="SmartCare Backend (SmartCare)")
 
-# Explicit CORS for frontend deployments
-allow_origins = [
-    "https://smartcare-six.vercel.app",
-    "http://localhost:5173",
-]
-
+# Allow all origins for now to avoid CORS blocking from deployed frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=["*"],  # consider restricting in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
