@@ -1,4 +1,4 @@
-// Explicitly pointing to your LIVE Render Backend
+// FIX: Force the app to use the Render Backend, not localhost or Vercel
 export const API_URL = "https://smartcare-zflo.onrender.com";
 
 type FetchOpts = RequestInit & { auth?: boolean };
@@ -9,16 +9,15 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
   if (!headers.has("Content-Type") && opts.body && typeof opts.body === "string") {
     headers.set("Content-Type", "application/json");
   }
-  // If you later store a token in localStorage, this will send it
+  // Auth Token Logic
   if (opts.auth) {
-    // Note: Your AuthContext uses cookies mostly, but if you use tokens:
     const token = localStorage.getItem("smartcare_token");
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // Fail fast with a reasonable timeout to avoid long stalls
+  // Extended timeout for Render "Cold Starts"
   const controller = new AbortController();
-  const timeoutMs = (opts as any).timeout ?? 15000; // Increased to 15s for Render "Cold Starts"
+  const timeoutMs = (opts as any).timeout ?? 25000; 
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -41,28 +40,7 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
   }
 }
 
-// Backend helpers
+// Helpers
 export const getProfileMe = () => apiFetch("/api/v1/profile/me", { auth: true });
-export const listPatientRecords = (patientId: string) => apiFetch(`/api/v1/ehr/patient/${patientId}`, { auth: true });
-
-// Fetch patient dashboard data: stats, upcoming appointments, recent records
 export const getPatientDashboardData = () => apiFetch(`/api/v1/patient/dashboard`, { auth: true });
-
-// Book a new appointment
-export type AppointmentPayload = {
-  doctor_id: number;
-  appointment_time: string; // ISO datetime
-  reason?: string;
-  type?: 'video' | 'in-person';
-};
-export const bookAppointment = (payload: AppointmentPayload) => apiFetch(`/api/v1/appointments/`, { method: 'POST', body: JSON.stringify(payload), auth: true });
-
-// Create a medical record
-export type MedicalRecordPayload = {
-  title: string;
-  doctor_name: string;
-  diagnosis: string;
-  date: string; // ISO date
-  file_url?: string;
-};
-export const createMedicalRecord = (payload: MedicalRecordPayload) => apiFetch(`/api/v1/medical-records/`, { method: 'POST', body: JSON.stringify(payload), auth: true });
+// ... keep other exports if needed
