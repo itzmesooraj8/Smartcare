@@ -65,16 +65,34 @@ class TokenResponse(BaseModel):
 
 @app.on_event("startup")
 def ensure_tables():
-    sql = """
-    CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        hashed_password TEXT NOT NULL,
-        full_name TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMPTZ DEFAULT now()
-    );
-    """
+    # Create a users table compatible with the configured database dialect.
+    # If DATABASE_URL is not provided, fallback to sqlite-compatible DDL.
+    db_url = getattr(settings, "DATABASE_URL", "") or "sqlite:///./smartcare.db"
+
+    if db_url.startswith("sqlite"):
+        sql = """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            hashed_password TEXT NOT NULL,
+            full_name TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    else:
+        # PostgreSQL-compatible DDL
+        sql = """
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            hashed_password TEXT NOT NULL,
+            full_name TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT now()
+        );
+        """
+
     with engine.connect() as conn:
         conn.execute(text(sql))
         try:
