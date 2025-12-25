@@ -46,4 +46,6 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
 // Helpers
 export const getProfileMe = () => apiFetch("/api/v1/profile/me", { auth: true });
 export const getPatientDashboardData = () => apiFetch(`/api/v1/patient/dashboard`, { auth: true });
+export const bookAppointment = (payload: any) =>
+  apiFetch(`/api/v1/appointments`, { method: "POST", body: JSON.stringify(payload), auth: true });
 // ... keep other exports if needed
