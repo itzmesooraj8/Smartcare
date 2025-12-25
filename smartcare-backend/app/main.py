@@ -3,30 +3,32 @@ from typing import Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter
+from fastapi import BackgroundTasks
+from fastapi import WebSocket
+from fastapi import WebSocketDisconnect
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
 from sqlalchemy import text
 
 from .core.config import settings
+from .services.chatbot import ChatbotService
+from . import signaling as signaling_module
+from .api.v1 import dashboard as dashboard_module
 from .database import engine, get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-app = FastAPI(title="SmartCare Backend (Auth Only)")
+app = FastAPI(title="SmartCare Backend (SmartCare)")
 
-# Configure CORS from settings.ALLOWED_ORIGINS (supports CSV string or list)
-raw_allowed = getattr(settings, "ALLOWED_ORIGINS", None)
-if raw_allowed is None:
-    allow_origins = ["*"]
-elif isinstance(raw_allowed, str):
-    allow_origins = [o.strip() for o in raw_allowed.split(",") if o.strip()]
-elif isinstance(raw_allowed, (list, tuple)):
-    allow_origins = list(raw_allowed)
-else:
-    allow_origins = ["*"]
+# Explicit CORS for frontend deployments
+allow_origins = [
+    "https://smartcare-six.vercel.app",
+    "http://localhost:5173",
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +37,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include signaling router for WebSocket endpoint
+app.include_router(signaling_module.router)
+app.include_router(dashboard_module.router, prefix="/api/v1/patient")
 
 
 class RegisterRequest(BaseModel):
@@ -80,6 +86,17 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
+
+
+# Chat API model
+class ChatRequest(BaseModel):
+    message: str
+
+
+@app.post("/api/v1/chat")
+async def chat_endpoint(payload: ChatRequest):
+    resp = await ChatbotService.get_response(payload.message)
+    return {"response": resp}
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

@@ -6,3 +6,7 @@ python-jose[cryptography]>=3.3
 passlib[bcrypt]>=1.7
 python-multipart>=0.0.6
 
+# Real-time and AI client
+redis>=5.0.0
+httpx>=0.24.0
+

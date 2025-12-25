@@ -39,3 +39,6 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
 // Backend helpers
 export const getProfileMe = () => apiFetch("/api/v1/profile/me", { auth: true });
 export const listPatientRecords = (patientId: string) => apiFetch(`/api/v1/ehr/patient/${patientId}`, { auth: true });
+
+// Fetch patient dashboard data: stats, upcoming appointments, recent records
+export const getPatientDashboardData = () => apiFetch(`/api/v1/patient/dashboard`, { auth: true });

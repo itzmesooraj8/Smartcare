@@ -5,6 +5,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { getPatientDashboardData } from '@/lib/api';
 import { ShieldCheck, User, Phone, MessageSquare, FileText, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -185,22 +187,43 @@ const JellyButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { ch
 export default function PatientDashboard(): JSX.Element {
   const { user } = useAuth();
 
-  // richer mock data
-  const stats: Stat[] = [
-    // Removed Heart Rate per request; keep hydration and sleep and add Wellness Score
-    { id: 's2', label: 'Hydration', value: 80, trend: '+2% vs last week' },
-    { id: 's3', label: 'Sleep Quality', value: 65, trend: '-1% vs last week' },
-    { id: 's4', label: 'Wellness Score', value: 88, trend: '+5% vs last week' },
-  ];
+  const [loading, setLoading] = React.useState(true);
+  const [dashboardData, setDashboardData] = React.useState<{
+    stats: Array<{ label: string; value: number }>;
+    upcoming_appointments: Array<any>;
+    recent_records: Array<any>;
+  } | null>(null);
 
-  const appointments: Appointment[] = [
-    { id: 'a1', date: '2025-12-10', time: '12:30', doctor: 'Dr. Sarah Smith', type: 'Teleconsult', note: 'Bring previous bloodwork' },
-  ];
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await getPatientDashboardData();
+        if (!mounted) return;
+        setDashboardData(data as any);
+      } catch (err) {
+        console.warn('Failed to load dashboard data', err);
+        setDashboardData(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
 
-  const records: RecordItem[] = [
-    { id: 'r1', title: 'Annual Physical Exam', date: '2025-12-02', summary: 'Normal; follow-up in 6 months' },
-    { id: 'r2', title: 'Lipid Panel', date: '2025-11-15', summary: 'Slightly elevated LDL' },
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  const stats = dashboardData?.stats ?? [];
+  const appointments = dashboardData?.upcoming_appointments ?? [];
+  const records = dashboardData?.recent_records ?? [];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_#e8f8ff_0,_#f8ffff_25%,_#ffffff_60%)]">
@@ -307,8 +330,14 @@ export default function PatientDashboard(): JSX.Element {
                   <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl h-full flex flex-col justify-between">
                     <div>
                       <div className="text-sm text-zinc-700">Next appointment</div>
-                      <div className="text-lg font-semibold text-black">{appointments[0].doctor}</div>
-                      <div className="text-xs text-zinc-600">{appointments[0].type} • {appointments[0].date} • {appointments[0].time}</div>
+                      {appointments.length > 0 ? (
+                        <>
+                          <div className="text-lg font-semibold text-black">{appointments[0].doctor ?? 'Upcoming appointment'}</div>
+                          <div className="text-xs text-zinc-600">{appointments[0].type ?? ''} {appointments[0].appointment_time ? `• ${new Date(appointments[0].appointment_time).toLocaleString()}` : ''}</div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-zinc-600">No upcoming appointments</div>
+                      )}
                     </div>
                     <div className="mt-4 flex flex-col gap-2">
                       <JellyButton className="bg-white/10 text-black">Join</JellyButton>
@@ -408,15 +437,19 @@ export default function PatientDashboard(): JSX.Element {
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {records.map((r) => (
-                        <div key={r.id} className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">R</div>
-                          <div>
-                            <div className="font-medium text-black">{r.title}</div>
-                            <div className="text-xs text-zinc-600">{r.summary} • {r.date}</div>
+                      {records.length === 0 ? (
+                        <div className="text-sm text-zinc-600">No recent records</div>
+                      ) : (
+                        records.map((r) => (
+                          <div key={r.id} className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
+                            <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">R</div>
+                            <div>
+                              <div className="font-medium text-black">{r.title}</div>
+                              <div className="text-xs text-zinc-600">{r.summary} {r.created_at ? `• ${new Date(r.created_at).toLocaleDateString()}` : ''}</div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </SpotlightCard>

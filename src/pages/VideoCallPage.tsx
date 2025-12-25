@@ -7,7 +7,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import supabase from '@/lib/supabase';
+// Signaling now uses the Render-hosted backend WebSocket endpoint
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -20,7 +20,7 @@ const VideoCallPage: React.FC = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
-  const channelRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const pendingCandidatesRef = useRef<Array<any>>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
@@ -37,6 +37,15 @@ const VideoCallPage: React.FC = () => {
   const [joined, setJoined] = useState(false);
   const [joining, setJoining] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+
+  const peerId = useRef<string>(() => {
+    try {
+      if (typeof crypto !== 'undefined' && (crypto as any).randomUUID) return (crypto as any).randomUUID();
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    } catch (e) {
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+  }).current;
 
   // Initialize local media and attach to refs
   useEffect(() => {
@@ -97,19 +106,24 @@ const VideoCallPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const channel = supabase.channel('room_' + roomId);
-    channelRef.current = channel;
+    const wsUrl = `wss://smartcare-zflo.onrender.com/ws/${encodeURIComponent(roomId)}/${encodeURIComponent(peerId)}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-    const handler = async (payload: any) => {
+    ws.onopen = () => {
+      console.log('[WS] connected to', wsUrl);
+    };
+
+    ws.onmessage = async (ev: any) => {
       try {
-        const message = payload?.payload;
-        if (!message) return;
-        const { type, data } = message;
-        console.log('[Supabase] signal received', type, data);
+        const msg = JSON.parse(ev.data);
+        const type = msg?.type;
+        const from = msg?.from;
+        const payload = msg?.payload ?? msg?.data ?? null;
+        console.log('[WS] signal received', type, payload, 'from', from);
 
         if (type === 'candidate') {
-          // Queue until remote description present
-          const cand = data;
+          const cand = payload;
           const pc = pcRef.current;
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
             try { await pc.addIceCandidate(cand); } catch (e) { console.warn('addIceCandidate failed', e); }
@@ -124,7 +138,7 @@ const VideoCallPage: React.FC = () => {
           await createPeerConnection();
           const pc = pcRef.current;
           try {
-            await pc.setRemoteDescription(data);
+            await pc.setRemoteDescription(payload);
           } catch (e) {
             console.warn('setRemoteDescription (offer) failed', e);
             return;
@@ -132,8 +146,8 @@ const VideoCallPage: React.FC = () => {
           try {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            await channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'answer', data: pc.localDescription } });
-            // flush any pending candidates
+            wsRef.current?.send(JSON.stringify({ type: 'answer', to: from, payload: pc.localDescription }));
+            // flush pending candidates
             while (pendingCandidatesRef.current.length) {
               const c = pendingCandidatesRef.current.shift();
               try { await pc.addIceCandidate(c); } catch (e) { console.warn('flushing candidate failed', e); }
@@ -145,7 +159,7 @@ const VideoCallPage: React.FC = () => {
           const pc = pcRef.current;
           if (!pc) return;
           try {
-            await pc.setRemoteDescription(data);
+            await pc.setRemoteDescription(payload);
             // flush pending candidates
             while (pendingCandidatesRef.current.length) {
               const c = pendingCandidatesRef.current.shift();
@@ -154,25 +168,28 @@ const VideoCallPage: React.FC = () => {
           } catch (e) {
             console.warn('setRemoteDescription (answer) failed', e);
           }
+        } else if (type === 'peer-joined') {
+          // optional: notify UI
+          console.log('[WS] peer joined', msg?.peer ?? from);
+        } else if (type === 'peer-left') {
+          console.log('[WS] peer left', msg?.peer ?? from);
         }
       } catch (e) {
         console.warn('Failed handling incoming signal', e);
       }
     };
 
-    channel.on('broadcast', { event: 'signal' }, handler);
+    ws.onclose = () => {
+      console.log('[WS] connection closed');
+    };
 
-    try {
-      channel.subscribe();
-      console.log('[Supabase] subscribed to', 'room_' + roomId);
-    } catch (err: any) {
-      console.warn('[Supabase] subscribe error', err);
-      toast.error('Realtime subscription failed');
-    }
+    ws.onerror = (e) => {
+      console.warn('[WS] error', e);
+    };
 
     return () => {
-      try { channel.unsubscribe(); } catch (e) {}
-      channelRef.current = null;
+      try { ws.close(); } catch (e) {}
+      wsRef.current = null;
       pendingCandidatesRef.current = [];
     };
   }, [roomId]);
@@ -190,7 +207,7 @@ const VideoCallPage: React.FC = () => {
       try { localStreamRef.current?.getTracks().forEach(t => { t.stop(); console.log('[VideoCall] stopped local track', t.kind); }); } catch (e) {}
       try { remoteStreamRef.current?.getTracks().forEach(t => { t.stop(); console.log('[VideoCall] stopped remote track', t.kind); }); } catch (e) {}
       try { pcRef.current?.close(); console.log('[VideoCall] closed RTCPeerConnection'); } catch (e) {}
-      try { channelRef.current?.unsubscribe(); console.log('[VideoCall] unsubscribed channel'); } catch (e) {}
+      try { wsRef.current?.close(); console.log('[VideoCall] closed signaling socket'); } catch (e) {}
       localStreamRef.current = null;
       remoteStreamRef.current = null;
       setIsCameraActive(false);
@@ -245,7 +262,7 @@ const VideoCallPage: React.FC = () => {
     try { localStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
     try { remoteStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
     try { pcRef.current?.close(); } catch (e) {}
-    try { channelRef.current?.unsubscribe(); } catch (e) {}
+    try { wsRef.current?.close(); } catch (e) {}
     pcRef.current = null;
     setJoined(false);
     setJoining(false);
@@ -288,7 +305,7 @@ const VideoCallPage: React.FC = () => {
     pc.onicecandidate = (ev: any) => {
       if (ev.candidate) {
         try {
-          channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'candidate', data: ev.candidate } });
+          wsRef.current?.send(JSON.stringify({ type: 'candidate', payload: ev.candidate }));
         } catch (e) { console.warn('Failed to send candidate', e); }
       }
     };
@@ -323,9 +340,9 @@ const VideoCallPage: React.FC = () => {
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      // send offer
+      // send offer via WebSocket
       try {
-        await channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', data: pc.localDescription } });
+        wsRef.current?.send(JSON.stringify({ type: 'offer', payload: pc.localDescription }));
       } catch (e) { console.warn('Failed to send offer', e); }
     } catch (e) {
       console.warn('Failed to create offer', e);
