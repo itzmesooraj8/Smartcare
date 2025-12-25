@@ -18,7 +18,7 @@ class ChatbotService:
             loop = asyncio.get_event_loop()
 
             def call_gemini():
-                model = genai.GenerativeModel("gemini-pro")
+                model = genai.GenerativeModel("gemini-1.5-flash")
                 # `generate_content` is used per example; handle returned shape
                 resp = model.generate_content(message)
                 # Try common attribute names
