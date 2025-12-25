@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
 from jose import jwt, JWTError
 from ...core.config import settings
 from ...database import get_db
+# Import models (adjust if your model paths differ)
+from ...models.appointment import Appointment
+from ...models.medical_record import MedicalRecord
 
 router = APIRouter()
 
@@ -27,41 +31,46 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
 
 @router.get("/dashboard")
 def get_patient_dashboard(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db)):
-    # total appointments
-    total_q = "SELECT COUNT(*) as cnt FROM appointments WHERE patient_id = :uid"
-    total_res = db.execute(total_q, {"uid": user_id}).first()
-    total = int(total_res[0]) if total_res is not None else 0
+    # 1. Total Appointments (Real Count)
+    total = db.query(Appointment).filter(Appointment.patient_id == user_id).count()
 
-    # upcoming appointments (next 5)
-    upcoming_q = "SELECT id, appointment_time, doctor_id, status FROM appointments WHERE patient_id = :uid AND appointment_time >= now() ORDER BY appointment_time ASC LIMIT 5"
-    upcoming_rows = db.execute(upcoming_q, {"uid": user_id}).fetchall()
+    # 2. Upcoming Appointments (Real Data)
+    upcoming_rows = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == user_id, Appointment.appointment_time >= datetime.now())
+        .order_by(Appointment.appointment_time.asc())
+        .limit(5)
+        .all()
+    )
+
     upcoming = []
     for r in upcoming_rows:
         upcoming.append({
-            "id": str(r[0]),
-            "appointment_time": r[1].isoformat() if r[1] is not None else None,
-            "doctor_id": str(r[2]) if r[2] is not None else None,
-            "status": str(r[3]) if r[3] is not None else None,
+            "id": str(r.id),
+            "appointment_time": r.appointment_time.isoformat() if r.appointment_time else None,
+            "doctor_id": str(r.doctor_id) if r.doctor_id else None,
+            "status": str(r.status),
         })
 
-    # recent medical records (latest 3)
-    records_q = "SELECT id, title, summary, created_at FROM medical_records WHERE patient_id = :uid ORDER BY created_at DESC LIMIT 3"
-    rec_rows = db.execute(records_q, {"uid": user_id}).fetchall()
+    # 3. Recent Medical Records (Real Data)
+    rec_rows = (
+        db.query(MedicalRecord)
+        .filter(MedicalRecord.patient_id == user_id)
+        .order_by(MedicalRecord.created_at.desc())
+        .limit(3)
+        .all()
+    )
+
     records = []
     for r in rec_rows:
         records.append({
-            "id": str(r[0]),
-            "title": r[1],
-            "summary": r[2],
-            "created_at": r[3].isoformat() if r[3] is not None else None,
+            "id": str(r.id),
+            "title": r.title,
+            "summary": r.diagnosis if hasattr(r, 'diagnosis') else getattr(r, 'summary', None),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
         })
 
-    stats = [
-        {"label": "Total Appointments", "value": total},
-    ]
+    stats = [{"label": "Total Appointments", "value": total}]
 
-    return {
-        "stats": stats,
-        "upcoming_appointments": upcoming,
-        "recent_records": records,
-    }
+    # Returns empty lists [] if no data exists, ensuring a "Fresh" dashboard
+    return {"stats": stats, "upcoming_appointments": upcoming, "recent_records": records}

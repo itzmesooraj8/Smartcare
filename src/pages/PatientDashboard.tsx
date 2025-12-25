@@ -236,224 +236,77 @@ export default function PatientDashboard(): JSX.Element {
           <div className="max-w-7xl mx-auto space-y-6">
             <HolographicHero name={user?.name || 'Patient'} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-              {/* Left column (lg:3): Care Plan + Recent Labs */}
-              <div className="lg:col-span-3 space-y-4">
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_30px_rgba(2,6,23,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] p-5 lg:p-6 rounded-2xl">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-sm text-zinc-700">Care Plan</div>
-                        <div className="mt-2 text-2xl font-semibold text-black">Daily tasks & reminders</div>
-                        <div className="mt-2 text-sm text-zinc-600">Follow your clinician's recommended tasks for today.</div>
+            {/* REAL DATA GRID */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                        <ul className="mt-4 space-y-3">
-                          <li className="flex items-center gap-3">
-                            <input aria-label="Med reminder" type="checkbox" className="h-5 w-5 rounded-md" />
-                            <div>
-                              <div className="font-medium text-black">Take morning medications</div>
-                              <div className="text-xs text-zinc-600">7:30 AM • 2 pills</div>
-                            </div>
-                          </li>
-                          <li className="flex items-center gap-3">
-                            <input aria-label="Walk" type="checkbox" className="h-5 w-5 rounded-md" />
-                            <div>
-                              <div className="font-medium text-black">30-minute walk</div>
-                              <div className="text-xs text-zinc-600">Recommended activity</div>
-                            </div>
-                          </li>
-                          <li className="flex items-center gap-3">
-                            <input aria-label="Hydration" type="checkbox" className="h-5 w-5 rounded-md" />
-                            <div>
-                              <div className="font-medium text-black">Drink water (500ml)</div>
-                              <div className="text-xs text-zinc-600">Keep hydrated throughout the day</div>
-                            </div>
-                          </li>
-                        </ul>
-
-                        <div className="mt-4 flex gap-3">
-                          <JellyButton className="bg-primary text-white">Start today's tasks</JellyButton>
-                          <JellyButton className="bg-white/10">View care plan</JellyButton>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:flex flex-shrink-0 flex-col items-center justify-center ml-4">
-                        {/* Tighter progress ring (improved alignment + aria) */}
-                        <div role="img" aria-label="Adherence 76 percent" className="flex items-center justify-center">
-                          <svg width="76" height="76" viewBox="0 0 100 100" className="block">
-                            <circle cx="50" cy="50" r="40" stroke="#e6eef0" strokeWidth="10" fill="none" />
-                            <circle cx="50" cy="50" r="40" stroke="#06b6d4" strokeWidth="10" strokeLinecap="round" strokeDasharray="251.2" strokeDashoffset="60" transform="rotate(-90 50 50)" />
-                            <text x="50" y="55" textAnchor="middle" fontSize="14" fill="#0f172a">76%</text>
-                          </svg>
-                        </div>
-                        <div className="mt-2 text-xs text-zinc-600">Adherence</div>
-                      </div>
-                    </div>
+              {/* 1. Upcoming Appointments (Real) */}
+              <SpotlightCard className="rounded-2xl">
+                <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-sm p-6 rounded-2xl h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-lg font-semibold text-black">Next Appointment</div>
+                    <Link to="/appointments" className="text-xs text-primary underline">Manage</Link>
                   </div>
-                </SpotlightCard>
 
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
-                    <div className="text-sm text-zinc-700">Recent lab results</div>
-                    <div className="mt-3 space-y-2">
-                      <div className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">L</div>
-                        <div className="flex-1">
-                          <div className="font-medium text-black">Lipid Panel</div>
-                          <div className="text-xs text-zinc-600">Slightly elevated LDL • 2025-11-15</div>
+                  {appointments.length > 0 ? (
+                    <div className="space-y-3">
+                      {appointments.map((appt) => (
+                        <div key={appt.id} className="p-3 bg-white/40 rounded-lg border border-white/40">
+                          <div className="font-medium text-black">Dr. {appt.doctor_id}</div>
+                          <div className="text-sm text-zinc-600">
+                            {new Date(appt.appointment_time).toLocaleString()}
+                          </div>
+                          <div className="mt-2 inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                            {appt.status}
+                          </div>
                         </div>
-                        <div className="hidden md:block">
-                          <BreathingLine values={[30,45,40,55,48,60,58,62]} color="#0ea5a6" height={36} ariaLabel="Lipid trend" />
-                        </div>
-                      </div>
-                      <div className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">B</div>
-                        <div className="flex-1">
-                          <div className="font-medium text-black">Blood Sugar</div>
-                          <div className="text-xs text-zinc-600">Within range • 2025-11-02</div>
-                        </div>
-                        <div className="hidden md:block">
-                          <BreathingLine values={[60,55,62,58,64,60,63,66]} color="#0891b2" height={36} ariaLabel="Glucose trend" />
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                    <div className="mt-3 text-right">
-                      <Link to="/lab-results" className="text-xs text-primary underline">View all labs</Link>
+                  ) : (
+                    <div className="h-40 flex flex-col items-center justify-center text-zinc-500 bg-white/30 rounded-xl border border-dashed border-zinc-300">
+                      <Calendar className="w-8 h-8 mb-2 opacity-50" />
+                      <span>No upcoming appointments</span>
+                      <Link to="/appointments">
+                        <Button variant="link" className="text-primary mt-1">Book Now</Button>
+                      </Link>
                     </div>
+                  )}
+                </div>
+              </SpotlightCard>
+
+              {/* 2. Medical Records (Real) */}
+              <SpotlightCard className="rounded-2xl">
+                <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-sm p-6 rounded-2xl h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-lg font-semibold text-black">Recent Records</div>
+                    <Link to="/medical-records" className="text-xs text-primary underline">View all</Link>
                   </div>
-                </SpotlightCard>
-              </div>
 
-              {/* Center column (lg:1): Appointment / Teleconsult CTA */}
-              <div className="lg:col-span-1 space-y-4">
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl h-full flex flex-col justify-between">
-                    <div>
-                      <div className="text-sm text-zinc-700">Next appointment</div>
-                      {appointments.length > 0 ? (
-                        <>
-                          <div className="text-lg font-semibold text-black">{appointments[0].doctor ?? 'Upcoming appointment'}</div>
-                          <div className="text-xs text-zinc-600">{appointments[0].type ?? ''} {appointments[0].appointment_time ? `• ${new Date(appointments[0].appointment_time).toLocaleString()}` : ''}</div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-zinc-600">No upcoming appointments</div>
-                      )}
-                    </div>
-                    <div className="mt-4 flex flex-col gap-2">
-                      <JellyButton className="bg-white/10 text-black">Join</JellyButton>
-                      <JellyButton className="bg-primary text-white">Book</JellyButton>
-                    </div>
-                  </div>
-                </SpotlightCard>
-
-                {/* Medications card: added to fill center gap and surface high-value info */}
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_24px_rgba(2,6,23,0.10),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl min-h-[160px]">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-sm text-zinc-700">Medications</div>
-                        <div className="mt-1 text-xs text-zinc-600">Active prescriptions & reminders</div>
-                      </div>
-                      <div className="text-xs text-zinc-600">Next dose • 07:30</div>
-                    </div>
-
-                    <ul className="mt-3 space-y-3">
-                      <li className="flex items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-md bg-muted/20 flex items-center justify-center">P</div>
+                  {records.length > 0 ? (
+                    <div className="space-y-3">
+                      {records.map((r) => (
+                        <div key={r.id} className="flex items-start gap-3 p-3 bg-white/40 rounded-lg">
+                          <div className="h-10 w-10 rounded-md bg-blue-50 flex items-center justify-center text-blue-600">
+                            <FileText className="w-5 h-5" />
+                          </div>
                           <div>
-                            <div className="font-medium text-black">Atorvastatin 20mg</div>
-                            <div className="text-xs text-zinc-600">Once daily • Lipid control</div>
-                          </div>
-                        </div>
-                        <div className="text-xs text-zinc-600">Morning</div>
-                      </li>
-
-                      <li className="flex items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-md bg-muted/20 flex items-center justify-center">M</div>
-                          <div>
-                            <div className="font-medium text-black">Metformin 500mg</div>
-                            <div className="text-xs text-zinc-600">Twice daily • Glycemic control</div>
-                          </div>
-                        </div>
-                        <div className="text-xs text-zinc-600">Morning / Night</div>
-                      </li>
-                    </ul>
-
-                    <div className="mt-4 text-right">
-                      <JellyButton className="bg-primary text-white">Refill / Manage</JellyButton>
-                    </div>
-                  </div>
-                </SpotlightCard>
-              </div>
-
-              {/* Right column: Quick Actions (top) + Recent Records (below) */}
-              <div className="lg:col-span-2 space-y-4">
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_22px_36px_rgba(2,6,23,0.14),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-zinc-700">Quick actions</div>
-                        <div className="mt-1 text-xs text-zinc-600">Large, accessible shortcuts for common tasks</div>
-                      </div>
-                      <div />
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
-                        <Phone className="h-6 w-6" />
-                        <span className="text-sm font-medium">Call Clinic</span>
-                      </JellyButton>
-
-                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
-                        <MessageSquare className="h-6 w-6" />
-                        <span className="text-sm font-medium">Messages</span>
-                      </JellyButton>
-
-                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
-                        <Calendar className="h-6 w-6" />
-                        <span className="text-sm font-medium">Book</span>
-                      </JellyButton>
-
-                      <JellyButton className="flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-xl bg-white/10 text-black">
-                        <FileText className="h-6 w-6" />
-                        <span className="text-sm font-medium">Records</span>
-                      </JellyButton>
-                    </div>
-                  </div>
-                </SpotlightCard>
-
-                <SpotlightCard className="rounded-2xl">
-                  <div className="backdrop-blur-2xl bg-white/70 border border-white/20 shadow-[0_18px_30px_rgba(2,6,23,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] p-4 rounded-2xl">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-zinc-700">Recent records</div>
-                        <div className="text-xs text-zinc-600">Quick summary of recent activity</div>
-                      </div>
-                      <div>
-                        <Link to="/medical-records" className="text-xs text-primary underline">View all</Link>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {records.length === 0 ? (
-                        <div className="text-sm text-zinc-600">No recent records</div>
-                      ) : (
-                        records.map((r) => (
-                          <div key={r.id} className="p-3 rounded-lg bg-white/5 flex items-start gap-3">
-                            <div className="h-10 w-10 rounded-md bg-muted/20 flex items-center justify-center">R</div>
-                            <div>
-                              <div className="font-medium text-black">{r.title}</div>
-                              <div className="text-xs text-zinc-600">{r.summary} {r.created_at ? `• ${new Date(r.created_at).toLocaleDateString()}` : ''}</div>
+                            <div className="font-medium text-black">{r.title}</div>
+                            <div className="text-xs text-zinc-600 truncate max-w-[200px]">{r.summary}</div>
+                            <div className="text-xs text-zinc-400 mt-1">
+                              {new Date(r.created_at).toLocaleDateString()}
                             </div>
                           </div>
-                        ))
-                      )}
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                </SpotlightCard>
-              </div>
+                  ) : (
+                    <div className="h-40 flex flex-col items-center justify-center text-zinc-500 bg-white/30 rounded-xl border border-dashed border-zinc-300">
+                      <FileText className="w-8 h-8 mb-2 opacity-50" />
+                      <span>No medical records found</span>
+                    </div>
+                  )}
+                </div>
+              </SpotlightCard>
+
             </div>
 
             <div className="pt-6">
