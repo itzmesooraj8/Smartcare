@@ -1,6 +1,9 @@
 // FIX: Force the app to use the Render Backend, not localhost or Vercel
 export const API_URL = "https://smartcare-zflo.onrender.com";
 
+// Debug: confirm frontend build uses the intended backend URL
+console.log("🚀 API Targeted:", API_URL);
+
 type FetchOpts = RequestInit & { auth?: boolean };
 
 export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Promise<T> {

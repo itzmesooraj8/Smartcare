@@ -33,6 +33,7 @@ origins = [
     "https://smartcare-zflo.onrender.com",
     "https://smartcare-six.vercel.app",
     "https://smartcare-six.vercel.app/",
+    "https://www.smartcare-six.vercel.app",
 ]
 
 app.add_middleware(
