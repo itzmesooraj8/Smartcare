@@ -24,36 +24,36 @@ class ChatbotService:
             "gemini-1.5-flash",
             "gemini-1.5-pro",
             "gemini-pro",
-            "gemini-1.0-pro-latest"
-        ]
+            import os
+            import google.generativeai as genai
+            from fastapi import HTTPException
+            import logging
 
-        last_error = None
+            # Configure simple logging
+            logging.basicConfig(level=logging.INFO)
+            logger = logging.getLogger(__name__)
 
-        for model_name in candidate_models:
-            try:
-                logger.info(f"Attempting to use model: {model_name}")
-                # Use the Experimental model (Free Tier friendly)
-                model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
-                response = model.generate_content(message)
-                
-                # If we get here, it worked!
-                return response.text
-                
-            except Exception as e:
-                logger.warning(f"Model {model_name} failed: {str(e)}")
-                last_error = e
-                continue # Try the next model
 
-        # If ALL models fail, log the available ones for debugging
-        logger.error("All models failed. Listing available models for this key:")
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    logger.error(f"Available: {m.name}")
-        except Exception as list_e:
-            logger.error(f"Could not list models: {str(list_e)}")
+            class ChatbotService:
+                @staticmethod
+                async def get_response(message: str) -> str:
+                    api_key = os.getenv("GEMINI_API_KEY")
+                    if not api_key:
+                        logger.error("GEMINI_API_KEY is missing.")
+                        raise HTTPException(status_code=500, detail="Configuration Error: API Key Missing")
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"AI Error: No working models found. Last error: {str(last_error)}"
+                    try:
+                        genai.configure(api_key=api_key)
+            
+                        # Using the Experimental model (Free Tier Friendly)
+                        model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
+            
+                        logger.info(f"Sending request to Gemini: {message}")
+                        response = model.generate_content(message)
+                        return response.text
+
+                    except Exception as e:
+                        logger.error(f"Gemini API Error: {str(e)}")
+                        # Return a generic error to the client, but log the specific one above
+                        raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
         )
