@@ -42,7 +42,7 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 const RegisterPage: React.FC = () => {
-  const { register: registerApi, isLoading } = useAuth();
+  const { register: registerApi, login, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -64,6 +64,16 @@ const RegisterPage: React.FC = () => {
   const onSubmit = async (data: FormValues) => {
     try {
       await registerApi({ name: data.name, email: data.email, password: data.password, role: data.role });
+
+      // Auto-login immediately after successful registration
+      try {
+        await login(data.email, data.password);
+      } catch (loginErr) {
+        // If login fails, still show created message but don't navigate
+        toast({ title: 'Account Created', description: 'Please sign in to continue.' });
+        return;
+      }
+
       toast({ title: 'Account Created', description: 'Welcome to SmartCare!' });
       navigate('/dashboard');
     } catch (e: any) {
