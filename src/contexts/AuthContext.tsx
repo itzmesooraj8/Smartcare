@@ -2,6 +2,102 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
+// Helper: Decode JWT to get user details
+function parseJwt (token: string) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
+
+interface User {
+  id: string;
+  email: string;
+  name?: string;
+  role: 'patient' | 'doctor' | 'admin';
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  login: (email: string, pass: string) => Promise<void>;
+  register: (data: any) => Promise<void>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType>({} as any);
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // 1. Recover User on Load (The Fix for Refreshing)
+    const token = localStorage.getItem('smartcare_token');
+    if (token) {
+      try {
+        const decoded = parseJwt(token);
+        if (decoded && decoded.sub) {
+          setUser({ id: decoded.sub, email: 'user@smartcare.app', role: 'patient' });
+        }
+      } catch (e) {
+        localStorage.removeItem('smartcare_token');
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  // 2. Login Function
+  const login = async (email: string, pass: string) => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch<{ access_token: string }>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password: pass }),
+      });
+
+      if (res.access_token) {
+        localStorage.setItem('smartcare_token', res.access_token); // Saves permanently
+        const decoded = parseJwt(res.access_token);
+        setUser({ id: decoded?.sub || '1', email: email, role: 'patient' });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 3. Register Function
+  const register = async (data: any) => {
+    await apiFetch('/api/v1/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+  };
+
+  const logout = () => {
+    localStorage.removeItem('smartcare_token');
+    setUser(null);
+    window.location.href = '/login';
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+
 // Helper: Decode JWT manually to recover user data
 function parseJwt (token: string) {
     try {
