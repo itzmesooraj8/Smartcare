@@ -170,3 +170,5 @@ def login(payload: LoginRequest, db=Depends(get_db)):
 
     token = create_access_token(subject=str(user_id))
     return {"access_token": token, "token_type": "bearer"}
+
+# Force Deploy: small comment to trigger Render rebuild when needed
