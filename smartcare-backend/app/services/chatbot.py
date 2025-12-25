@@ -32,7 +32,8 @@ class ChatbotService:
         for model_name in candidate_models:
             try:
                 logger.info(f"Attempting to use model: {model_name}")
-                model = genai.GenerativeModel(model_name)
+                # Use the model confirmed by your API key check
+                model = genai.GenerativeModel("models/gemini-2.0-flash")
                 response = model.generate_content(message)
                 
                 # If we get here, it worked!
