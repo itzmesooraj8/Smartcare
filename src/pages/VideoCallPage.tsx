@@ -46,14 +46,16 @@ const VideoCallPage: React.FC = () => {
   const [notesContent, setNotesContent] = useState<any>(null);
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
 
-  const peerId = useRef<string>(() => {
-    try {
-      if (typeof crypto !== 'undefined' && (crypto as any).randomUUID) return (crypto as any).randomUUID();
-      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    } catch (e) {
-      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    }
-  }).current;
+  const peerId = useRef<string>(
+    (() => {
+      try {
+        if (typeof crypto !== 'undefined' && (crypto as any).randomUUID) return (crypto as any).randomUUID();
+        return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      } catch (e) {
+        return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      }
+    })()
+  ).current;
 
   // Initialize local media and attach to refs
   useEffect(() => {
@@ -122,7 +124,7 @@ const VideoCallPage: React.FC = () => {
       console.log('[WS] connected to', wsUrl);
       // Announce role to the server (host vs patient)
       try {
-        ws.send(JSON.stringify({ type: 'announce', role, peerId, name: user?.full_name || user?.email }));
+        ws.send(JSON.stringify({ type: 'announce', role, peerId, name: (user as any)?.full_name || user?.email }));
       } catch (e) {}
     };
 
@@ -406,7 +408,7 @@ const VideoCallPage: React.FC = () => {
   // Patient flow: request to join instead of immediately creating offer
   const requestJoin = async () => {
     try {
-      wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: user?.full_name || user?.email }));
+      wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: (user as any)?.full_name || user?.email }));
       setIsWaiting(true);
       setJoining(true);
     } catch (e) {

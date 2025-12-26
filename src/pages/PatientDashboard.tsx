@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getPatientDashboardData } from '@/lib/api';
 import { ShieldCheck, User, Phone, MessageSquare, FileText, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -215,8 +216,43 @@ export default function PatientDashboard(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_#e8f8ff_0,_#f8ffff_25%,_#ffffff_60%)]">
+        <Header />
+        <div className="flex">
+          <Sidebar />
+          <main className="flex-1 p-6 md:p-8 lg:p-10">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-2xl p-6 bg-white/6">
+                  <Skeleton className="h-8 w-48 mb-4" />
+                  <div className="space-y-3">
+                    <Skeleton className="h-16 w-full mb-2" />
+                    <Skeleton className="h-16 w-full mb-2" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                </div>
+                <div className="rounded-2xl p-6 bg-white/6">
+                  <Skeleton className="h-8 w-40 mb-4" />
+                  <div className="space-y-3">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+
+              <div className="pt-6">
+                <Footer />
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }

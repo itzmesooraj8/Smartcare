@@ -5,6 +5,7 @@ import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 import { bookAppointment } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,11 +24,28 @@ const AppointmentBookingPage = () => {
     urgent: false
   });
 
-  const doctors = [
-    { id: '1', name: 'Dr. Sarah Johnson', specialty: 'Cardiology' },
-    { id: '2', name: 'Dr. Michael Chen', specialty: 'Emergency Medicine' },
-    { id: '3', name: 'Dr. Emily Rodriguez', specialty: 'Pediatrics' },
-  ];
+  const [doctors, setDoctors] = useState<Array<any>>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchDoctors = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com'}/api/v1/doctors`);
+        if (!res.ok) throw new Error('Failed to load');
+        const data = await res.json();
+        if (!mounted) return;
+        setDoctors(data);
+        setFormData((s) => ({ ...s, doctor: data?.[0]?.id?.toString() }));
+      } catch (err) {
+        console.error('Could not fetch doctors', err);
+      } finally {
+        if (mounted) setLoadingDoctors(false);
+      }
+    };
+    fetchDoctors();
+    return () => { mounted = false; };
+  }, []);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -108,16 +126,19 @@ const AppointmentBookingPage = () => {
                     <div>
                       <label className="block text-sm font-medium mb-1">Doctor</label>
                       <div className="grid gap-3">
-                        {doctors.map(doc => (
-                          <div 
-                            key={doc.id}
-                            onClick={() => handleInputChange('doctor', doc.id)}
-                            className={`p-3 border rounded cursor-pointer hover:bg-indigo-50 ${formData.doctor === doc.id ? 'border-indigo-600 bg-indigo-50' : ''}`}
-                          >
-                            <div className="font-medium">{doc.name}</div>
-                            <div className="text-xs text-gray-500">{doc.specialty}</div>
-                          </div>
-                        ))}
+                          {loadingDoctors ? (
+                            <div className="h-10 w-full animate-pulse rounded bg-gray-200" />
+                          ) : (
+                            doctors.map((d) => (
+                              <div 
+                                key={d.id}
+                                onClick={() => handleInputChange('doctor', d.id)}
+                                className={`p-3 border rounded cursor-pointer hover:bg-indigo-50 ${formData.doctor === d.id ? 'border-indigo-600 bg-indigo-50' : ''}`}
+                              >
+                                <div className="font-medium">{d.full_name} — {d.specialization}</div>
+                              </div>
+                            ))
+                          )}
                       </div>
                     </div>
                   </div>

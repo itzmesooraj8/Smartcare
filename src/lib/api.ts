@@ -1,51 +1,65 @@
-// FIX: Force the app to use the Render Backend, not localhost or Vercel
-export const API_URL = "https://smartcare-zflo.onrender.com";
+// 1. Dynamic API URL (Prioritizes Env Var, falls back to Render)
+export const API_URL = import.meta.env.VITE_API_URL || "https://smartcare-zflo.onrender.com";
 
-// Debug: confirm frontend build uses the intended backend URL
-console.log("🚀 API Targeted:", API_URL);
+// 2. Token Helper
+const getToken = () => localStorage.getItem('smartcare_token');
 
-type FetchOpts = RequestInit & { auth?: boolean };
-
-export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Promise<T> {
-  const headers = new Headers(opts.headers || {});
-  headers.set("Accept", "application/json");
-  if (!headers.has("Content-Type") && opts.body && typeof opts.body === "string") {
-    headers.set("Content-Type", "application/json");
-  }
-  // Auth Token Logic
-  if (opts.auth) {
-    const token = sessionStorage.getItem("smartcare_token");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  // Extended timeout for Render "Cold Starts"
-  const controller = new AbortController();
-  const timeoutMs = (opts as any).timeout ?? 25000; 
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(`${API_URL}${path}`, { ...opts, headers, credentials: "include", signal: controller.signal });
-    if (!res.ok) {
-      const errorText = await res.text();
-      try {
-         const jsonErr = JSON.parse(errorText);
-         throw new Error(jsonErr.detail || `API ${res.status}`);
-      } catch {
-         throw new Error(`API ${res.status}: ${errorText}`);
-      }
-    }
-    return (await res.json()) as T;
-  } catch (err: any) {
-    if (err.name === 'AbortError') throw new Error('Network timeout - Server might be waking up!');
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+// 3. Types
+interface FetchOptions extends RequestInit {
+  auth?: boolean;
 }
 
-// Helpers
-export const getProfileMe = () => apiFetch("/api/v1/profile/me", { auth: true });
-export const getPatientDashboardData = () => apiFetch(`/api/v1/patient/dashboard`, { auth: true });
-export const bookAppointment = (payload: any) =>
-  apiFetch(`/api/v1/appointments`, { method: "POST", body: JSON.stringify(payload), auth: true });
-// ... keep other exports if needed
+// 4. The Core Fetch Function
+export async function apiFetch<T = any>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+  const { auth = true, headers, ...rest } = options;
+
+  const config: RequestInit = {
+    ...rest,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(headers as Record<string, string>),
+    },
+  };
+
+  // Add Auth Token if requested
+  if (auth) {
+    const token = getToken();
+    if (token) {
+      (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  // Make the Request
+  const response = await fetch(`${API_URL}${endpoint}`, config);
+
+  // Handle Errors
+  if (!response.ok) {
+    let errorMessage = `API Error: ${response.statusText}`;
+    try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+    } catch (e) {
+        // Response wasn't JSON, use generic text
+    }
+    throw new Error(errorMessage);
+  }
+
+  // Handle Empty Responses (204 No Content)
+  if (response.status === 204) return {} as T;
+
+  return response.json();
+}
+
+// 5. Standard Helper Functions (Preserved from your project)
+export const getProfileMe = () => apiFetch('/api/v1/profile/me');
+
+export const getPatientDashboardData = () => apiFetch('/api/v1/patient/dashboard');
+
+export const bookAppointment = (data: any) => apiFetch('/api/v1/appointments', { 
+    method: 'POST', 
+    body: JSON.stringify(data) 
+});
+
+export const getMedicalRecords = () => apiFetch('/api/v1/medical-records');
+
+export const getDoctors = () => apiFetch('/api/v1/doctors');

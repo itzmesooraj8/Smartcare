@@ -35,6 +35,15 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
 
 @router.post("/", status_code=201)
 def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
+    # Prevent double booking: check existing appointment for same doctor and time
+    select_sql = "SELECT id FROM appointments WHERE doctor_id = :doctor_id AND appointment_time = :appointment_time LIMIT 1"
+    existing = db.execute(select_sql, {
+        "doctor_id": payload.doctor_id,
+        "appointment_time": payload.appointment_time,
+    }).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Doctor is already booked at this time")
+
     # Insert appointment into DB
     insert_sql = """
     INSERT INTO appointments (doctor_id, patient_id, appointment_time, status, reason)

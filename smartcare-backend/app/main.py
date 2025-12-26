@@ -32,6 +32,8 @@ origins = [
     "http://localhost:3000",
     "https://smartcare-zflo.onrender.com",
     "https://smartcare-six.vercel.app",
+    "https://smartcare-frontend.vercel.app",
+    "https://www.smartcare-six.vercel.app",
 ]
 
 app.add_middleware(
@@ -47,6 +49,19 @@ app.include_router(dashboard_module.router, prefix="/api/v1/patient")
 app.include_router(appointments_module.router, prefix="/api/v1/appointments")
 app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
 app.include_router(tele_module.router, prefix="/api/v1/tele")
+    
+@app.get("/api/v1/doctors")
+def list_doctors(db=Depends(get_db)):
+    # Return basic doctor info; safe-guard missing fields with defaults
+    doctors = db.query(User).filter(User.role == 'doctor').all()
+    result = []
+    for d in doctors:
+        result.append({
+            "id": d.id,
+            "full_name": getattr(d, 'full_name', getattr(d, 'email', None)),
+            "specialization": getattr(d, 'specialization', 'General'),
+        })
+    return result
 
 
 class RegisterRequest(BaseModel):
@@ -103,6 +118,20 @@ def get_password_hash(password: str) -> str:
 @app.get("/health")
 def health():
     return {"status": "ok", "mode": "serverless"}
+
+
+# TEMPORARY: Promote a user to doctor by email. Remove after use.
+@app.get("/promote-doctor")
+def promote_doctor(email: str, db=Depends(get_db)):
+    from sqlalchemy import text
+    q = text("UPDATE users SET role = 'doctor' WHERE email = :email")
+    try:
+        db.execute(q, {"email": email})
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "promoted", "email": email}
 
 
 @app.post("/api/v1/chat")

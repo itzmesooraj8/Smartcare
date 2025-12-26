@@ -1,8 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+// Supabase client intentionally removed. If you see an import of this file,
+// replace it with direct API calls or re-enable supabase with proper env vars.
+export function supabaseUnavailable() {
+	throw new Error('Supabase client removed; this import is no longer supported.');
+}
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-export default supabase
+export default supabaseUnavailable

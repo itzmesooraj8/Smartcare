@@ -40,9 +40,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 1. LOAD FROM STORAGE ON STARTUP
   useEffect(() => {
+    const enableDemo = import.meta.env.VITE_ENABLE_DEMO === 'true';
     const token = sessionStorage.getItem('smartcare_token');
-    // Support demo token stored by demo fallback (no real JWT)
-    if (token && token.includes('demo')) {
+    // Support demo token stored by demo fallback (no real JWT) only when enabled
+    if (enableDemo && token && token.includes('demo')) {
       const demoUser: User = { id: 'demo-user', email: 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
       setUser(demoUser);
       setIsLoading(false);
@@ -88,8 +89,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw new Error('No token received');
     } catch (error: any) {
       console.error("Login failed:", error);
-      // DEMO fallback for MVP
-      if ((email && email.includes('demo')) || pass === 'demo123' || pass === 'password') {
+      // DEMO fallback for MVP only when explicitly enabled
+      if (import.meta.env.VITE_ENABLE_DEMO === 'true' && ((email && email.includes('demo')) || pass === 'demo123' || pass === 'password')) {
         toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
         const demoUser: User = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
         setUser(demoUser);
@@ -109,11 +110,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify(data),
       });
     } catch (e) {
-      // Simulate success in demo mode
-      console.warn('Register failed, simulating demo registration:', e);
-      const demoUser: User = { id: 'demo-user', email: data.email || 'demo@smartcare.app', name: data.name || 'Demo User', role: 'patient' };
-      setUser(demoUser);
-      sessionStorage.setItem('smartcare_token', 'demo-token-123');
+      // Simulate success in demo mode only when enabled
+      if (import.meta.env.VITE_ENABLE_DEMO === 'true') {
+        console.warn('Register failed, simulating demo registration (demo enabled):', e);
+        const demoUser: User = { id: 'demo-user', email: data.email || 'demo@smartcare.app', name: data.name || 'Demo User', role: 'patient' };
+        setUser(demoUser);
+        sessionStorage.setItem('smartcare_token', 'demo-token-123');
+        return;
+      }
+      throw e;
     }
   };
 

@@ -8,40 +8,45 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 const queryClient = new QueryClient();
+import LoadingSpinner from '@/components/LoadingSpinner';
+
 const PageLoader = (): JSX.Element => (
-  <div style={{ minHeight: '100vh' }} className="flex items-center justify-center">
-    Loading...
+  <div style={{ minHeight: '100vh', background: '#0b1220' }} className="flex items-center justify-center text-white">
+    <div className="text-center">
+      <div style={{ fontSize: 18, fontWeight: 600 }}>SmartCare loading...</div>
+      <div style={{ marginTop: 8 }}>If this message persists, open the browser console (F12) to view errors.</div>
+    </div>
   </div>
 );
 
-// Core pages
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import AboutPage from './pages/AboutPage';
-import ServicesPage from './pages/ServicesPage';
-import DoctorsPage from './pages/DoctorsPage';
-import ContactPage from './pages/ContactPage';
-import AppointmentBookingPage from './pages/AppointmentBookingPage';
-import AppointmentPage from './pages/AppointmentPage';
-import PatientDashboard from './pages/PatientDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
-import DoctorProfilePage from './pages/DoctorProfilePage';
-import FinancialHub from './pages/FinancialHub';
-import ResourcesCenter from './pages/ResourcesCenter';
-import LabResultsCenter from './pages/LabResultsCenter';
-import DoctorMessagesPage from './pages/DoctorMessagesPage';
-import MessagesPage from './pages/MessagesPage';
-import ProfilePage from './pages/ProfilePage';
-import SettingsPage from './pages/SettingsPage';
-import PatientsPage from './pages/PatientsPage';
-import ReportsAnalyticsPage from './pages/ReportsAnalyticsPage';
-import NotFound from './pages/NotFound';
-import UnauthorizedPage from './pages/UnauthorizedPage';
-import Chatbot from './pages/Chatbot';
+// Lazy-load major routes to reduce initial bundle
+const HomePage = lazy(() => import('./pages/HomePage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const DoctorsPage = lazy(() => import('./pages/DoctorsPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const AppointmentBookingPage = lazy(() => import('./pages/AppointmentBookingPage'));
+const AppointmentPage = lazy(() => import('./pages/AppointmentPage'));
+const PatientDashboard = lazy(() => import('./pages/PatientDashboard'));
+const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
+const DoctorProfilePage = lazy(() => import('./pages/DoctorProfilePage'));
+const FinancialHub = lazy(() => import('./pages/FinancialHub'));
+const ResourcesCenter = lazy(() => import('./pages/ResourcesCenter'));
+const LabResultsCenter = lazy(() => import('./pages/LabResultsCenter'));
+const DoctorMessagesPage = lazy(() => import('./pages/DoctorMessagesPage'));
+const MessagesPage = lazy(() => import('./pages/MessagesPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const PatientsPage = lazy(() => import('./pages/PatientsPage'));
+const ReportsAnalyticsPage = lazy(() => import('./pages/ReportsAnalyticsPage'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
+const Chatbot = lazy(() => import('./pages/Chatbot'));
 
-// Lazy / heavy pages
+// Lazy / heavy pages (already heavy)
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const MedicalRecordsPage = lazy(() => import('./pages/MedicalRecordsPage'));
 const VideoCallPage = lazy(() => import('./pages/VideoCallPage'));
