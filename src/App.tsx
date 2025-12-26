@@ -10,15 +10,6 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 const queryClient = new QueryClient();
 import LoadingSpinner from '@/components/LoadingSpinner';
 
-const PageLoader = (): JSX.Element => (
-  <div style={{ minHeight: '100vh', background: '#0b1220' }} className="flex items-center justify-center text-white">
-    <div className="text-center">
-      <div style={{ fontSize: 18, fontWeight: 600 }}>SmartCare loading...</div>
-      <div style={{ marginTop: 8 }}>If this message persists, open the browser console (F12) to view errors.</div>
-    </div>
-  </div>
-);
-
 // Lazy-load major routes to reduce initial bundle
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -74,7 +65,7 @@ const App = (): JSX.Element => {
           <Sonner />
           <Chatbot />
           <BrowserRouter>
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<div className="p-4"><LoadingSpinner size="sm" text="" /></div>}>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<HomePage />} />
