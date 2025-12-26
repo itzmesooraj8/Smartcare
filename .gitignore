@@ -67,3 +67,22 @@ smartcare-backend/venv/
 smartcare-backend/__pycache__/
 smartcare-backend/*.pyc
 smartcare-backend/mock_xai.py
+
+# Additional required security and platform ignores
+# Security & Environment
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# OS Files
+Thumbs.db
+
+# IDEs
+.idea/
