@@ -15,6 +15,7 @@ from app.api.v1 import dashboard as dashboard_module
 from app.api.v1 import appointments as appointments_module
 from app.api.v1 import medical_records as medical_records_module
 from app.api.v1 import tele as tele_module
+from app.api.v1 import admin as admin_module
 
 from app.database import engine, get_db, Base
 from app.models.user import User
@@ -49,6 +50,7 @@ app.include_router(dashboard_module.router, prefix="/api/v1/patient")
 app.include_router(appointments_module.router, prefix="/api/v1/appointments")
 app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
 app.include_router(tele_module.router, prefix="/api/v1/tele")
+app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
     
 @app.get("/api/v1/doctors")
 def list_doctors(db=Depends(get_db)):

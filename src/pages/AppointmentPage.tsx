@@ -274,124 +274,159 @@ const AppointmentPage = () => {
                 </Link>
               </Button>
             </div>
-            {/* ...existing code... */}
 
-            {/* Search and Filters */}
-            <Card className="mb-6">
-              <CardContent className="p-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      placeholder="Search appointments..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full md:w-[180px]">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {user && user.role === 'doctor' ? (
+              // Doctor Schedule View
+              <div>
+                <h2 className="text-2xl font-bold mb-4">Doctor Schedule - Today's Appointments</h2>
+                <div className="space-y-4">
+                  {/* Mock data for doctor's today appointments */}
+                  {[
+                    { id: 'd1', time: '09:00 AM', patient: 'John Doe', reason: 'General Checkup', type: 'telemedicine' },
+                    { id: 'd2', time: '10:00 AM', patient: 'Mary Lee', reason: 'Follow-up', type: 'in-person' },
+                    { id: 'd3', time: '11:30 AM', patient: 'Carlos Perez', reason: 'Review Labs', type: 'telemedicine' },
+                  ].map((appt) => (
+                    <Card key={appt.id} className="shadow-card">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{appt.time} — {appt.patient}</p>
+                          <p className="text-sm text-muted-foreground">{appt.reason}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {appt.type === 'telemedicine' && (
+                            <Button onClick={() => alert(`Joining call for ${appt.patient} (mock)`)}>
+                              <Video className="mr-2 h-4 w-4" />
+                              Join Call
+                            </Button>
+                          )}
+                          <Button variant="outline">View</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            ) : (
+              // Patient view: keep existing appointment UI
+              <>
+                {/* Search and Filters */}
+                <Card className="mb-6">
+                  <CardContent className="p-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          placeholder="Search appointments..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full md:w-[180px]">
+                          <Filter className="mr-2 h-4 w-4" />
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Appointment Tabs */}
-            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="upcoming">
-                  Upcoming ({filterAppointments(appointments, 'upcoming').length})
-                </TabsTrigger>
-                <TabsTrigger value="past">
-                  Past ({filterAppointments(appointments, 'past').length})
-                </TabsTrigger>
-                <TabsTrigger value="cancelled">
-                  Cancelled ({filterAppointments(appointments, 'cancelled').length})
-                </TabsTrigger>
-              </TabsList>
+                {/* Appointment Tabs */}
+                <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="upcoming">
+                      Upcoming ({filterAppointments(appointments, 'upcoming').length})
+                    </TabsTrigger>
+                    <TabsTrigger value="past">
+                      Past ({filterAppointments(appointments, 'past').length})
+                    </TabsTrigger>
+                    <TabsTrigger value="cancelled">
+                      Cancelled ({filterAppointments(appointments, 'cancelled').length})
+                    </TabsTrigger>
+                  </TabsList>
 
-              <TabsContent value="upcoming" className="space-y-4">
-                {filterAppointments(appointments, 'upcoming').length > 0 ? (
-                  <div className="grid gap-4">
-                    {filterAppointments(appointments, 'upcoming').map((appointment) => (
-                      <AppointmentCard key={appointment.id} appointment={appointment} />
-                    ))}
-                  </div>
-                ) : (
-                  <Card className="text-center py-12">
-                    <CardContent>
-                      <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">
-                        No upcoming appointments
-                      </h3>
-                      <p className="text-muted-foreground mb-6">
-                        You don't have any upcoming appointments scheduled.
-                      </p>
-                      <Button asChild>
-                        <Link to="/book-appointment">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Schedule Your First Appointment
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
+                  <TabsContent value="upcoming" className="space-y-4">
+                    {filterAppointments(appointments, 'upcoming').length > 0 ? (
+                      <div className="grid gap-4">
+                        {filterAppointments(appointments, 'upcoming').map((appointment) => (
+                          <AppointmentCard key={appointment.id} appointment={appointment} />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card className="text-center py-12">
+                        <CardContent>
+                          <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-foreground mb-2">
+                            No upcoming appointments
+                          </h3>
+                          <p className="text-muted-foreground mb-6">
+                            You don't have any upcoming appointments scheduled.
+                          </p>
+                          <Button asChild>
+                            <Link to="/book-appointment">
+                              <Plus className="mr-2 h-4 w-4" />
+                              Schedule Your First Appointment
+                            </Link>
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
 
-              <TabsContent value="past" className="space-y-4">
-                {filterAppointments(appointments, 'past').length > 0 ? (
-                  <div className="grid gap-4">
-                    {filterAppointments(appointments, 'past').map((appointment) => (
-                      <AppointmentCard key={appointment.id} appointment={appointment} />
-                    ))}
-                  </div>
-                ) : (
-                  <Card className="text-center py-12">
-                    <CardContent>
-                      <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">
-                        No past appointments
-                      </h3>
-                      <p className="text-muted-foreground">
-                        Your appointment history will appear here.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
+                  <TabsContent value="past" className="space-y-4">
+                    {filterAppointments(appointments, 'past').length > 0 ? (
+                      <div className="grid gap-4">
+                        {filterAppointments(appointments, 'past').map((appointment) => (
+                          <AppointmentCard key={appointment.id} appointment={appointment} />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card className="text-center py-12">
+                        <CardContent>
+                          <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-foreground mb-2">
+                            No past appointments
+                          </h3>
+                          <p className="text-muted-foreground">
+                            Your appointment history will appear here.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
 
-              <TabsContent value="cancelled" className="space-y-4">
-                {filterAppointments(appointments, 'cancelled').length > 0 ? (
-                  <div className="grid gap-4">
-                    {filterAppointments(appointments, 'cancelled').map((appointment) => (
-                      <AppointmentCard key={appointment.id} appointment={appointment} />
-                    ))}
-                  </div>
-                ) : (
-                  <Card className="text-center py-12">
-                    <CardContent>
-                      <XCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">
-                        No cancelled appointments
-                      </h3>
-                      <p className="text-muted-foreground">
-                        You don't have any cancelled appointments.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-            </Tabs>
+                  <TabsContent value="cancelled" className="space-y-4">
+                    {filterAppointments(appointments, 'cancelled').length > 0 ? (
+                      <div className="grid gap-4">
+                        {filterAppointments(appointments, 'cancelled').map((appointment) => (
+                          <AppointmentCard key={appointment.id} appointment={appointment} />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card className="text-center py-12">
+                        <CardContent>
+                          <XCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-foreground mb-2">
+                            No cancelled appointments
+                          </h3>
+                          <p className="text-muted-foreground">
+                            You don't have any cancelled appointments.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </div>
           {/* Surgery Hub Section */}
           <div className="mt-12">

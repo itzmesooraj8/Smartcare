@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -8,13 +9,19 @@ import { Calendar, Users, Clock, FileText } from 'lucide-react';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const stats = [
-    { title: 'Today\'s Appointments', value: '8', icon: Calendar, color: 'text-primary' },
-    { title: 'Total Patients', value: '156', icon: Users, color: 'text-secondary' },
-    { title: 'Hours Worked', value: '42h', icon: Clock, color: 'text-success' },
-    { title: 'Reports Due', value: '3', icon: FileText, color: 'text-warning' }
+    { title: "Today's Appointments", value: '8', icon: Calendar, color: 'text-primary', to: '/appointments' },
+    { title: 'Total Patients', value: '156', icon: Users, color: 'text-secondary', to: '/patients' },
+    { title: 'Messages', value: 'Inbox', icon: FileText, color: 'text-success', to: '/messages' },
+    { title: 'Teleconsultation', value: 'Join', icon: Clock, color: 'text-warning', to: '/teleconsultation' }
   ];
+
+  const handleNavigate = (path?: string) => {
+    if (!path) return;
+    navigate(path);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,7 +43,7 @@ const DoctorDashboard = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
-                <Card key={index} className="shadow-card">
+                <Card key={index} className="shadow-card cursor-pointer transform transition-transform duration-150 hover:scale-105" onClick={() => handleNavigate(stat.to)}>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
