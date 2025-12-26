@@ -56,10 +56,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const decoded = decodeJwtSafe(token);
         if (decoded && decoded.sub) {
-          setUser({ 
-            id: decoded.sub, 
-            email: decoded.email || 'user@smartcare.app', 
-            role: (decoded.role as any) || 'patient' 
+          // apply MVP role overrides for specific test emails
+          let resolvedRole = (decoded.role as any) || 'patient';
+          const decodedEmail = decoded.email || 'user@smartcare.app';
+          if (decodedEmail === 'itzmesooraj8@gmail.com') resolvedRole = 'doctor';
+          if (decodedEmail === 'soorajs24@dsce.ac.in') resolvedRole = 'admin';
+          setUser({
+            id: decoded.sub,
+            email: decodedEmail,
+            role: resolvedRole,
           });
         }
       } catch (e) {
@@ -82,10 +87,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         sessionStorage.setItem('smartcare_token', res.access_token);
 
         const decoded = decodeJwtSafe(res.access_token);
-        setUser({ 
-          id: decoded?.sub || '1', 
-          email: email, 
-          role: (decoded?.role as any) || 'patient' 
+        // apply MVP role overrides for specific test emails (frontend safety net)
+        let resolvedRole = (decoded?.role as any) || 'patient';
+        if (email === 'itzmesooraj8@gmail.com') resolvedRole = 'doctor';
+        if (email === 'soorajs24@dsce.ac.in') resolvedRole = 'admin';
+        setUser({
+          id: decoded?.sub || '1',
+          email: email,
+          role: resolvedRole,
         });
         return;
       }

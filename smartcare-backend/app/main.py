@@ -99,8 +99,13 @@ async def ensure_tables_and_listeners():
         print("⚠️ Failed to start Redis listener:", e)
 
 
-def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(subject: str, role: Optional[str] = None, email: Optional[str] = None, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = {"sub": subject}
+    # include optional claims so frontend can read role/email without additional requests
+    if role:
+        to_encode.update({"role": role})
+    if email:
+        to_encode.update({"email": email})
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
@@ -171,5 +176,22 @@ def login(payload: LoginRequest, db=Depends(get_db)):
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    token = create_access_token(subject=str(user.id))
-    return {"access_token": token, "token_type": "bearer"}
+    # MVP hack: force specific roles for testing by email (do not persist to DB)
+    forced_role = getattr(user, 'role', None) or 'patient'
+    if user.email == 'itzmesooraj8@gmail.com':
+        forced_role = 'doctor'
+    if user.email == 'soorajs24@dsce.ac.in':
+        forced_role = 'admin'
+
+    token = create_access_token(subject=str(user.id), role=forced_role, email=user.email)
+    # Return token (frontend will decode role/email from JWT). Also include user info for convenience.
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": getattr(user, 'full_name', None),
+            "role": forced_role,
+        },
+    }

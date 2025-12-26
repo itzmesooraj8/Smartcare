@@ -193,8 +193,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, peer_id: str):
 
             # Otherwise, only allow broadcast if the sender is active in the room
             if (room_id, peer_id) in manager.sockets and peer_id in manager.rooms.get(room_id, []):
-                # forward to room via redis/local publish
-                await manager.publish(room_id, json.dumps(msg))
+                # Allow common WebRTC signaling types plus chat and ping
+                # (chat messages must be relayed so in-call chat works)
+                allowed_signal_types = ['offer', 'answer', 'candidate', 'chat', 'ping']
+                if mtype in allowed_signal_types:
+                    await manager.publish(room_id, json.dumps(msg))
+                else:
+                    # Preserve existing behaviour for any other payloads by forwarding
+                    await manager.publish(room_id, json.dumps(msg))
             else:
                 # ignore signaling from non-approved participants
                 try:

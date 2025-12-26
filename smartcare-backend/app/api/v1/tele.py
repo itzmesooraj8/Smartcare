@@ -34,18 +34,16 @@ async def generate_notes(payload: NotesRequest):
 
 @router.get("/config/ice-servers")
 def get_ice_servers():
-    """Return ICE server configuration for WebRTC clients.
+    """Returns a list of Free Public STUN servers.
 
-    This is a mocked response for the MVP. Replace with a real
-    provider integration (e.g., Twilio, Coturn) in production.
+    This requires NO credit card and works for most P2P connections.
     """
-    # Example public STUN/TURN entries. TURN entries here are metered public relays
-    # and are provided for demo-only purposes. Replace with your TURN provider.
-    ice_servers = {
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]},
-            {"urls": ["turn:openrelay.metered.ca:80"], "username": "openrelayproject", "credential": "openrelayproject"},
-            {"urls": ["turn:openrelay.metered.ca:443"], "username": "openrelayproject", "credential": "openrelayproject"}
-        ]
-    }
-    return ice_servers
+    # Robust list of free public STUN servers
+    ice_servers = [
+        {"urls": ["stun:stun.l.google.com:19302"]},
+        {"urls": ["stun:stun1.l.google.com:19302"]},
+        {"urls": ["stun:stun2.l.google.com:19302"]},
+        {"urls": ["stun:stun3.l.google.com:19302"]},
+        {"urls": ["stun:stun4.l.google.com:19302"]},
+    ]
+    return {"iceServers": ice_servers}

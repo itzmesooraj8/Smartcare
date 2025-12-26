@@ -86,3 +86,16 @@ When deploying to production, ensure the following environment variables are set
 - `POSTGRES_PASSWORD`: Database password for Postgres.
 
 Keep credentials secret and provision them via your platform's secure env var store (Vercel, Render, Docker secrets, etc.).
+
+## Production Configuration (Security & Connectivity)
+
+When deploying to Vercel/Render, add these extra variables:
+
+**Backend (smartcare-backend):**
+- `VITE_ENABLE_DEMO`: `false` (CRITICAL: Disables the demo123 backdoor)
+- `TURN_SERVER_URL`: *(Not required for STUN-only free mode)*
+- `TURN_USER`: *(Not required for STUN-only free mode)*
+- `TURN_PASS`: *(Not required for STUN-only free mode)*
+
+**Frontend (smartcare):**
+- Ensure `VITE_API_URL` points to your production backend (https://your-backend.onrender.com).
