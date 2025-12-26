@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { apiFetch } from '@/lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const SIGNALING_SERVER = '/'; // kept for compatibility
 
@@ -36,6 +38,12 @@ const VideoCallPage: React.FC = () => {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [joined, setJoined] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [incomingRequests, setIncomingRequests] = useState<Array<{ peerId: string; name?: string }>>([]);
+  const [role, setRole] = useState<'doctor' | 'patient'>(() => (user?.role === 'doctor' || (user as any)?.is_doctor ? 'doctor' : 'patient'));
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesContent, setNotesContent] = useState<any>(null);
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
 
   const peerId = useRef<string>(() => {
@@ -112,6 +120,10 @@ const VideoCallPage: React.FC = () => {
 
     ws.onopen = () => {
       console.log('[WS] connected to', wsUrl);
+      // Announce role to the server (host vs patient)
+      try {
+        ws.send(JSON.stringify({ type: 'announce', role, peerId, name: user?.full_name || user?.email }));
+      } catch (e) {}
     };
 
     ws.onmessage = async (ev: any) => {
@@ -121,6 +133,38 @@ const VideoCallPage: React.FC = () => {
         const from = msg?.from;
         const payload = msg?.payload ?? msg?.data ?? null;
         console.log('[WS] signal received', type, payload, 'from', from);
+
+        // Waiting room / knocking handling
+        if (type === 'join_request') {
+          // Doctor receives incoming knock
+          if (role === 'doctor') {
+            setIncomingRequests(prev => [...prev.filter(r => r.peerId !== from), { peerId: from, name: msg?.name }]);
+            toast(`${msg?.name || 'Patient'} is knocking`, { duration: 4000 });
+          }
+          return;
+        }
+
+        if (type === 'connection_granted') {
+          // Patient allowed into the room
+          if (role === 'patient') {
+            setIsWaiting(false);
+            setJoining(true);
+            try {
+              await startCall();
+            } catch (e) {}
+          }
+          return;
+        }
+
+        if (type === 'connection_rejected') {
+          if (role === 'patient') {
+            setIsWaiting(false);
+            setJoining(false);
+            toast.error('Doctor denied the request');
+            try { wsRef.current?.close(); } catch (e) {}
+          }
+          return;
+        }
 
         if (type === 'candidate') {
           const cand = payload;
@@ -359,6 +403,17 @@ const VideoCallPage: React.FC = () => {
     }
   };
 
+  // Patient flow: request to join instead of immediately creating offer
+  const requestJoin = async () => {
+    try {
+      wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: user?.full_name || user?.email }));
+      setIsWaiting(true);
+      setJoining(true);
+    } catch (e) {
+      toast.error('Failed to send join request');
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -462,6 +517,42 @@ const VideoCallPage: React.FC = () => {
         <div className="flex-1 relative p-4">
           <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover rounded-xl bg-black" />
 
+          {/* Waiting for host overlay (patient) */}
+          {isWaiting && (
+            <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-black/70 z-40">
+              <div className="text-center max-w-md p-6 bg-white/6 rounded-lg">
+                <div className="text-2xl font-semibold mb-2">Waiting for the doctor to admit you...</div>
+                <div className="text-sm text-gray-300">You've been placed in the waiting room. The doctor will admit or deny your request.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Doctor: incoming knocks list */}
+          {role === 'doctor' && incomingRequests.length > 0 && (
+            <div className="absolute top-24 right-4 z-50 w-80 p-2 space-y-2">
+              {incomingRequests.map(req => (
+                <div key={req.peerId} className="bg-white/6 p-3 rounded-md flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{req.name || 'Patient'}</div>
+                    <div className="text-xs text-gray-300">Wants to join</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => {
+                      try { wsRef.current?.send(JSON.stringify({ type: 'approve_join', target: req.peerId, from: peerId })); }
+                      catch (e) {}
+                      setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId));
+                    }} className="px-2 py-1 bg-green-600 rounded-md">Accept</button>
+                    <button onClick={() => {
+                      try { wsRef.current?.send(JSON.stringify({ type: 'reject_join', target: req.peerId, from: peerId })); }
+                      catch (e) {}
+                      setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId));
+                    }} className="px-2 py-1 bg-red-600 rounded-md">Deny</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Reconnecting overlay */}
           {isReconnecting && (
             <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-black/60 z-30">
@@ -486,10 +577,46 @@ const VideoCallPage: React.FC = () => {
                 onToggleMute={toggleMute}
                 onToggleVideo={toggleVideo}
                 onEndCall={endCall}
-                onJoinCall={async () => { setJoining(true); await startCall(); }}
+                onJoinCall={async () => {
+                  setJoining(true);
+                  if (role === 'patient') await requestJoin();
+                  else await startCall();
+                }}
                 joining={joining}
                 joined={joined}
               />
+
+              {/* Doctor-only: Generate Notes */}
+              {role === 'doctor' && (
+                <>
+                  <button onClick={async () => {
+                    setNotesLoading(true);
+                    try {
+                      const res = await apiFetch('/api/v1/tele/generate-notes', { method: 'POST', body: JSON.stringify({ transcript: 'Patient exam transcript...' }), auth: true });
+                      setNotesContent(res.notes);
+                      setNotesOpen(true);
+                    } catch (e: any) {
+                      toast.error(String(e?.message || e));
+                    } finally {
+                      setNotesLoading(false);
+                    }
+                  }} className="ml-3 px-3 py-2 rounded-full bg-blue-600 text-white font-semibold">{notesLoading ? 'Generating...' : 'Generate Notes'}</button>
+                  <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Generated Notes</DialogTitle>
+                        <DialogDescription>AI-generated SOAP note from the session transcript.</DialogDescription>
+                      </DialogHeader>
+                      <div className="mt-4 max-h-72 overflow-auto">
+                        <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(notesContent, null, 2)}</pre>
+                      </div>
+                      <DialogFooter className="mt-4">
+                        <button onClick={() => setNotesOpen(false)} className="px-3 py-2 bg-gray-700 rounded-md">Close</button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
 
               {!joined && (
                 <>
