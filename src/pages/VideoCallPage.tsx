@@ -274,7 +274,15 @@ const VideoCallPage: React.FC = () => {
   // Create RTCPeerConnection and wire tracks/ICE/remote track handling
   const createPeerConnection = async () => {
     if (pcRef.current) return pcRef.current;
-    const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const servers = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        // Public TURN servers (metered/open-relay — use your own TURN for production)
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      ],
+    };
     const pc = new RTCPeerConnection(servers as any);
     pcRef.current = pc;
 
