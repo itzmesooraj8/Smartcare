@@ -1,18 +1,22 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!url || !anonKey) {
-	// Export a stub that throws so missing env is obvious during development
-	export function supabaseUnavailable() {
-		throw new Error('VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not configured');
-	}
-	export default supabaseUnavailable;
+let _supabase: any = null;
+if (url && anonKey) {
+	_supabase = createClient(url, anonKey, { auth: { persistSession: false } });
 } else {
-	const supabase: SupabaseClient = createClient(url, anonKey, {
-		auth: { persistSession: false },
-	});
-	export { supabase };
-	export default supabase;
+	// lightweight stub that surfaces a clear error when used in dev without env
+	_supabase = {
+		storage: {
+			from: (_bucket: string) => ({
+				async upload() { return { error: new Error('Supabase storage not configured (VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY missing)') }; },
+				async createSignedUrl() { return { error: new Error('Supabase storage not configured (VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY missing)') }; },
+			}),
+		},
+	};
 }
+
+export const supabase = _supabase;
+export default _supabase;

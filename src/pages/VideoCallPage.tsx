@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Paperclip, FileText, X } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Paperclip, FileText, X, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -510,19 +510,23 @@ const VideoCallPage: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data, error: urlError } = await supabase.storage
-        .from('chat-files')
-        .createSignedUrl(filePath, 3600);
+      // Ask backend to sign the URL so the action is audited
+      const res = await apiFetch('/api/v1/files/sign-url', {
+        method: 'POST',
+        body: JSON.stringify({ file_path: filePath, bucket: 'chat-files' }),
+        auth: true,
+      });
 
-      if (urlError) throw urlError;
+      const signedUrl = res?.signedUrl || res?.signed_url || res?.signedURL;
+      if (!signedUrl) throw new Error('Failed to obtain signed URL');
 
-      if (wsRef.current && data?.signedUrl) {
+      if (wsRef.current && signedUrl) {
         wsRef.current.send(JSON.stringify({
           type: 'file-share',
-          fileUrl: data.signedUrl,
+          fileUrl: signedUrl,
           fileName: file.name,
         }));
-        setSharedFile({ url: data.signedUrl, name: file.name });
+        setSharedFile({ url: signedUrl, name: file.name });
         toast.success('File Sent');
       }
     } catch (err) {
@@ -594,15 +598,35 @@ const VideoCallPage: React.FC = () => {
             </div>
           )}
 
-          {/* Shared file preview */}
+          {/* Shared file preview (polished) */}
           {sharedFile && (
-            <div className="absolute top-4 right-4 bg-white p-4 rounded shadow-lg border z-50 max-w-sm">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-bold text-sm truncate">{sharedFile.name}</h4>
-                <button onClick={() => setSharedFile(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4"/></button>
+            <div className="absolute top-4 right-4 bg-white p-4 rounded-xl shadow-2xl border border-indigo-100 z-50 max-w-sm animate-in slide-in-from-right-5">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm truncate w-48">{sharedFile.name}</h4>
+                  <p className="text-xs text-indigo-500 font-medium">Shared by Doctor</p>
+                </div>
+                <button onClick={() => setSharedFile(null)} className="text-gray-400 hover:text-red-500">
+                  <X className="h-5 w-5"/>
+                </button>
               </div>
-              <a href={sharedFile.url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">
-                <FileText className="inline h-4 w-4 mr-1"/> Click to View Document
+
+              {/* Image Preview */}
+              {sharedFile.name.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                <img src={sharedFile.url} alt="Shared" className="w-full h-32 object-cover rounded-md mb-3 border" />
+              ) : (
+                <div className="w-full h-24 bg-gray-50 rounded-md flex items-center justify-center mb-3 border border-dashed">
+                  <FileText className="h-8 w-8 text-gray-300" />
+                </div>
+              )}
+
+              <a 
+                href={sharedFile.url} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="flex items-center justify-center w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors font-semibold"
+              >
+                Open Document <ArrowUpRight className="ml-2 h-4 w-4"/>
               </a>
             </div>
           )}
