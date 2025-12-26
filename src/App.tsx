@@ -1,10 +1,11 @@
 import React, { Suspense, useEffect, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 const queryClient = new QueryClient();
 const PageLoader = (): JSX.Element => (
@@ -51,6 +52,15 @@ const App = (): JSX.Element => {
     document.title = 'SmartCare';
   }, []);
 
+  const LoggedOutRedirect = ({ children }: { children: React.ReactNode }) => {
+    const { user } = useAuth();
+    if (user) {
+      const dest = user.role === 'patient' ? '/patient/dashboard' : user.role === 'doctor' ? '/doctor/dashboard' : user.role === 'admin' ? '/admin-dashboard' : '/dashboard';
+      return <Navigate to={dest} replace />;
+    }
+    return <>{children}</>;
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -70,8 +80,8 @@ const App = (): JSX.Element => {
                 <Route path="/contact" element={<ContactPage />} />
 
                 {/* Auth */}
-                <Route path="/login" element={<ProtectedRoute requireAuth={false}><LoginPage /></ProtectedRoute>} />
-                <Route path="/register" element={<ProtectedRoute requireAuth={false}><RegisterPage /></ProtectedRoute>} />
+                <Route path="/login" element={<LoggedOutRedirect><LoginPage /></LoggedOutRedirect>} />
+                <Route path="/register" element={<LoggedOutRedirect><RegisterPage /></LoggedOutRedirect>} />
 
                 {/* Protected */}
                 <Route path="/video-call" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
@@ -95,6 +105,7 @@ const App = (): JSX.Element => {
                 <Route path="/patients" element={<ProtectedRoute allowedRoles={['doctor']}><PatientsPage /></ProtectedRoute>} />
                 <Route path="/reports-analytics" element={<ProtectedRoute allowedRoles={['doctor']}><ReportsAnalyticsPage /></ProtectedRoute>} />
                 <Route path="/doctor/messages" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorMessagesPage /></ProtectedRoute>} />
+                <Route path="/doctor/dashboard" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
 
                 {/* Misc Protected */}
                 <Route path="/financial-hub" element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />

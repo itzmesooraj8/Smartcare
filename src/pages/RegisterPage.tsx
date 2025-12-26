@@ -92,11 +92,15 @@ const RegisterPage = () => {
         // the licenseFile in a multipart/form-data request to the backend here.
         try {
           await register(formData);
-          toast({
-            title: "Account Created!",
-            description: "Welcome to SmartCare. Your account has been created successfully.",
-          });
-          navigate('/dashboard');
+            toast({
+              title: "Account Created!",
+              description: "Welcome to SmartCare. Your account has been created successfully.",
+            });
+            // Redirect to role-specific dashboard
+            if (formData.role === 'patient') navigate('/patient/dashboard');
+            else if (formData.role === 'doctor') navigate('/doctor/dashboard');
+            else if (formData.role === 'admin') navigate('/admin-dashboard');
+            else navigate('/dashboard');
         } catch (error) {
           toast({
             title: "Registration Failed",

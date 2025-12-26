@@ -20,12 +20,16 @@ export default function ProtectedRoute({ children, requireAuth = true, allowedRo
     );
   }
 
-  const hasToken = !!localStorage.getItem('smartcare_token');
+  const hasToken = !!sessionStorage.getItem('smartcare_token');
 
   // If the route is public (requireAuth === false), allow access when not authenticated.
   if (!requireAuth) {
-    // If user is already authenticated, redirect to dashboard
-    if (user || hasToken) return <Navigate to="/dashboard" replace />;
+    // If user is already authenticated, redirect to role-specific dashboard
+    if (user || hasToken) {
+      const role = user?.role;
+      const dest = role === 'patient' ? '/patient/dashboard' : role === 'doctor' ? '/doctor/dashboard' : role === 'admin' ? '/admin-dashboard' : '/dashboard';
+      return <Navigate to={dest} replace />;
+    }
     return <>{children}</>;
   }
 

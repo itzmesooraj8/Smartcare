@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 1. LOAD FROM STORAGE ON STARTUP
   useEffect(() => {
-    const token = localStorage.getItem('smartcare_token');
+    const token = sessionStorage.getItem('smartcare_token');
     // Support demo token stored by demo fallback (no real JWT)
     if (token && token.includes('demo')) {
       const demoUser: User = { id: 'demo-user', email: 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           });
         }
       } catch (e) {
-        localStorage.removeItem('smartcare_token');
+        sessionStorage.removeItem('smartcare_token');
       }
     }
     setIsLoading(false);
@@ -75,8 +75,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (res.access_token) {
-        localStorage.setItem('smartcare_token', res.access_token);
-        
+        sessionStorage.setItem('smartcare_token', res.access_token);
+
         const decoded = parseJwt(res.access_token);
         setUser({ 
           id: decoded?.sub || '1', 
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
         const demoUser: User = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
         setUser(demoUser);
-        localStorage.setItem('smartcare_token', 'demo-token-123');
+        sessionStorage.setItem('smartcare_token', 'demo-token-123');
         return;
       }
       throw error;
@@ -113,12 +113,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('Register failed, simulating demo registration:', e);
       const demoUser: User = { id: 'demo-user', email: data.email || 'demo@smartcare.app', name: data.name || 'Demo User', role: 'patient' };
       setUser(demoUser);
-      localStorage.setItem('smartcare_token', 'demo-token-123');
+      sessionStorage.setItem('smartcare_token', 'demo-token-123');
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('smartcare_token');
+    sessionStorage.removeItem('smartcare_token');
     setUser(null);
     window.location.href = '/login';
   };

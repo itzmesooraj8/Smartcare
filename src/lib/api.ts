@@ -14,7 +14,7 @@ export async function apiFetch<T = any>(path: string, opts: FetchOpts = {}): Pro
   }
   // Auth Token Logic
   if (opts.auth) {
-    const token = localStorage.getItem("smartcare_token");
+    const token = sessionStorage.getItem("smartcare_token");
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
