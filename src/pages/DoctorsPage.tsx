@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { MiniNavbar } from "@/components/ui/mini-navbar";
+import Footer from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
 import { 
   Search, 
   MapPin, 
@@ -19,7 +19,7 @@ import {
   Phone
 } from 'lucide-react';
 
-const DoctorsPage = () => {
+const DoctorsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
@@ -155,7 +155,7 @@ const DoctorsPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <MiniNavbar />
       
       {/* Hero Section */}
       <section className="py-20 lg:py-32 bg-gradient-to-r from-primary/5 to-secondary/5">

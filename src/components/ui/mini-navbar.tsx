@@ -27,7 +27,7 @@ const AnimatedNavLink: React.FC<{ to: string; children: React.ReactNode; isOverW
  * EXACT implementation as requested:
  * - Transparent glass background
  */
-export const Navbar = () => {
+export const MiniNavbar = () => {
   const [open, setOpen] = useState(false);
   const [isOverWhiteSection, setIsOverWhiteSection] = useState(false);
 
@@ -189,3 +189,6 @@ export const Navbar = () => {
     </div>
   );
 };
+
+export default MiniNavbar;
+export const Navbar = MiniNavbar;

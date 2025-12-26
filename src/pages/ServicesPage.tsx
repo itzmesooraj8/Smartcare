@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Header from '@/components/layout/Header';
+import { MiniNavbar } from '@/components/ui/mini-navbar';
 import Footer from '@/components/layout/Footer';
 import { 
   Heart, 
@@ -111,7 +111,7 @@ const ServicesPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <MiniNavbar />
       
       {/* Hero Section */}
       <section className="py-20 lg:py-32 bg-gradient-to-r from-primary/5 to-secondary/5">
