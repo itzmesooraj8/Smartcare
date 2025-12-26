@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import date
 from jose import jwt, JWTError
 from ...core.config import settings
+from ...core.encryption import encrypt_text, decrypt_text
 from ...database import get_db
 import uuid
 
@@ -45,11 +46,16 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
     RETURNING id, patient_id, record_type, summary, notes, created_at
     """
     try:
+        # Encrypt sensitive fields before storing
+        enc_summary = encrypt_text(payload.diagnosis)
+        notes_plain = f"Doctor: {payload.doctor_name}; file: {payload.file_url or ''}"
+        enc_notes = encrypt_text(notes_plain)
+
         res = db.execute(insert_sql, {
             "patient_id": user_id,
             "record_type": payload.title,
-            "summary": payload.diagnosis,
-            "notes": f"Doctor: {payload.doctor_name}; file: {payload.file_url or ''}",
+            "summary": enc_summary,
+            "notes": enc_notes,
         })
         db.commit()
     except Exception as e:
@@ -60,12 +66,22 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create medical record")
 
+    # Decrypt before returning (safe for API consumers with access)
+    try:
+        summary = decrypt_text(row[3])
+    except Exception:
+        summary = row[3]
+    try:
+        notes = decrypt_text(row[4])
+    except Exception:
+        notes = row[4]
+
     return {
         "id": str(row[0]),
         "patient_id": row[1],
         "record_type": row[2],
-        "summary": row[3],
-        "notes": row[4],
+        "summary": summary,
+        "notes": notes,
         "created_at": row[5].isoformat() if row[5] is not None else None,
     }
 
@@ -108,12 +124,22 @@ def list_medical_records(user_id: str = Depends(get_current_user_id), db=Depends
 
     result = []
     for r in rows:
+        # attempt to decrypt fields; if they are not encrypted, return raw
+        try:
+            dec_summary = decrypt_text(r[3])
+        except Exception:
+            dec_summary = r[3]
+        try:
+            dec_notes = decrypt_text(r[4])
+        except Exception:
+            dec_notes = r[4]
+
         result.append({
             "id": str(r[0]),
             "patient_id": r[1],
             "record_type": r[2],
-            "summary": r[3],
-            "notes": r[4],
+            "summary": dec_summary,
+            "notes": dec_notes,
             "created_at": r[5].isoformat() if r[5] is not None else None,
         })
     return result

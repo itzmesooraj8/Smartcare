@@ -101,10 +101,16 @@ const VideoCallPage: React.FC = () => {
     };
     init();
 
-    // fetch ICE config (best-effort)
+    // fetch ICE config (best-effort). Prefer credentials endpoint with TURN support, fallback to legacy ice-servers route
     (async () => {
       try {
-        const cfg = await apiFetch('/api/v1/tele/config/ice-servers', { auth: false });
+        let cfg = null;
+        try {
+          cfg = await apiFetch('/api/v1/tele/credentials', { auth: false });
+        } catch (err) {
+          // try legacy route
+          cfg = await apiFetch('/api/v1/tele/config/ice-servers', { auth: false });
+        }
         if (cfg && cfg.iceServers) iceConfigRef.current = cfg.iceServers;
       } catch (e) {
         console.warn('Could not load ICE servers', e);

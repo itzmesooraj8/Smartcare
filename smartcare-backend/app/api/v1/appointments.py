@@ -10,6 +10,15 @@ from ...database import get_db
 router = APIRouter()
 
 
+# --- NEW: Notification Service (Mock) ---
+class NotificationService:
+    @staticmethod
+    def send_confirmation(patient_id: str, doctor_id: int, time: datetime):
+        # In production, replace this print with SendGrid/Twilio API calls
+        print(f"📧 [NOTIFICATION] SMS/Email sent to Patient {patient_id}: 'Appointment confirmed with Dr. {doctor_id} at {time}'")
+# ----------------------------------------
+
+
 class AppointmentCreate(BaseModel):
     doctor_id: int = Field(..., description="Doctor user id")
     appointment_time: datetime
@@ -60,6 +69,13 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
             "reason": payload.reason,
         })
         db.commit()
+        # --- NEW: Trigger Notification ---
+        # This runs only if the commit succeeds
+        try:
+            NotificationService.send_confirmation(user_id, payload.doctor_id, payload.appointment_time)
+        except Exception:
+            # Do not fail appointment creation if notification fails; just log
+            print("[WARNING] NotificationService failed to send confirmation")
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Doctor is already booked at this time")
