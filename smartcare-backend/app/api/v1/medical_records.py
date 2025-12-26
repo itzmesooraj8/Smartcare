@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
 from jose import jwt, JWTError
 from ...core.config import settings
 from ...database import get_db
+import uuid
+
+from ...models.audit_log import AuditLog
 
 router = APIRouter()
 
@@ -65,3 +68,52 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
         "notes": row[4],
         "created_at": row[5].isoformat() if row[5] is not None else None,
     }
+
+
+
+@router.get("/", status_code=200)
+def list_medical_records(user_id: str = Depends(get_current_user_id), db=Depends(get_db), request: Request = None):
+    """Return medical records for the authenticated user and log the access in AuditLog."""
+    select_sql = "SELECT id, patient_id, record_type, summary, notes, created_at FROM medical_records WHERE patient_id = :patient_id ORDER BY created_at DESC"
+    try:
+        res = db.execute(select_sql, {"patient_id": user_id})
+        rows = res.fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch medical records: {e}")
+
+    # Insert audit log entry for this read access
+    try:
+        ip = None
+        if request and getattr(request, 'client', None):
+            ip = request.client.host
+        audit_id = str(uuid.uuid4())
+        insert_audit = """
+        INSERT INTO audit_logs (id, user_id, target_id, action, resource_type, timestamp, ip_address)
+        VALUES (:id, :user_id, :target_id, :action, :resource_type, now(), :ip_address)
+        """
+        db.execute(insert_audit, {
+            "id": audit_id,
+            "user_id": user_id,
+            "target_id": user_id,
+            "action": 'VIEW',
+            "resource_type": 'MEDICAL_RECORD',
+            "ip_address": ip,
+        })
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    result = []
+    for r in rows:
+        result.append({
+            "id": str(r[0]),
+            "patient_id": r[1],
+            "record_type": r[2],
+            "summary": r[3],
+            "notes": r[4],
+            "created_at": r[5].isoformat() if r[5] is not None else None,
+        })
+    return result

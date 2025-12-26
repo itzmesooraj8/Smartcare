@@ -2,18 +2,21 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
-// Helper: Decode JWT manually to recover user data
-function parseJwt (token: string) {
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        return null;
-    }
+// Safe JWT decoder: decodes base64url payload and handles UTF-8 correctly
+function decodeJwtSafe(token: string) {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    // Pad base64 string as needed
+    while (base64.length % 4) base64 += '=';
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary.split('').map((c) => c.charCodeAt(0)));
+    const text = new TextDecoder().decode(bytes);
+    return JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
 }
 
 interface User {
@@ -40,7 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 1. LOAD FROM STORAGE ON STARTUP
   useEffect(() => {
-    const enableDemo = import.meta.env.VITE_ENABLE_DEMO === 'true';
+    const enableDemo = (import.meta as any).env?.VITE_ENABLE_DEMO === 'true';
     const token = sessionStorage.getItem('smartcare_token');
     // Support demo token stored by demo fallback (no real JWT) only when enabled
     if (enableDemo && token && token.includes('demo')) {
@@ -51,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     if (token) {
       try {
-        const decoded = parseJwt(token);
+        const decoded = decodeJwtSafe(token);
         if (decoded && decoded.sub) {
           setUser({ 
             id: decoded.sub, 
@@ -78,7 +81,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (res.access_token) {
         sessionStorage.setItem('smartcare_token', res.access_token);
 
-        const decoded = parseJwt(res.access_token);
+        const decoded = decodeJwtSafe(res.access_token);
         setUser({ 
           id: decoded?.sub || '1', 
           email: email, 
@@ -90,7 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       console.error("Login failed:", error);
       // DEMO fallback for MVP only when explicitly enabled
-      if (import.meta.env.VITE_ENABLE_DEMO === 'true' && ((email && email.includes('demo')) || pass === 'demo123' || pass === 'password')) {
+      if ((import.meta as any).env?.VITE_ENABLE_DEMO === 'true' && ((email && email.includes('demo')) || pass === 'demo123' || pass === 'password')) {
         toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
         const demoUser: User = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
         setUser(demoUser);
@@ -111,7 +114,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
     } catch (e) {
       // Simulate success in demo mode only when enabled
-      if (import.meta.env.VITE_ENABLE_DEMO === 'true') {
+      if ((import.meta as any).env?.VITE_ENABLE_DEMO === 'true') {
         console.warn('Register failed, simulating demo registration (demo enabled):', e);
         const demoUser: User = { id: 'demo-user', email: data.email || 'demo@smartcare.app', name: data.name || 'Demo User', role: 'patient' };
         setUser(demoUser);

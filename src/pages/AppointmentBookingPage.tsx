@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar as CalendarIcon, User, ArrowRight, Check, Heart, AlertCircle } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
-import { bookAppointment } from '@/lib/api';
+import { bookAppointment, getDoctors } from '@/lib/api'; // ✅ Used centralized API
 import { useNavigate } from 'react-router-dom';
 
 const AppointmentBookingPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // Local state for form (No external hooks)
+  // Local state for form
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     service: '',
@@ -26,25 +25,40 @@ const AppointmentBookingPage = () => {
 
   const [doctors, setDoctors] = useState<Array<any>>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [error, setError] = useState<string | null>(null); // ✅ Added Error State
+  
+  // Ref to prevent state updates on unmounted component
+  const mountedRef = useRef(true);
+
+  const fetchDoctors = async () => {
+    setError(null);
+    setLoadingDoctors(true);
+    try {
+      const data = await getDoctors(); // ✅ Using centralized function
+      if (!mountedRef.current) return;
+      setDoctors(data || []);
+      // Auto-select first doctor if available
+      if (data && data.length > 0) {
+        setFormData((s) => ({ ...s, doctor: data[0].id?.toString() }));
+      }
+    } catch (err: any) {
+      console.error('Could not fetch doctors', err);
+      if (!mountedRef.current) return;
+      setError('Failed to load doctors. Please try again.');
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: 'Failed to fetch doctors list.' 
+      });
+    } finally {
+      if (mountedRef.current) setLoadingDoctors(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
-    const fetchDoctors = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com'}/api/v1/doctors`);
-        if (!res.ok) throw new Error('Failed to load');
-        const data = await res.json();
-        if (!mounted) return;
-        setDoctors(data);
-        setFormData((s) => ({ ...s, doctor: data?.[0]?.id?.toString() }));
-      } catch (err) {
-        console.error('Could not fetch doctors', err);
-      } finally {
-        if (mounted) setLoadingDoctors(false);
-      }
-    };
-    fetchDoctors();
-    return () => { mounted = false; };
+    mountedRef.current = true;
+    void fetchDoctors();
+    return () => { mountedRef.current = false; };
   }, []);
 
   const handleInputChange = (field: string, value: any) => {
@@ -67,6 +81,7 @@ const AppointmentBookingPage = () => {
       const doctorId = Number(formData.doctor);
       if (!doctorId) throw new Error('Please select a doctor');
       if (!formData.date || !formData.time) throw new Error('Please select date and time');
+      
       const appointmentTime = new Date(`${formData.date}T${formData.time}`);
       const payload = {
         doctor_id: doctorId,
@@ -76,7 +91,7 @@ const AppointmentBookingPage = () => {
       };
 
       await bookAppointment(payload as any);
-      toast({ title: 'Success', description: 'Appointment booked' });
+      toast({ title: 'Success', description: 'Appointment booked successfully' });
       navigate('/dashboard');
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message || 'Booking failed' });
@@ -128,12 +143,31 @@ const AppointmentBookingPage = () => {
                       <div className="grid gap-3">
                           {loadingDoctors ? (
                             <div className="h-10 w-full animate-pulse rounded bg-gray-200" />
+                          ) : error ? (
+                            // ✅ Error UI with Retry Button
+                            <div className="p-4 rounded bg-red-50 border border-red-200 text-red-800 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle size={20} />
+                                <span>{error}</span>
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => void fetchDoctors()} 
+                                className="px-3 py-1 bg-white border border-red-300 rounded text-sm hover:bg-red-50"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                          ) : doctors.length === 0 ? (
+                            <div className="p-4 rounded bg-gray-50 border text-gray-500 text-center">
+                              No doctors available at the moment.
+                            </div>
                           ) : (
                             doctors.map((d) => (
                               <div 
                                 key={d.id}
-                                onClick={() => handleInputChange('doctor', d.id)}
-                                className={`p-3 border rounded cursor-pointer hover:bg-indigo-50 ${formData.doctor === d.id ? 'border-indigo-600 bg-indigo-50' : ''}`}
+                                onClick={() => handleInputChange('doctor', d.id?.toString())}
+                                className={`p-3 border rounded cursor-pointer hover:bg-indigo-50 ${formData.doctor === d.id?.toString() ? 'border-indigo-600 bg-indigo-50' : ''}`}
                               >
                                 <div className="font-medium">{d.full_name} — {d.specialization}</div>
                               </div>
@@ -180,7 +214,7 @@ const AppointmentBookingPage = () => {
                     <h2 className="text-xl font-semibold">Confirm Booking</h2>
                     <div className="bg-gray-50 p-4 rounded text-sm space-y-2">
                       <p><strong>Service:</strong> {formData.service}</p>
-                      <p><strong>Doctor:</strong> {doctors.find(d => d.id === formData.doctor)?.name}</p>
+                      <p><strong>Doctor:</strong> {doctors.find(d => d.id?.toString() === formData.doctor)?.full_name || 'Selected Doctor'}</p>
                       <p><strong>Date:</strong> {formData.date} at {formData.time}</p>
                     </div>
                     <div>

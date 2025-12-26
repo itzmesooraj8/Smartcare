@@ -72,3 +72,17 @@ Troubleshooting
 
 Contact
 - If you want, I can generate the exact `vercel` CLI commands for your projects and help set the env vars.
+
+
+## Production Configuration
+
+When deploying to production, ensure the following environment variables are set (concise):
+
+- `VITE_ENABLE_DEMO`: Set to `false` to disable the demo/backdoor behavior in production.
+- `TURN_SERVER_URL`: TURN server URL (backend uses this to build ICE/TURN config).
+- `TURN_USER`: TURN server username.
+- `TURN_PASS`: TURN server password.
+- `POSTGRES_USER`: Database username for Postgres (if used instead of SQLite).
+- `POSTGRES_PASSWORD`: Database password for Postgres.
+
+Keep credentials secret and provision them via your platform's secure env var store (Vercel, Render, Docker secrets, etc.).

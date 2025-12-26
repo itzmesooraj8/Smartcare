@@ -26,6 +26,7 @@ const VideoCallPage: React.FC = () => {
   const pendingCandidatesRef = useRef<Array<any>>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const iceConfigRef = useRef<RTCIceServer[] | null>(null);
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -76,6 +77,20 @@ const VideoCallPage: React.FC = () => {
       }
     };
     init();
+
+    // Fetch ICE servers configuration from backend (mocked provider for MVP)
+    (async () => {
+      try {
+        const cfg = await apiFetch('/api/v1/tele/config/ice-servers', { auth: false });
+        // Expect shape { iceServers: [...] }
+        if (cfg && cfg.iceServers) {
+          iceConfigRef.current = cfg.iceServers;
+          console.log('[VideoCall] ICE servers loaded', iceConfigRef.current);
+        }
+      } catch (e) {
+        console.warn('[VideoCall] Could not load ICE servers, falling back to defaults', e);
+      }
+    })();
 
     return () => { mounted = false; };
   }, []);
@@ -320,15 +335,12 @@ const VideoCallPage: React.FC = () => {
   // Create RTCPeerConnection and wire tracks/ICE/remote track handling
   const createPeerConnection = async () => {
     if (pcRef.current) return pcRef.current;
-    const servers = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        // Public TURN servers (metered/open-relay — use your own TURN for production)
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      ],
-    };
+    const servers = { iceServers: iceConfigRef.current || [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    ] };
     const pc = new RTCPeerConnection(servers as any);
     pcRef.current = pc;
 

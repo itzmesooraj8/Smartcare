@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
@@ -59,6 +60,9 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
             "reason": payload.reason,
         })
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Doctor is already booked at this time")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create appointment: {e}")

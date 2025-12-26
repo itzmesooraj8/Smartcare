@@ -71,16 +71,21 @@ class ConnectionManager:
         if not self.redis:
             return
         pubsub = self.redis.pubsub()
+        # Subscribe to all room channels
         await pubsub.psubscribe("room:*")
 
         async def _listener():
-            while True:
-                try:
-                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                    if msg and msg.get("type") in ("message",):
+            # Use event-driven pubsub listen() iterator instead of polling
+            try:
+                async for msg in pubsub.listen():
+                    try:
+                        if not msg:
+                            continue
+                        # Only handle actual messages
+                        if msg.get("type") != "message":
+                            continue
                         channel = msg.get("channel")
                         data = msg.get("data")
-                        # channel like 'room:ROOMID'
                         if isinstance(channel, bytes):
                             channel = channel.decode()
                         if isinstance(data, bytes):
@@ -91,9 +96,15 @@ class ConnectionManager:
                         if channel and channel.startswith("room:"):
                             room_id = channel.split(":", 1)[1]
                             await self._broadcast_to_room(room_id, data)
-                except Exception:
-                    await asyncio.sleep(0.5)
-                await asyncio.sleep(0)
+                    except Exception:
+                        # Continue processing subsequent messages on error
+                        continue
+            except Exception:
+                # If the pubsub listener fails, retry after a short delay
+                await asyncio.sleep(1.0)
+                if getattr(self, 'redis', None):
+                    # spawn a new listener task
+                    asyncio.create_task(self.start_redis_listener())
 
         asyncio.create_task(_listener())
 

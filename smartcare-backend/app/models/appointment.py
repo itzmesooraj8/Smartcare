@@ -16,6 +16,11 @@ class AppointmentStatus(str, enum.Enum):
 class Appointment(Base):
     __tablename__ = "appointments"
 
+    # Enforce unique constraint on (doctor_id, appointment_time) to prevent double-booking.
+    __table_args__ = (
+        sa.UniqueConstraint('doctor_id', 'appointment_time', name='_doctor_time_uc'),
+    )
+
     id = sa.Column(sa.String, primary_key=True, default=lambda: str(uuid.uuid4()))
     # Note: We use string user IDs in your setup
     doctor_id = sa.Column(sa.String, sa.ForeignKey("users.id"), nullable=True, index=True)
