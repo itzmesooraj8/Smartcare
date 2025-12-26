@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Paperclip, FileText, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { apiFetch } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 // Helper: build websocket base from env or fallback to current origin
@@ -72,6 +73,10 @@ const VideoCallPage: React.FC = () => {
   const [notesContent, setNotesContent] = useState<any>(null);
 
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+
+  // File sharing state
+  const [isUploading, setIsUploading] = useState(false);
+  const [sharedFile, setSharedFile] = useState<{ url: string; name: string } | null>(null);
 
   const peerId = useRef<string>((() => {
     try {
@@ -181,6 +186,18 @@ const VideoCallPage: React.FC = () => {
         const type = msg?.type;
         const from = msg?.from;
         const payload = msg?.payload ?? msg?.data ?? null;
+        // handle file-share
+        if (type === 'file-share') {
+          try {
+            const fileUrl = msg.fileUrl || msg.fileURL || payload?.fileUrl;
+            const fileName = msg.fileName || payload?.fileName || 'file';
+            if (fileUrl) {
+              setSharedFile({ url: fileUrl, name: fileName });
+              toast.success(`File received: ${fileName}`);
+            }
+          } catch (e) { console.warn('file-share handling failed', e); }
+          return;
+        }
         // handle chat
         if (type === 'chat') {
           setChatMessages(prev => [...prev, { sender: msg.sender || 'Peer', text: msg.text || '', ts: Date.now() }]);
@@ -475,6 +492,49 @@ const VideoCallPage: React.FC = () => {
     setChatInput('');
   };
 
+  // File upload handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const userId = (user as any)?.id || (user as any)?.sub || (user as any)?.email || 'anonymous';
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-files')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data, error: urlError } = await supabase.storage
+        .from('chat-files')
+        .createSignedUrl(filePath, 3600);
+
+      if (urlError) throw urlError;
+
+      if (wsRef.current && data?.signedUrl) {
+        wsRef.current.send(JSON.stringify({
+          type: 'file-share',
+          fileUrl: data.signedUrl,
+          fileName: file.name,
+        }));
+        setSharedFile({ url: data.signedUrl, name: file.name });
+        toast.success('File Sent');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Upload Failed');
+    } finally {
+      setIsUploading(false);
+      // clear input value to allow re-uploading same file
+      try { (e.target as HTMLInputElement).value = ''; } catch (e) {}
+    }
+  };
+
   // copy invite
   function copyInvite(event: React.MouseEvent<HTMLButtonElement>): void {
     event.preventDefault();
@@ -531,6 +591,19 @@ const VideoCallPage: React.FC = () => {
                 <div className="text-2xl font-semibold mb-2">Waiting for the doctor to admit you...</div>
                 <div className="text-sm text-gray-300">You've been placed in the waiting room. The doctor will admit or deny your request.</div>
               </div>
+            </div>
+          )}
+
+          {/* Shared file preview */}
+          {sharedFile && (
+            <div className="absolute top-4 right-4 bg-white p-4 rounded shadow-lg border z-50 max-w-sm">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-bold text-sm truncate">{sharedFile.name}</h4>
+                <button onClick={() => setSharedFile(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4"/></button>
+              </div>
+              <a href={sharedFile.url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">
+                <FileText className="inline h-4 w-4 mr-1"/> Click to View Document
+              </a>
             </div>
           )}
 
@@ -615,6 +688,13 @@ const VideoCallPage: React.FC = () => {
                 <button onClick={() => { if (!isJoined) { handleJoin(); } else { /* if joined, patient/doctor flows handled earlier */ } }} className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold">{!isJoined ? 'Join' : (callStatus==='connected' ? 'Connected' : 'Join')}</button>
 
                 <button onClick={isScreenSharing ? stopScreenShare : startScreenShare} className={`ml-2 px-3 py-2 rounded-full bg-white/8`}>{isScreenSharing ? 'Stop Share' : 'Share Screen'}</button>
+
+                <input id="file-upload" type="file" className="hidden" onChange={handleFileUpload} />
+                <label htmlFor="file-upload" className="ml-2">
+                  <button title="Share file" className="px-3 py-2 rounded-full bg-white/8">
+                    {isUploading ? <span className="animate-spin">⌛</span> : <Paperclip className="w-5 h-5" />}
+                  </button>
+                </label>
 
                 <button onClick={() => setChatOpen(c => !c)} className="ml-2 px-3 py-2 rounded-full bg-white/8"><MessageCircle /></button>
 

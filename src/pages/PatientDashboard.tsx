@@ -8,7 +8,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getPatientDashboardData } from '@/lib/api';
-import { ShieldCheck, User, Phone, MessageSquare, FileText, Calendar } from 'lucide-react';
+import { ShieldCheck, User, Phone, MessageSquare, FileText, Calendar, Bot, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -271,6 +271,26 @@ export default function PatientDashboard(): JSX.Element {
         <main className="flex-1 p-6 md:p-8 lg:p-10">
           <div className="max-w-7xl mx-auto space-y-6">
             <HolographicHero name={user?.name || 'Patient'} />
+
+            {/* Symptom Checker CTA */}
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white mb-8 shadow-lg">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                    <Bot className="h-8 w-8" />
+                    Not sure if you need a doctor?
+                  </h2>
+                  <p className="text-indigo-100 mb-4 max-w-xl">
+                    Use our AI Symptom Triage to get an instant assessment. It can tell you if you need ER, a video visit, or home rest.
+                  </p>
+                  <Link to="/chatbot">
+                    <Button variant="secondary" className="font-bold text-indigo-700">
+                      Start Triage Assessment <ArrowRight className="ml-2 h-4 w-4"/>
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
 
             {/* REAL DATA GRID */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
