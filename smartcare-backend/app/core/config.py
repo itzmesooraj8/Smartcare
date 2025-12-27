@@ -2,8 +2,8 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Ensure environment variables from .env are loaded when Settings is instantiated.
-# Use override=True so values in .env/.env.local take precedence over the environment.
+# Load .env.local explicitly first (Vercel/Render style), then fall back to .env
+load_dotenv('.env.local', override=True)
 load_dotenv(override=True)
 
 
@@ -21,6 +21,10 @@ class Settings:
 
         # Fernet key for encrypting sensitive fields at rest. Must be provided via env.
         self.ENCRYPTION_KEY: str | None = os.getenv("ENCRYPTION_KEY")
+
+        # CORS: allow a comma-separated list in ALLOWED_ORIGINS (fall back to localhost dev origins)
+        allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+        self.ALLOWED_ORIGINS = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
 
         missing = []
         if not self.SECRET_KEY:
