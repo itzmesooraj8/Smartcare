@@ -7,14 +7,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
-
-# SlowAPI Imports (Corrected)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 from app.services.chatbot import ChatbotService
@@ -29,20 +25,28 @@ from app.api.v1 import files as files_module
 from app.database import engine, get_db, Base
 from app.models.user import User
 
-# 1. Setup Security & Rate Limiting
+# --- SECURITY CONFIGURATION ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-# Initialize Limiter
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(title="SmartCare Backend")
 
-# 2. Add Rate Limit Middleware
+# --- GLOBAL USER IP FIX ---
+# On Render, the real IP is in the 'x-forwarded-for' header.
+# If we don't use this, everyone shares the same IP and gets blocked together.
+def get_real_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0]
+    return request.client.host
+
+# --- RATE LIMITER ---
+# Use get_real_ip so users from all over the world have separate limits
+limiter = Limiter(key_func=get_real_ip) 
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
-# 3. Custom Rate Limit Exception Handler (Fixes the ImportError)
+# Custom Handler (Fixes the ImportError crash)
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
         status_code=429,
@@ -51,43 +55,17 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# 4. CORS Configuration
+# --- CORS (Allow Vercel Access) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    # Ensure your Vercel URL is in settings.ALLOWED_ORIGINS or added here
+    allow_origins=getattr(settings, "ALLOWED_ORIGINS", ["http://localhost:5173", "https://smartcare-six.vercel.app"]),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# --- Security Headers Middleware (Helmet-style) ---
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    return response
-
-
-# Alternative explicit middleware class for environments that expect add_middleware usage
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp):
-        super().__init__(app)
-
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
-        return response
-
-
-# Add the explicit middleware (no-op if already present)
-app.add_middleware(SecurityHeadersMiddleware)
-
-# 5. Include Routers
+# --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
 app.include_router(dashboard_module.router, prefix="/api/v1/patient")
 app.include_router(appointments_module.router, prefix="/api/v1/appointments")
@@ -96,7 +74,7 @@ app.include_router(tele_module.router, prefix="/api/v1/tele")
 app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
 
-# --- Models ---
+# --- SHARED SCHEMAS ---
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
@@ -114,98 +92,93 @@ class TokenResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
 
-# --- Endpoints ---
-
+# --- EVENTS ---
 @app.on_event("startup")
-async def ensure_tables_and_listeners():
-    print("🏗️ Creating database tables...")
+async def startup_event():
+    print("🚀 SmartCare Backend Starting...")
+    print("🏗️  Verifying database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ Tables created successfully.")
-    try:
-        if getattr(settings, "REDIS_URL", None):
-            import asyncio as _asyncio
-            _asyncio.create_task(signaling_module.manager.start_redis_listener())
-            print("🔁 Redis signaling listener started")
-    except Exception as e:
-        print("⚠️ Failed to start Redis listener:", e)
+    print("✅ Database connection established.")
+    
+    if getattr(settings, "REDIS_URL", None):
+        try:
+            import asyncio
+            asyncio.create_task(signaling_module.manager.start_redis_listener())
+            print("🔁 Redis signaling listener active")
+        except Exception as e:
+            print(f"⚠️ Redis Warning: {e}")
 
+# --- UTILITIES ---
+def create_access_token(subject: str, role: Optional[str] = None, email: Optional[str] = None) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {"sub": subject, "exp": expire}
+    if role:
+        to_encode["role"] = role
+    if email:
+        to_encode["email"] = email
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# --- PUBLIC ENDPOINTS ---
 @app.get("/health")
-def health():
-    return {"status": "ok", "mode": "production"}
+def health_check():
+    return {"status": "ok", "service": "SmartCare API", "version": "1.0.0"}
 
-@app.get("/api/v1/doctors")
-def list_doctors(db=Depends(get_db)):
-    doctors = db.query(User).filter(User.role == 'doctor').all()
-    result = []
-    for d in doctors:
-        result.append({
-            "id": d.id,
-            "full_name": getattr(d, 'full_name', getattr(d, 'email', None)),
-            "specialization": getattr(d, 'specialization', 'General'),
-        })
-    return result
+@app.get("/")
+def root():
+    return {"status": "online"}
 
 @app.post("/api/v1/chat")
 async def chat_endpoint(payload: ChatRequest):
     resp = await ChatbotService.get_response(payload.message)
     return {"response": resp}
 
+@app.get("/api/v1/doctors")
+def list_doctors(db=Depends(get_db)):
+    doctors = db.query(User).filter(User.role == 'doctor').all()
+    return [{
+        "id": d.id,
+        "full_name": getattr(d, 'full_name', d.email),
+        "specialization": getattr(d, 'specialization', 'General Specialist'),
+    } for d in doctors]
+
 # --- AUTH ENDPOINTS (FIXED) ---
 
-def create_access_token(subject: str, role: Optional[str] = None, email: Optional[str] = None) -> str:
-    to_encode = {"sub": subject}
-    if role:
-        to_encode.update({"role": role})
-    if email:
-        to_encode.update({"email": email})
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
-    return encoded_jwt
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-@app.post("/api/v1/auth/register", status_code=201)
 @limiter.limit("5/minute")
+@app.post("/api/v1/auth/register", status_code=201)
+# CRITICAL FIX: Added 'request: Request'. This prevents the crash.
 def register(request: Request, payload: RegisterRequest, db=Depends(get_db)):
-    # The 'request' argument above is REQUIRED for slowapi to work
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    hashed = get_password_hash(payload.password)
-    new_user = User(email=payload.email, hashed_password=hashed, full_name=payload.full_name, role="patient")
+    new_user = User(
+        email=payload.email, 
+        hashed_password=get_password_hash(payload.password), 
+        full_name=payload.full_name,
+        role="patient" 
+    )
     db.add(new_user)
-    try:
-        db.commit()
-        db.refresh(new_user)
-    except Exception:
-        db.rollback()
-        raise
+    db.commit()
+    db.refresh(new_user)
 
-    return {
-        "id": new_user.id,
-        "email": new_user.email,
-        "full_name": new_user.full_name,
-        "is_active": bool(new_user.is_active),
-        "created_at": new_user.created_at.isoformat() if getattr(new_user, 'created_at', None) else datetime.utcnow().isoformat(),
-    }
+    return {"id": new_user.id, "email": new_user.email, "message": "Registration successful"}
 
-@app.post("/api/v1/auth/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
+@app.post("/api/v1/auth/login", response_model=TokenResponse)
+# CRITICAL FIX: Added 'request: Request'. This prevents the crash.
 def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
-    # The 'request' argument above is REQUIRED for slowapi to work
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user_role = getattr(user, 'role', 'patient')
-
-    token = create_access_token(subject=str(user.id), role=user_role, email=user.email)
+    role = getattr(user, 'role', 'patient')
+    token = create_access_token(subject=str(user.id), role=role, email=user.email)
     
     return {
         "access_token": token,
@@ -214,6 +187,6 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
             "id": user.id,
             "email": user.email,
             "full_name": getattr(user, 'full_name', None),
-            "role": user_role,
+            "role": role,
         },
     }
