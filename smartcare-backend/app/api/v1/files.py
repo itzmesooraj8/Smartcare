@@ -4,13 +4,27 @@ from ...database import get_db
 from ...models.audit_log import AuditLog
 from ...core.config import settings
 from supabase import create_client, Client
+import logging
 
 from .medical_records import get_current_user_id
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Initialize Supabase Admin Client (Server-side)
-supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+# Initialize Supabase Admin Client (Server-side) safely. If initialization fails,
+# don't crash the entire application at import time — set supabase to None and
+# surface a 503 at runtime for file endpoints.
+supabase: Client | None = None
+try:
+    if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+        logger.info("Supabase client initialized")
+    else:
+        logger.warning("Supabase client not initialized: missing URL or service role key")
+        supabase = None
+except Exception as exc:
+    logger.error("Failed initializing Supabase client: %s", exc)
+    supabase = None
 
 
 class SignUrlRequest(BaseModel):
@@ -20,6 +34,10 @@ class SignUrlRequest(BaseModel):
 
 @router.post("/sign-url")
 def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_current_user_id), db=Depends(get_db), request: Request = None):
+    # If Supabase is not configured correctly, return 503 so other parts remain functional
+    if supabase is None:
+        raise HTTPException(status_code=503, detail="File storage service is unavailable")
+
     try:
         # 1. Generate Signed URL (valid for 60 mins)
         res = supabase.storage.from_(payload.bucket).create_signed_url(payload.file_path, 3600)

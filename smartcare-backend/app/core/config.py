@@ -14,6 +14,11 @@ class Settings:
         self.SUPABASE_ANON_KEY: str | None = os.getenv("SUPABASE_ANON_KEY")
         self.SUPABASE_SERVICE_ROLE_KEY: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+        # Debugging presence of critical variables (do not print secrets)
+        print(f"Checking SUPABASE_URL: {'Found' if bool(self.SUPABASE_URL) else 'Missing'}")
+        print(f"Checking SUPABASE_SERVICE_ROLE_KEY: {'Found' if bool(self.SUPABASE_SERVICE_ROLE_KEY) else 'Missing'}")
+        print(f"Checking SUPABASE_ANON_KEY: {'Found' if bool(self.SUPABASE_ANON_KEY) else 'Missing'}")
+
         # REQUIRED: Read secrets from environment. NO hardcoded defaults allowed.
         self.SECRET_KEY: str | None = os.getenv("SECRET_KEY")
         self.DATABASE_URL: str | None = os.getenv("DATABASE_URL")
@@ -31,6 +36,11 @@ class Settings:
             missing.append("SECRET_KEY")
         if not self.DATABASE_URL or str(self.DATABASE_URL).lower() in ("", "change-me", "changeme", "default"):
             missing.append("DATABASE_URL")
+        # Supabase service keys are required for server-side storage/operations
+        if not self.SUPABASE_URL or str(self.SUPABASE_URL).lower() in ("", "change-me", "changeme", "default"):
+            missing.append("SUPABASE_URL")
+        if not self.SUPABASE_SERVICE_ROLE_KEY or str(self.SUPABASE_SERVICE_ROLE_KEY).lower() in ("", "change-me", "changeme", "default"):
+            missing.append("SUPABASE_SERVICE_ROLE_KEY")
         if not self.ENCRYPTION_KEY or str(self.ENCRYPTION_KEY).lower() in ("", "change-me", "changeme", "default"):
             missing.append("ENCRYPTION_KEY")
 
@@ -38,6 +48,14 @@ class Settings:
             print(
                 f"FATAL: Missing or defaulted required environment variables: {', '.join(missing)}.\n"
                 "Set secure values for these before starting the application. Exiting.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # Validate SUPABASE_URL format (simple check)
+        if self.SUPABASE_URL and not str(self.SUPABASE_URL).startswith("http"):
+            print(
+                "FATAL: SUPABASE_URL does not appear to be a valid URL (must start with http). Exiting.",
                 file=sys.stderr,
             )
             sys.exit(1)

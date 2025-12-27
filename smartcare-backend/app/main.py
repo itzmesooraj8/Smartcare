@@ -111,6 +111,11 @@ def get_password_hash(password: str) -> str:
 def health_check():
     return {"status": "ok", "service": "SmartCare API", "version": "1.0.0"}
 
+
+@app.get("/")
+def root():
+    return {"status": "online"}
+
 @app.post("/api/v1/chat")
 async def chat_endpoint(payload: ChatRequest):
     resp = await ChatbotService.get_response(payload.message)
