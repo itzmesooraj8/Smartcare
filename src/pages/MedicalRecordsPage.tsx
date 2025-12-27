@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEncryption } from "@/hooks/useEncryption";
-import { apiFetch } from "@/lib/api";
+import apiFetch from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Lock, FileText, Calendar, AlertTriangle, ShieldCheck } from "lucide-react";
@@ -32,8 +32,14 @@ export default function MedicalRecordsPage() {
   useEffect(() => {
     if (!token) return;
     
-    apiFetch("/medical-records")
-      .then((res) => setRecords(res))
+    Promise.resolve(
+      apiFetch({
+        url: "/medical-records",
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+    )
+      .then((res) => setRecords((res as any).data ?? res))
       .catch((err) => console.error("Fetch error:", err))
       .finally(() => setLoading(false));
   }, [token]);

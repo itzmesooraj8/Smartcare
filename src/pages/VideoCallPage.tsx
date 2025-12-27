@@ -44,7 +44,7 @@ import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Papercli
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { apiFetch } from '@/lib/api';
+import apiFetch from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -151,10 +151,10 @@ const VideoCallPage: React.FC = () => {
       try {
         let cfg = null;
         try {
-          cfg = await apiFetch('/api/v1/tele/credentials', { auth: false });
+          cfg = await apiFetch({ url: '/api/v1/tele/credentials', auth: false as any });
         } catch (err) {
           // try legacy route
-          cfg = await apiFetch('/api/v1/tele/config/ice-servers', { auth: false });
+          cfg = await apiFetch({ url: '/api/v1/tele/config/ice-servers', auth: false as any });
         }
         if (cfg && cfg.iceServers) iceConfigRef.current = cfg.iceServers;
       } catch (e) {
@@ -571,13 +571,15 @@ const VideoCallPage: React.FC = () => {
       if (uploadError) throw uploadError;
 
       // Ask backend to sign the URL so the action is audited
-      const res = await apiFetch('/files/sign-url', {
+      const res = await apiFetch({
+        url: '/files/sign-url',
         method: 'POST',
-        body: JSON.stringify({ file_path: filePath, bucket: 'chat-files' }),
-        auth: true,
+        data: { file_path: filePath, bucket: 'chat-files' },
+        auth: true as any,
       });
       // Expect canonical backend response shape: { data: { signedURL: '...' }, error: null }
-      const signedUrl = res?.data?.signedURL || res?.data?.signed_url || res?.data?.signedUrl || res?.signedUrl || res?.signedURL || res?.signed_url;
+      const r = res as any;
+      const signedUrl = r?.data?.signedURL || r?.data?.signed_url || r?.data?.signedUrl || r?.signedUrl || r?.signedURL || r?.signed_url;
       if (!signedUrl) throw new Error('Failed to obtain signed URL');
 
       if (wsRef.current && signedUrl) {
@@ -822,12 +824,16 @@ const VideoCallPage: React.FC = () => {
                       const chatTranscript = chatMessages.map(m => `${m.sender}: ${m.text}`).join('\n');
                       const transcript = intake || chatTranscript || 'Patient exam transcript...';
 
-                      const res = await apiFetch('/api/v1/tele/generate-notes', {
+                      const res = await apiFetch({
+                        path: '/api/v1/tele/generate-notes',
                         method: 'POST',
                         body: JSON.stringify({ transcript, patient_id: patientIdFromUrl }),
-                        auth: true
-                      });
-                      setNotesContent(res.notes);
+                        auth: true as any
+                      } as any);
+                      // apiFetch may return an Axios-like response where the payload is under `data`,
+                      // so normalize by checking common locations for the notes payload.
+                      const notes = (res as any)?.data?.notes ?? (res as any)?.notes ?? (res as any)?.data ?? res;
+                      setNotesContent(notes);
                       setNotesOpen(true);
                     }
                     catch (e: any) { toast.error(String(e?.message || e)); }

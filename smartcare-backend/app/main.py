@@ -57,16 +57,15 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # --- CORS (Allow Vercel Access) ---
+# 🔒 PRODUCTION ONLY CONFIGURATION
 origins = [
-    "http://localhost:5173",  # Local Frontend
-    "http://localhost:8000",  # Local Backend
-    "https://smartcare-six.vercel.app", # <--- ADD YOUR VERCEL DOMAIN
-    "https://smartcare-six.vercel.app/", # (Good measure to add with slash too)
+    "https://smartcare-six.vercel.app",
+    "https://smartcare-six.vercel.app/"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins, # Only allow Vercel
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

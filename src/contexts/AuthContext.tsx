@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiFetch } from '@/lib/api';
+import apiFetch from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Safe JWT decoder: decodes base64url payload and handles UTF-8 correctly
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (data: any) => {
-    await apiFetch('/api/v1/auth/register', { method: 'POST', body: JSON.stringify(data) });
+    await apiFetch({ url: '/api/v1/auth/register', method: 'POST', data: JSON.stringify(data) });
   };
 
   const logout = () => {
