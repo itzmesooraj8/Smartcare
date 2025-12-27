@@ -20,6 +20,8 @@ class Appointment(Base):
     __table_args__ = (
         sa.UniqueConstraint('doctor_id', 'appointment_time', name='_doctor_time_uc'),
     )
+    # Allow redefinition during hot reloads
+    __table_args__ = ({'extend_existing': True},) if not isinstance(__table_args__, dict) else {'extend_existing': True}
 
     id = sa.Column(sa.String, primary_key=True, default=lambda: str(uuid.uuid4()))
     # Note: We use string user IDs in your setup

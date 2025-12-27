@@ -1,27 +1,154 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from pydantic import BaseModel, Field
+from typing import Optional, List, Any
+import uuid
+
+from app.database import get_db
+from app.models.medical_record import MedicalRecord
+from app.models.user import User
+from app.models.audit_log import AuditLog
+
+router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
+
+
+# --- Local helper: JWT-based current user resolution ---
+from jose import jwt, JWTError
+from app.core.config import settings
+
+def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+    token = parts[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        sub = payload.get('sub')
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        user = db.query(User).filter_by(id=str(sub)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# --- Zero-Knowledge Schemas ---
+class EncryptedBlob(BaseModel):
+    cipher_text: str
+    iv: str
+    version: str = "v1"
+
+
+class MedicalRecordCreate(BaseModel):
+    chief_complaint: EncryptedBlob
+    diagnosis: EncryptedBlob
+    notes: Optional[EncryptedBlob] = None
+    visit_type: str = "Consultation"
+
+
+class MedicalRecordResponse(BaseModel):
+    id: str
+    patient_id: int
+    chief_complaint: Any
+    diagnosis: Any
+    notes: Optional[Any]
+    visit_type: str
+    created_at: Any
+
+
+# --- Endpoints ---
+@router.post("/", response_model=MedicalRecordResponse, status_code=201)
+@limiter.limit("10/minute")
+def create_medical_record(
+    request: Request,
+    payload: MedicalRecordCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        new_record = MedicalRecord(
+            patient_id=current_user.id,
+            doctor_id=None,
+            chief_complaint=payload.chief_complaint.dict(),
+            diagnosis=payload.diagnosis.dict(),
+            notes=payload.notes.dict() if payload.notes else None,
+            visit_type=payload.visit_type
+        )
+        db.add(new_record)
+        db.commit()
+        db.refresh(new_record)
+
+        # Audit Log
+        ip = request.client.host if getattr(request, 'client', None) else None
+        if request.headers.get("x-forwarded-for"):
+            ip = request.headers.get("x-forwarded-for").split(",")[0]
+
+        audit = AuditLog(
+            user_id=str(current_user.id),
+            target_id=str(new_record.id),
+            action="CREATE_RECORD",
+            resource_type="MEDICAL_RECORD",
+            ip_address=ip
+        )
+        db.add(audit)
+        db.commit()
+
+        return new_record
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save record: {str(e)}")
+
+
+@router.get("/", response_model=List[MedicalRecordResponse])
+def list_medical_records(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role == 'doctor':
+        return db.query(MedicalRecord).order_by(MedicalRecord.created_at.desc()).all()
+    else:
+        return db.query(MedicalRecord).filter(MedicalRecord.patient_id == current_user.id).order_by(MedicalRecord.created_at.desc()).all()
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from jose import jwt, JWTError
 from ...core.config import settings
-from ...core.encryption import encrypt_data, decrypt_data
 from ...database import get_db
 from sqlalchemy.orm import Session
 import uuid
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ...models.audit_log import AuditLog
 from ...models.medical_record import MedicalRecord
 from ...models.user import User
 
+# Local limiter for router endpoints (guards this router independently)
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter()
+
+
+class EncryptedBlob(BaseModel):
+    cipher_text: str
+    iv: str
+    version: Optional[str] = "v1"
 
 
 class MedicalRecordCreate(BaseModel):
     title: str
-    # Require a doctor_id (FK) instead of an arbitrary doctor_name string
-    doctor_id: str
-    diagnosis: str
-    date: date
+    # Doctor may be optional at creation
+    doctor_id: Optional[str] = None
+    # Expect encrypted blobs from the client
+    diagnosis: EncryptedBlob
+    chief_complaint: Optional[EncryptedBlob] = None
+    date: Optional[date] = None
     file_url: Optional[str] = None
 
 
@@ -63,27 +190,26 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
 
 
 @router.post("/", status_code=201)
+@limiter.limit("10/minute")
 def create_medical_record(payload: MedicalRecordCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
     # Only patients may create records for themselves via this endpoint
     if getattr(current_user, 'role', 'patient') != 'patient':
         raise HTTPException(status_code=403, detail="Only patients may create records via this endpoint")
 
-    # Verify doctor exists to ensure non-repudiation (doctor_id must reference a real user)
-    doctor = db.query(User).filter_by(id=payload.doctor_id).first()
-    if not doctor:
-        raise HTTPException(status_code=400, detail="Provided doctor_id does not reference a valid user")
+    # If a doctor_id was provided, verify it references a real user
+    if payload.doctor_id:
+        doctor = db.query(User).filter_by(id=payload.doctor_id).first()
+        if not doctor:
+            raise HTTPException(status_code=400, detail="Provided doctor_id does not reference a valid user")
 
     try:
-        enc_diagnosis = encrypt_data(payload.diagnosis)
-        notes_plain = f"DoctorId: {payload.doctor_id}; file: {payload.file_url or ''}"
-        enc_notes = encrypt_data(notes_plain)
-
+        # Store the encrypted blobs as-is (server does NOT attempt to decrypt)
         mr = MedicalRecord(
             patient_id=str(current_user.id),
             doctor_id=payload.doctor_id,
             title=payload.title,
-            diagnosis=enc_diagnosis,
-            notes=enc_notes,
+            diagnosis=payload.diagnosis.dict(),
+            notes={"file_url": payload.file_url} if payload.file_url else None,
         )
         db.add(mr)
         db.commit()
@@ -118,22 +244,13 @@ def create_medical_record(payload: MedicalRecordCreate, current_user: User = Dep
         except Exception:
             pass
 
-    # Decrypt fields for response
-    try:
-        summary = decrypt_data(mr.diagnosis)
-    except Exception:
-        summary = "[decryption-error]"
-    try:
-        notes = decrypt_data(mr.notes)
-    except Exception:
-        notes = "[decryption-error]"
-
+    # Return stored blobs untouched so the client (with master key) can decrypt
     return {
         "id": str(mr.id),
         "patient_id": mr.patient_id,
         "record_type": mr.title,
-        "summary": summary,
-        "notes": notes,
+        "diagnosis": mr.diagnosis,
+        "notes": mr.notes,
         "created_at": mr.created_at.isoformat() if mr.created_at is not None else None,
     }
 
@@ -183,22 +300,12 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
 
     result = []
     for r in rows:
-        # attempt to decrypt fields; if they are not encrypted, return raw
-        try:
-            dec_summary = decrypt_data(r.diagnosis)
-        except Exception:
-            dec_summary = "[decryption-error]"
-        try:
-            dec_notes = decrypt_data(r.notes)
-        except Exception:
-            dec_notes = "[decryption-error]"
-
         result.append({
             "id": str(r.id),
             "patient_id": r.patient_id,
             "record_type": r.title,
-            "summary": dec_summary,
-            "notes": dec_notes,
+            "diagnosis": r.diagnosis,
+            "notes": r.notes,
             "created_at": r.created_at.isoformat() if r.created_at is not None else None,
         })
     return result

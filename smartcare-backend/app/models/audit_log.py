@@ -5,6 +5,7 @@ from app.database import Base
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = {"extend_existing": True}
 
     id = sa.Column(sa.String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = sa.Column(sa.String, sa.ForeignKey("users.id"), nullable=False, index=True)

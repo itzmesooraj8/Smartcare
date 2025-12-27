@@ -21,6 +21,7 @@ from app.api.v1 import medical_records as medical_records_module
 from app.api.v1 import tele as tele_module
 from app.api.v1 import admin as admin_module
 from app.api.v1 import files as files_module
+from app.api.v1 import video as video_module  # <--- ADD THIS
 
 from app.database import engine, get_db, Base
 from app.models.user import User
@@ -73,12 +74,17 @@ app.include_router(medical_records_module.router, prefix="/api/v1/medical-record
 app.include_router(tele_module.router, prefix="/api/v1/tele")
 app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
+app.include_router(video_module.router, prefix="/api/v1/video", tags=["Video"]) # <--- ADD THIS
 
 # --- SHARED SCHEMAS ---
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
+    # Wrapped master key fields (stored server-side but encrypted)
+    encrypted_master_key: Optional[str] = None
+    key_encryption_iv: Optional[str] = None
+    key_derivation_salt: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -88,6 +94,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
+    # Optional key blob returned to the client on login
+    key_data: Optional[dict] = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -158,10 +166,13 @@ def register(request: Request, payload: RegisterRequest, db=Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     new_user = User(
-        email=payload.email, 
-        hashed_password=get_password_hash(payload.password), 
+        email=payload.email,
+        hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name,
-        role="patient" 
+        role="patient",
+        encrypted_master_key=payload.encrypted_master_key,
+        key_encryption_iv=payload.key_encryption_iv,
+        key_derivation_salt=payload.key_derivation_salt,
     )
     db.add(new_user)
     db.commit()
@@ -189,4 +200,9 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
             "full_name": getattr(user, 'full_name', None),
             "role": role,
         },
+        "key_data": {
+            "encrypted_master_key": getattr(user, 'encrypted_master_key', None),
+            "key_encryption_iv": getattr(user, 'key_encryption_iv', None),
+            "key_derivation_salt": getattr(user, 'key_derivation_salt', None),
+        }
     }

@@ -26,7 +26,12 @@ class Settings:
         if allowed_origins_str:
             self.ALLOWED_ORIGINS = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
         else:
-            self.ALLOWED_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
+            # Include common local dev hosts and the Vercel production domain used by the frontend.
+            self.ALLOWED_ORIGINS = [
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://smartcare-six.vercel.app",
+            ]
 
         # Fail fast for required secrets — explicit and clear errors for audits.
         missing = []
