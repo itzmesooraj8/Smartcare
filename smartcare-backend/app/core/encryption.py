@@ -6,7 +6,7 @@ from typing import Optional
 def _get_fernet() -> Fernet:
     key = settings.ENCRYPTION_KEY
     if not key:
-        raise ValueError("ENCRYPTION_KEY is not configured")
+        raise ValueError("FATAL: ENCRYPTION_KEY is not configured")
     if isinstance(key, str):
         key_bytes = key.encode()
     else:
@@ -28,5 +28,5 @@ def decrypt_text(token: Optional[str]) -> Optional[str]:
     try:
         return f.decrypt(token.encode()).decode()
     except InvalidToken:
-        # If decryption fails, return the original token so older unencrypted data still shows
-        return token
+        # Invalid key or corrupted token — fail fast so operator can rotate key or inspect data
+        raise ValueError("FATAL: Unable to decrypt token. ENCRYPTION_KEY may be invalid or data is corrupted.")

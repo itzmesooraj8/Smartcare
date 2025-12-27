@@ -45,20 +45,12 @@ class Settings:
             missing.append("ENCRYPTION_KEY")
 
         if missing:
-            print(
-                f"FATAL: Missing or defaulted required environment variables: {', '.join(missing)}.\n"
-                "Set secure values for these before starting the application. Exiting.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            # Fail fast with an exception so test harnesses and platforms capture the error clearly
+            raise ValueError(f"FATAL: Missing or defaulted required environment variables: {', '.join(missing)}")
 
         # Validate SUPABASE_URL format (simple check)
         if self.SUPABASE_URL and not str(self.SUPABASE_URL).startswith("http"):
-            print(
-                "FATAL: SUPABASE_URL does not appear to be a valid URL (must start with http). Exiting.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            raise ValueError("FATAL: SUPABASE_URL does not appear to be a valid URL (must start with http)")
 
 
 settings = Settings()
