@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useEncryption } from '@/hooks/useEncryption';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Heart, Eye, EyeOff } from 'lucide-react';
 
@@ -30,6 +31,7 @@ const RegisterPage = () => {
   const { register, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { generateMasterKey, wrapMasterKey } = useEncryption();
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -91,11 +93,25 @@ const RegisterPage = () => {
     // NOTE: current register mock doesn't accept files. In a real app we would send
         // the licenseFile in a multipart/form-data request to the backend here.
         try {
-          await register(formData);
-            toast({
-              title: "Account Created!",
-              description: "Welcome to SmartCare. Your account has been created successfully.",
-            });
+          // Generate and wrap a master key for client-side encryption
+          const masterKey = await generateMasterKey();
+          const wrapped = await wrapMasterKey(masterKey, formData.password);
+
+          const payload: any = {
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.name,
+            role: formData.role,
+            encrypted_master_key: wrapped.cipher_text,
+            key_encryption_iv: wrapped.iv,
+            key_derivation_salt: wrapped.salt,
+          };
+
+          await register(payload);
+          toast({
+            title: "Account Created!",
+            description: "Welcome to SmartCare. Your account has been created successfully.",
+          });
             // Redirect to role-specific dashboard
             if (formData.role === 'patient') navigate('/patient/dashboard');
             else if (formData.role === 'doctor') navigate('/doctor/dashboard');

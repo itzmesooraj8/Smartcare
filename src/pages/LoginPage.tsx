@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEncryption } from '@/hooks/useEncryption';
+import { apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Heart, Eye, EyeOff } from 'lucide-react';
@@ -18,6 +20,7 @@ const LoginPage = () => {
   const [role, setRole] = useState<UserRole>('patient');
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading } = useAuth();
+  const { unwrapMasterKey } = useEncryption();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -37,21 +40,69 @@ const LoginPage = () => {
     }
 
     try {
-      const role = await login(email, password);
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
+      // Call login API
+      const res = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        auth: false,
       });
+
+      const access_token = res.access_token || res.token || res.data?.access_token;
+      const user = res.user || res.data?.user;
+      const key_data = res.key_data || res.data?.key_data;
+
+      if (!access_token || !user) throw new Error('Invalid login response');
+
+      // Unwrap master key using the password provided by the user
+      let masterKey: CryptoKey | null = null;
+      if (key_data && key_data.encrypted_master_key) {
+        try {
+          const wrappedBlob = {
+            cipher_text: key_data.encrypted_master_key,
+            iv: key_data.key_encryption_iv,
+            salt: key_data.key_derivation_salt,
+          };
+
+          masterKey = await unwrapMasterKey(wrappedBlob, password);
+          console.log('🔓 Zero-Knowledge Vault Unlocked Successfully');
+        } catch (err) {
+          console.error('Failed to unwrap key:', err);
+          toast({ variant: 'destructive', title: 'Decryption Failed', description: 'Could not unlock your medical records.' });
+          return;
+        }
+      } else {
+        console.warn('No encryption key found for this user.');
+        toast({ title: 'Legacy Account', description: 'No encryption key available for this account.' });
+        return;
+      }
+
+      // Complete login by storing token, user and masterKey in memory
+      login(access_token, user, masterKey as CryptoKey);
+
+      toast({ title: 'Welcome back!', description: 'Secure session established.' });
       // Role-aware routing
+      const role = (user.role as UserRole) || 'patient';
       if (role === 'admin') navigate('/admin-dashboard', { replace: true });
       else if (role === 'doctor') navigate('/doctor/dashboard', { replace: true });
       else if (role === 'patient') navigate('/patient/dashboard', { replace: true });
       else navigate(from, { replace: true });
-    } catch (error) {
+
+    } catch (error: any) {
+      // Demo fallback when explicitly enabled
+      if ((import.meta as any).env?.VITE_ENABLE_DEMO === 'true' && (password === 'demo123' || password === 'password' || (email && email.includes('demo')))) {
+        toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
+        const demoUser = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' } as any;
+        // No master key for demo mode
+        login('demo-token-123', demoUser, null as any);
+        if (demoUser.role === 'patient') navigate('/patient/dashboard');
+        else navigate(from);
+        return;
+      }
+
       toast({
-        title: "Login Failed",
-        description: (error as any)?.message || "Invalid credentials. Please try again.",
-        variant: "destructive",
+        title: 'Login Failed',
+        description: (error as any)?.message || 'Invalid credentials. Please try again.',
+        variant: 'destructive',
       });
     }
   };

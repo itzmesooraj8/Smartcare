@@ -1,7 +1,46 @@
+import { useParams, useNavigate } from 'react-router-dom';
+import TelehealthRoom from '@/components/TelehealthRoom';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+
+export function TelehealthLandingPage() {
+  // Grab the "roomId" from the URL (e.g., /video/consultation-101)
+  const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-950">
+      {/* Simple Header */}
+      <div className="flex items-center p-4 text-white bg-slate-900 border-b border-slate-800">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/dashboard')}
+          className="mr-4 text-slate-400 hover:text-white"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Dashboard
+        </Button>
+        <div className="flex flex-col">
+          <span className="font-semibold">Secure Telehealth Session</span>
+          <span className="text-xs text-slate-400">Room ID: {roomId || 'General'}</span>
+        </div>
+      </div>
+
+      {/* The LiveKit Room */}
+      <div className="flex-1 overflow-hidden">
+        {/* We pass the roomId from the URL to your component */}
+        <TelehealthRoom 
+          roomId={roomId || 'default-room'} 
+          onLeave={() => navigate('/dashboard')} 
+        />
+      </div>
+    </div>
+  );
+}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Paperclip, FileText, X, ArrowUpRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';

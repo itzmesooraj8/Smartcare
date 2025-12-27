@@ -1,6 +1,15 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
-from livekit import api
+
+# Support either `livekit` (imported as `livekit`) or `livekit-api` (imported as `livekit_api`).
+try:
+    from livekit import api
+except Exception:
+    try:
+        import livekit_api as _lk
+        api = getattr(_lk, 'api', _lk)
+    except Exception:
+        raise
 
 from app.api.v1.medical_records import get_current_user
 

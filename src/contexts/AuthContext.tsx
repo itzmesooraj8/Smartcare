@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -27,9 +27,12 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
+  masterKey: CryptoKey | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, pass: string) => Promise<User | null>;
+  // login is now called with the final token, user payload and the unwrapped master key
+  login: (token: string, userData: User, key: CryptoKey) => void;
   register: (data: any) => Promise<void>;
   logout: () => void;
 }
@@ -38,6 +41,8 @@ const AuthContext = createContext<AuthContextType>({} as any);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('smartcare_token'));
+  const [masterKey, setMasterKey] = useState<CryptoKey | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -45,50 +50,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const TOKEN_KEY = 'smartcare_token';
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      const decoded = decodeJwtSafe(token);
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (t) {
+      const decoded = decodeJwtSafe(t);
       if (decoded && decoded.sub) {
         const decodedEmail = decoded.email || 'user@smartcare.app';
         const resolvedRole = (decoded.role as any) || 'patient';
         setUser({ id: decoded.sub, email: decodedEmail, role: resolvedRole });
+        setToken(t);
       }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, pass: string) => {
-    setIsLoading(true);
-    try {
-      const res = await apiFetch<{ access_token: string }>('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password: pass }),
-      });
-
-      if (res && res.access_token) {
-        localStorage.setItem(TOKEN_KEY, res.access_token);
-        const decoded = decodeJwtSafe(res.access_token);
-        const decodedEmail = decoded?.email || email;
-        const resolvedRole = (decoded?.role as any) || 'patient';
-        const u: User = { id: decoded?.sub || 'unknown', email: decodedEmail, role: resolvedRole };
-        setUser(u);
-        return u;
-      }
-
-      throw new Error('No token received');
-    } catch (error: any) {
-      // Demo fallback when explicitly enabled
-      if ((import.meta as any).env?.VITE_ENABLE_DEMO === 'true' && (pass === 'demo123' || pass === 'password' || (email && email.includes('demo')))) {
-        toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
-        const demoUser: User = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' };
-        localStorage.setItem(TOKEN_KEY, 'demo-token-123');
-        setUser(demoUser);
-        return demoUser;
-      }
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
+  // Login sets the token, user and the unwrapped master key (kept only in RAM)
+  const login = (newToken: string, userData: User, extractedKey: CryptoKey) => {
+    localStorage.setItem(TOKEN_KEY, newToken);
+    setToken(newToken);
+    setUser(userData);
+    setMasterKey(extractedKey);
   };
 
   const register = async (data: any) => {
@@ -97,14 +77,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
     setUser(null);
+    setMasterKey(null);
     window.location.href = '/login';
   };
 
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, masterKey, isLoading, isAuthenticated, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
