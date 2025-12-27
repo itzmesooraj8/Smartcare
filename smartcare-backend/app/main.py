@@ -10,7 +10,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.errors import _rate_limit_exceeded_handler
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from app.core.config import settings
 from app.services.chatbot import ChatbotService
@@ -34,8 +35,17 @@ app = FastAPI(title="SmartCare Backend")
 # --- RATE LIMITER ---
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        {"detail": getattr(exc, "detail", "Rate limit exceeded. Please try again later.")},
+        status_code=429,
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # --- CORS (dynamic from settings) ---
 app.add_middleware(
