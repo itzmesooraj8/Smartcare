@@ -84,7 +84,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (res.access_token) {
+        // persist token to localStorage for API helper to pick up automatically
         sessionStorage.setItem('smartcare_token', res.access_token);
+        localStorage.setItem('smartcare_token', res.access_token);
 
         const decoded = decodeJwtSafe(res.access_token);
         // apply MVP role overrides for specific test emails (frontend safety net)
@@ -96,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           email: email,
           role: resolvedRole,
         });
-        return;
+        return resolvedRole;
       }
       throw new Error('No token received');
     } catch (error: any) {
@@ -136,6 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = () => {
     sessionStorage.removeItem('smartcare_token');
+    localStorage.removeItem('smartcare_token');
     setUser(null);
     window.location.href = '/login';
   };

@@ -1,5 +1,5 @@
-// The Live Render URL
-const API_URL = "https://smartcare-zflo.onrender.com/api/v1/chat";
+// Use the configured API base (falls back to localhost)
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1") + '/chat';
 
 export const sendMessageToAI = async (message) => {
   try {

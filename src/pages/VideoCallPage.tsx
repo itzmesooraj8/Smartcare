@@ -44,6 +44,7 @@ const VideoCallPage: React.FC = () => {
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -206,7 +207,7 @@ const VideoCallPage: React.FC = () => {
 
         if (type === 'join_request') {
           if (role === 'doctor') {
-            setIncomingRequests(prev => [...prev.filter(r => r.peerId !== from), { peerId: from, name: msg?.name }]);
+            setIncomingRequests(prev => [...prev.filter(r => r.peerId !== from), { peerId: from, name: msg?.name, intake: msg?.intake }]);
             toast(`${msg?.name || 'Patient'} is knocking`, { duration: 4000 });
           }
           return;
@@ -358,8 +359,27 @@ const VideoCallPage: React.FC = () => {
     setRemoteStream(remote);
 
     pc.ontrack = (ev: any) => {
-      try { ev.streams?.[0]?.getTracks().forEach((t: MediaStreamTrack) => remote.addTrack(t)); }
-      catch (e) { if (ev.track) remote.addTrack(ev.track); }
+      try {
+        const s = ev.streams?.[0] || new MediaStream([ev.track]);
+        if (s) {
+          setRemoteStreams(prev => {
+            if (!s.id) return prev;
+            const exists = prev.find(r => r.id === s.id);
+            if (exists) return prev;
+            return [...prev, s];
+          });
+        }
+      } catch (e) {
+        if (ev.track) {
+          const s = new MediaStream([ev.track]);
+          setRemoteStreams(prev => {
+            if (!s.id) return prev;
+            const exists = prev.find(r => r.id === s.id);
+            if (exists) return prev;
+            return [...prev, s];
+          });
+        }
+      }
     };
 
     pc.onicecandidate = (ev: any) => {
@@ -393,7 +413,8 @@ const VideoCallPage: React.FC = () => {
   // Patient flow: request to join
   const requestJoin = useCallback(async () => {
     try {
-      wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: (user as any)?.full_name || user?.email }));
+      const intake = sessionStorage.getItem('intake_transcript') || undefined;
+      wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: (user as any)?.full_name || user?.email, intake }));
       setIsWaiting(true);
       setJoining(true);
     } catch (e) { toast.error('Failed to send join request'); }
@@ -405,7 +426,7 @@ const VideoCallPage: React.FC = () => {
     setJoining(true);
     connectWebSocket();
     if (role === 'patient') {
-      setTimeout(() => { try { wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: (user as any)?.full_name || user?.email })); setIsWaiting(true); } catch (e) { console.warn(e); } }, 500);
+      setTimeout(() => { try { const intake = sessionStorage.getItem('intake_transcript') || undefined; wsRef.current?.send(JSON.stringify({ type: 'join_request', from: peerId, name: (user as any)?.full_name || user?.email, intake })); setIsWaiting(true); } catch (e) { console.warn(e); } }, 500);
     } else {
       setTimeout(async () => { try { setJoining(true); await startCall(); } catch (e) { console.warn(e); } }, 600);
     }
@@ -511,13 +532,13 @@ const VideoCallPage: React.FC = () => {
       if (uploadError) throw uploadError;
 
       // Ask backend to sign the URL so the action is audited
-      const res = await apiFetch('/api/v1/files/sign-url', {
+      const res = await apiFetch('/files/sign-url', {
         method: 'POST',
         body: JSON.stringify({ file_path: filePath, bucket: 'chat-files' }),
         auth: true,
       });
-
-      const signedUrl = res?.signedUrl || res?.signed_url || res?.signedURL;
+      // Expect canonical backend response shape: { data: { signedURL: '...' }, error: null }
+      const signedUrl = res?.data?.signedURL || res?.data?.signed_url || res?.data?.signedUrl || res?.signedUrl || res?.signedURL || res?.signed_url;
       if (!signedUrl) throw new Error('Failed to obtain signed URL');
 
       if (wsRef.current && signedUrl) {
@@ -561,7 +582,7 @@ const VideoCallPage: React.FC = () => {
   }, [toggleMute, toggleVideo]);
 
   // Incoming requests state (doctor)
-  const [incomingRequests, setIncomingRequests] = useState<Array<{ peerId: string; name?: string }>>([]);
+  const [incomingRequests, setIncomingRequests] = useState<Array<{ peerId: string; name?: string; intake?: string }>>([]);
 
   // Attach remote stream when available
   useEffect(() => { if (remoteVideoRef.current && remoteStream) remoteVideoRef.current.srcObject = remoteStream; remoteStreamRef.current = remoteStream; }, [remoteStream]);
@@ -586,7 +607,22 @@ const VideoCallPage: React.FC = () => {
 
         {/* Main area */}
         <div className="flex-1 relative p-4">
-          <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover rounded-xl bg-black" />
+          {/* Render one or many remote video streams. Use a responsive grid for multi-party calls. */}
+          {remoteStreams.length > 1 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 w-full h-full">
+              {remoteStreams.map((s, idx) => (
+                <video
+                  key={s.id || idx}
+                  autoPlay
+                  playsInline
+                  className="w-full h-56 md:h-80 object-cover rounded-xl bg-black"
+                  ref={(el) => { if (el) el.srcObject = s; }}
+                />
+              ))}
+            </div>
+          ) : (
+            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover rounded-xl bg-black" />
+          )}
 
           {/* Waiting overlay */}
           {isWaiting && (
@@ -635,14 +671,19 @@ const VideoCallPage: React.FC = () => {
           {role === 'doctor' && incomingRequests.length > 0 && (
             <div className="absolute top-24 right-4 z-50 w-80 p-2 space-y-2">
               {incomingRequests.map(req => (
-                <div key={req.peerId} className="bg-white/6 p-3 rounded-md flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{req.name || 'Patient'}</div>
-                    <div className="text-xs text-gray-300">Wants to join</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'approve_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-green-600 rounded-md">Accept</button>
-                    <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'reject_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-red-600 rounded-md">Deny</button>
+                <div key={req.peerId} className="bg-white/6 p-3 rounded-md">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium">{req.name || 'Patient'}</div>
+                      <div className="text-xs text-gray-300">Wants to join</div>
+                      {req.intake && (
+                        <div className="mt-2 text-xs text-gray-200 bg-black/10 p-2 rounded">{String(req.intake).slice(0, 160)}{String(req.intake).length > 160 ? '...' : ''}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'approve_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-green-600 rounded-md">Accept</button>
+                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'reject_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-red-600 rounded-md">Deny</button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -732,7 +773,24 @@ const VideoCallPage: React.FC = () => {
                 <>
                   <button onClick={async () => {
                     setNotesLoading(true);
-                    try { const res = await apiFetch('/api/v1/tele/generate-notes', { method: 'POST', body: JSON.stringify({ transcript: 'Patient exam transcript...' }), auth: true }); setNotesContent(res.notes); setNotesOpen(true); }
+                    try {
+                      // Determine patient_id: prefer URL param, then any incoming request peerId
+                      const params = new URLSearchParams(window.location.search);
+                      const patientIdFromUrl = params.get('patient_id') || params.get('patient') || (incomingRequests?.[0]?.peerId) || null;
+
+                      // Build a transcript: prefer intake stored in sessionStorage, else use recent in-call chat
+                      const intake = sessionStorage.getItem('intake_transcript');
+                      const chatTranscript = chatMessages.map(m => `${m.sender}: ${m.text}`).join('\n');
+                      const transcript = intake || chatTranscript || 'Patient exam transcript...';
+
+                      const res = await apiFetch('/api/v1/tele/generate-notes', {
+                        method: 'POST',
+                        body: JSON.stringify({ transcript, patient_id: patientIdFromUrl }),
+                        auth: true
+                      });
+                      setNotesContent(res.notes);
+                      setNotesOpen(true);
+                    }
                     catch (e: any) { toast.error(String(e?.message || e)); }
                     finally { setNotesLoading(false); }
                   }} className="ml-3 px-3 py-2 rounded-full bg-blue-600 text-white font-semibold">{notesLoading ? 'Generating...' : 'Generate Notes'}</button>

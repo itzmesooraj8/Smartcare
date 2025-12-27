@@ -16,6 +16,8 @@ class ConnectionManager:
         self.sockets: dict[tuple[str, str], WebSocket] = {}
         # pending join requests: (room_id, peer_id) -> WebSocket
         self.pending: dict[tuple[str, str], WebSocket] = {}
+        # store payloads for pending join requests so hosts can see intake data
+        self.pending_payloads: dict[tuple[str, str], dict] = {}
         # roles: (room_id, peer_id) -> 'host' | 'patient'
         self.roles: dict[tuple[str, str], str] = {}
         self.redis = None
@@ -138,8 +140,9 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, peer_id: str):
                     # inform this host of any pending requests
                     for (r, pid), ws in list(manager.pending.items()):
                         if r == room_id:
+                            payload = manager.pending_payloads.get((r, pid), {})
                             try:
-                                await websocket.send_text(json.dumps({"type": "join_request", "from": pid, "name": msg.get("name") or "Patient"}))
+                                await websocket.send_text(json.dumps({"type": "join_request", "from": pid, "name": payload.get("name") or "Patient", "intake": payload.get("intake")}))
                             except Exception:
                                 pass
                 continue
@@ -149,9 +152,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, peer_id: str):
                 # mark role as patient
                 manager.roles[(room_id, peer_id)] = "patient"
                 manager.pending[(room_id, peer_id)] = websocket
+                # store incoming payload so hosts can preview intake/transcript
+                try:
+                    manager.pending_payloads[(room_id, peer_id)] = {"name": msg.get("name"), "intake": msg.get("intake")}
+                except Exception:
+                    manager.pending_payloads[(room_id, peer_id)] = {"name": msg.get("name")}
                 # notify hosts in room
                 hosts = [pid for pid in manager.rooms.get(room_id, []) if manager.roles.get((room_id, pid)) == "host"]
-                payload = json.dumps({"type": "join_request", "from": peer_id, "name": msg.get("name") or "Patient"})
+                payload = json.dumps({"type": "join_request", "from": peer_id, "name": msg.get("name") or "Patient", "intake": msg.get("intake")})
                 for hid in hosts:
                     hws = manager.sockets.get((room_id, hid))
                     if hws:
@@ -172,6 +180,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, peer_id: str):
                         pass
                     # move pending into active room
                     manager.pending.pop((room_id, target), None)
+                    manager.pending_payloads.pop((room_id, target), None)
                     manager.rooms.setdefault(room_id, []).append(target)
                     manager.roles[(room_id, target)] = "patient"
                 continue
@@ -187,6 +196,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, peer_id: str):
                     except Exception:
                         pass
                     manager.pending.pop((room_id, target), None)
+                    manager.pending_payloads.pop((room_id, target), None)
                     manager.roles.pop((room_id, target), None)
                     manager.sockets.pop((room_id, target), None)
                 continue

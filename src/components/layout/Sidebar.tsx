@@ -47,7 +47,7 @@ const ALL_ITEMS: SidebarItem[] = [
   { id: 'video', name: 'Video Call', href: '/patient/video-call', icon: Video, roles: ['doctor', 'patient'] },
   { id: 'messages', name: 'Messages', href: '/messages', icon: MessageSquare, roles: ['admin', 'doctor', 'patient'] },
   { id: 'doctors', name: 'Doctors', href: '/doctors', icon: Users, roles: ['admin', 'doctor', 'patient'] },
-  { id: 'resources', name: 'Resources', href: '/resources', icon: BookOpen, roles: ['admin', 'doctor', 'patient'] },
+  { id: 'resources', name: 'Patient Education', href: '/resources', icon: BookOpen, roles: ['admin', 'doctor', 'patient'] },
   { id: 'financial', name: 'Financial Hub', href: '/financial-hub', icon: CreditCard, roles: ['admin', 'doctor', 'patient'] },
   { id: 'profile', name: 'Profile', href: '/patient/profile', icon: Users, roles: ['patient'] },
   { id: 'settings', name: 'Settings', href: '/patient/settings', icon: Settings, roles: ['patient'] },

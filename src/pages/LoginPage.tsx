@@ -37,12 +37,16 @@ const LoginPage = () => {
     }
 
     try {
-      await login(email, password);
+      const role = await login(email, password);
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      navigate(from, { replace: true });
+      // Role-aware routing
+      if (role === 'admin') navigate('/admin-dashboard', { replace: true });
+      else if (role === 'doctor') navigate('/doctor/dashboard', { replace: true });
+      else if (role === 'patient') navigate('/patient/dashboard', { replace: true });
+      else navigate(from, { replace: true });
     } catch (error) {
       toast({
         title: "Login Failed",

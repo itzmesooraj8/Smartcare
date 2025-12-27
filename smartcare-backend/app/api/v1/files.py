@@ -24,27 +24,25 @@ def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_curr
         # 1. Generate Signed URL (valid for 60 mins)
         res = supabase.storage.from_(payload.bucket).create_signed_url(payload.file_path, 3600)
 
-        # Try several possible response shapes
+        # Standard Supabase Python client returns a dict like {"data": {"signedURL": "..."}, "error": None}
         signed_url = None
         if isinstance(res, dict):
-            signed_url = res.get('signedURL') or res.get('signed_url') or res.get('signedUrl') or (res.get('data') and res.get('data').get('signed_url'))
-        elif hasattr(res, 'get'):
-            try:
-                signed_url = res.get('signedURL')
-            except Exception:
-                signed_url = None
-
-        if not signed_url:
-            # As a fallback, try reading raw dict
-            try:
-                signed_url = str(res)
-            except Exception:
-                signed_url = None
+            data = res.get("data") or {}
+            # prefer the canonical key used by Supabase SDK: 'signedURL'
+            signed_url = data.get("signedURL") or data.get("signed_url") or data.get("signedUrl")
+        else:
+            data = getattr(res, "data", None)
+            if isinstance(data, dict):
+                signed_url = data.get("signedURL") or data.get("signed_url") or data.get("signedUrl")
 
         # 2. AUDIT LOGGING
         ip = None
-        if request and getattr(request, 'client', None):
-            ip = request.client.host
+        if request:
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                ip = xff.split(",")[0].strip()
+            elif getattr(request, "client", None):
+                ip = request.client.host
 
         audit_entry = AuditLog(
             user_id=user_id,
@@ -56,7 +54,8 @@ def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_curr
         db.add(audit_entry)
         db.commit()
 
-        return {"signedUrl": signed_url}
+        # Return the standard Supabase-shaped response so callers can rely on stable keys
+        return {"data": {"signedURL": signed_url}, "error": None}
 
     except Exception as e:
         try:

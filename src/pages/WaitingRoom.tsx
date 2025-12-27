@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, Mic, ArrowLeft } from 'lucide-react';
+import Chatbot from '../components/Chatbot';
 import { useNavigate } from 'react-router-dom';
 
 /** Clean WaitingRoom component */
@@ -12,6 +13,7 @@ const WaitingRoom: React.FC = () => {
   const [mockVolume, setMockVolume] = useState(0);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isMicActive, setIsMicActive] = useState(false);
+  const [intakeTranscript, setIntakeTranscript] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -98,7 +100,7 @@ const WaitingRoom: React.FC = () => {
               <div className="mt-8 flex items-center gap-4">
                 <motion.button
                   layoutId="joinButton"
-                  onClick={() => navigate('/video-call')}
+                  onClick={() => { try { sessionStorage.setItem('intake_transcript', intakeTranscript || ''); } catch (e) {} navigate('/video-call'); }}
                   className="px-8 py-4 rounded-full text-white font-semibold shadow-lg text-base"
                   style={{ background: 'linear-gradient(90deg,#6b46ff,#ff7ab6)' }}
                   whileHover={{ scale: 1.03 }}
@@ -115,6 +117,7 @@ const WaitingRoom: React.FC = () => {
             <div className="flex justify-center">
               <div className="w-full max-w-sm rounded-lg overflow-hidden relative bg-black/5">
                 <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                  {/* Embed Chatbot for intake when waiting */}
                   {hasPermission === false && (
                     <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-gray-200">
                       <div className="text-lg font-semibold">Allow Camera & Microphone</div>
@@ -123,7 +126,10 @@ const WaitingRoom: React.FC = () => {
                     </div>
                   )}
                   {hasPermission !== false && (
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    // Show the Chatbot intake UI inside waiting room
+                    <div className="w-full h-full bg-white/80 p-2">
+                      <Chatbot onTranscriptChange={(t) => setIntakeTranscript(t)} />
+                    </div>
                   )}
                 </div>
 

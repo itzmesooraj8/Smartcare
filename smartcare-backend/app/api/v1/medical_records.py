@@ -1,21 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from jose import jwt, JWTError
 from ...core.config import settings
 from ...core.encryption import encrypt_text, decrypt_text
 from ...database import get_db
+from sqlalchemy.orm import Session
 import uuid
 
 from ...models.audit_log import AuditLog
+from ...models.medical_record import MedicalRecord
+from ...models.user import User
 
 router = APIRouter()
 
 
 class MedicalRecordCreate(BaseModel):
     title: str
-    doctor_name: str
+    # Now require a doctor_id (FK) instead of an arbitrary doctor_name string
+    doctor_id: str
     diagnosis: str
     date: date
     file_url: Optional[str] = None
@@ -39,82 +43,106 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
 
 
 @router.post("/", status_code=201)
-def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
-    insert_sql = """
-    INSERT INTO medical_records (patient_id, doctor_id, record_type, summary, notes, created_at)
-    VALUES (:patient_id, NULL, :record_type, :summary, :notes, now())
-    RETURNING id, patient_id, record_type, summary, notes, created_at
-    """
+def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db), request: Request = None):
+    # Verify doctor exists to ensure non-repudiation (doctor_id must reference a real user)
+    doctor = db.query(User).filter_by(id=payload.doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=400, detail="Provided doctor_id does not reference a valid user")
+
     try:
-        # Encrypt sensitive fields before storing
-        enc_summary = encrypt_text(payload.diagnosis)
-        notes_plain = f"Doctor: {payload.doctor_name}; file: {payload.file_url or ''}"
+        enc_diagnosis = encrypt_text(payload.diagnosis)
+        notes_plain = f"DoctorId: {payload.doctor_id}; file: {payload.file_url or ''}"
         enc_notes = encrypt_text(notes_plain)
 
-        res = db.execute(insert_sql, {
-            "patient_id": user_id,
-            "record_type": payload.title,
-            "summary": enc_summary,
-            "notes": enc_notes,
-        })
+        mr = MedicalRecord(
+            patient_id=user_id,
+            doctor_id=payload.doctor_id,
+            title=payload.title,
+            diagnosis=enc_diagnosis,
+            notes=enc_notes,
+        )
+        db.add(mr)
         db.commit()
+        db.refresh(mr)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create medical record: {e}")
 
-    row = res.first()
-    if not row:
-        raise HTTPException(status_code=500, detail="Failed to create medical record")
+    # Audit log the creation and capture client IP (X-Forwarded-For preferred)
+    try:
+        ip = None
+        if request:
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                ip = xff.split(",")[0].strip()
+            elif getattr(request, "client", None):
+                ip = request.client.host
 
-    # Decrypt before returning (safe for API consumers with access)
-    try:
-        summary = decrypt_text(row[3])
+        audit = AuditLog(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            target_id=str(mr.id),
+            action="CREATE",
+            resource_type="MEDICAL_RECORD",
+            ip_address=ip,
+        )
+        db.add(audit)
+        db.commit()
     except Exception:
-        summary = row[3]
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    # Decrypt fields for response
     try:
-        notes = decrypt_text(row[4])
+        summary = decrypt_text(mr.diagnosis)
     except Exception:
-        notes = row[4]
+        summary = mr.diagnosis
+    try:
+        notes = decrypt_text(mr.notes)
+    except Exception:
+        notes = mr.notes
 
     return {
-        "id": str(row[0]),
-        "patient_id": row[1],
-        "record_type": row[2],
+        "id": str(mr.id),
+        "patient_id": mr.patient_id,
+        "record_type": mr.title,
         "summary": summary,
         "notes": notes,
-        "created_at": row[5].isoformat() if row[5] is not None else None,
+        "created_at": mr.created_at.isoformat() if mr.created_at is not None else None,
     }
 
 
 
 @router.get("/", status_code=200)
-def list_medical_records(user_id: str = Depends(get_current_user_id), db=Depends(get_db), request: Request = None):
+def list_medical_records(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db), request: Request = None):
     """Return medical records for the authenticated user and log the access in AuditLog."""
-    select_sql = "SELECT id, patient_id, record_type, summary, notes, created_at FROM medical_records WHERE patient_id = :patient_id ORDER BY created_at DESC"
     try:
-        res = db.execute(select_sql, {"patient_id": user_id})
-        rows = res.fetchall()
+        rows = db.query(MedicalRecord).filter_by(patient_id=user_id).order_by(MedicalRecord.created_at.desc()).all()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch medical records: {e}")
 
     # Insert audit log entry for this read access
     try:
         ip = None
-        if request and getattr(request, 'client', None):
-            ip = request.client.host
-        audit_id = str(uuid.uuid4())
-        insert_audit = """
-        INSERT INTO audit_logs (id, user_id, target_id, action, resource_type, timestamp, ip_address)
-        VALUES (:id, :user_id, :target_id, :action, :resource_type, now(), :ip_address)
-        """
-        db.execute(insert_audit, {
-            "id": audit_id,
-            "user_id": user_id,
-            "target_id": user_id,
-            "action": 'VIEW',
-            "resource_type": 'MEDICAL_RECORD',
-            "ip_address": ip,
-        })
+        if request:
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                # x-forwarded-for may be comma-separated; client IP is first
+                ip = xff.split(",")[0].strip()
+            elif getattr(request, "client", None):
+                ip = request.client.host
+
+        audit = AuditLog(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            target_id=user_id,
+            action="VIEW",
+            resource_type="MEDICAL_RECORD",
+            ip_address=ip,
+        )
+        db.add(audit)
         db.commit()
     except Exception:
         try:
@@ -126,20 +154,20 @@ def list_medical_records(user_id: str = Depends(get_current_user_id), db=Depends
     for r in rows:
         # attempt to decrypt fields; if they are not encrypted, return raw
         try:
-            dec_summary = decrypt_text(r[3])
+            dec_summary = decrypt_text(r.diagnosis)
         except Exception:
-            dec_summary = r[3]
+            dec_summary = r.diagnosis
         try:
-            dec_notes = decrypt_text(r[4])
+            dec_notes = decrypt_text(r.notes)
         except Exception:
-            dec_notes = r[4]
+            dec_notes = r.notes
 
         result.append({
-            "id": str(r[0]),
-            "patient_id": r[1],
-            "record_type": r[2],
+            "id": str(r.id),
+            "patient_id": r.patient_id,
+            "record_type": r.title,
             "summary": dec_summary,
             "notes": dec_notes,
-            "created_at": r[5].isoformat() if r[5] is not None else None,
+            "created_at": r.created_at.isoformat() if r.created_at is not None else None,
         })
     return result

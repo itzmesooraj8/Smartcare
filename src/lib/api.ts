@@ -1,5 +1,6 @@
 // 1. Dynamic API URL (Prioritizes Env Var, falls back to Render)
-export const API_URL = import.meta.env.VITE_API_URL || "https://smartcare-zflo.onrender.com";
+// Use local backend during development
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
 // 2. Token Helper (check both localStorage and sessionStorage)
 const getToken = () => localStorage.getItem('smartcare_token') || sessionStorage.getItem('smartcare_token');
@@ -20,12 +21,21 @@ export const apiFetch = async <T = any>(endpoint: string, { method = 'GET', body
     const token = getToken();
     if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
   }
+  // Normalize endpoint: if caller passed a full /api/v1 path, strip the prefix
+  if (endpoint.startsWith('/api/v1')) endpoint = endpoint.replace(/^\/api\/v1/, '');
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     method,
     headers: reqHeaders,
     body,
   } as RequestInit);
+
+  // Global 401 handler: redirect to login on unauthorized
+  if (response.status === 401) {
+    try { window.location.href = '/login'; } catch (e) { /* ignore */ }
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || 'Unauthorized');
+  }
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -38,15 +48,15 @@ export const apiFetch = async <T = any>(endpoint: string, { method = 'GET', body
 };
 
 // 5. Standard Helper Functions (Preserved from your project)
-export const getProfileMe = () => apiFetch('/api/v1/profile/me');
+export const getProfileMe = () => apiFetch('/profile/me');
 
-export const getPatientDashboardData = () => apiFetch('/api/v1/patient/dashboard');
+export const getPatientDashboardData = () => apiFetch('/patient/dashboard');
 
-export const bookAppointment = (data: any) => apiFetch('/api/v1/appointments', { 
+export const bookAppointment = (data: any) => apiFetch('/appointments', { 
     method: 'POST', 
     body: JSON.stringify(data) 
 });
 
-export const getMedicalRecords = () => apiFetch('/api/v1/medical-records');
+export const getMedicalRecords = () => apiFetch('/medical-records');
 
-export const getDoctors = () => apiFetch('/api/v1/doctors');
+export const getDoctors = () => apiFetch('/doctors');

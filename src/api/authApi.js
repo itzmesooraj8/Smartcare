@@ -1,4 +1,4 @@
-const BASE_URL = "https://smartcare-zflo.onrender.com/api/v1/auth";
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1") + '/auth';
 
 export const registerUser = async (userData) => {
   const response = await fetch(`${BASE_URL}/register`, {
@@ -20,6 +20,10 @@ export const loginUser = async (loginData) => {
   });
 
   const data = await response.json();
+  if (response.status === 401) {
+    window.location.href = '/login';
+    throw new Error(data.detail || 'Unauthorized');
+  }
   if (!response.ok) throw new Error(data.detail || "Login failed");
   return data;
 };

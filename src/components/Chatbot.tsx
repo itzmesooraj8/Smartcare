@@ -8,7 +8,11 @@ interface Message {
   sender: 'user' | 'ai';
 }
 
-const Chatbot: React.FC = () => {
+interface ChatbotProps {
+  onTranscriptChange?: (transcript: string) => void;
+}
+
+const Chatbot: React.FC<ChatbotProps> = ({ onTranscriptChange }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: "Hello! I am Smartcare AI. How can I help you today?", sender: 'ai' }
@@ -21,6 +25,14 @@ const Chatbot: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   useEffect(scrollToBottom, [messages]);
+
+  // Notify parent of transcript changes (concatenate user messages)
+  useEffect(() => {
+    if (onTranscriptChange) {
+      const transcript = messages.filter(m => m.sender === 'user').map(m => m.text).join('\n');
+      onTranscriptChange(transcript);
+    }
+  }, [messages, onTranscriptChange]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
