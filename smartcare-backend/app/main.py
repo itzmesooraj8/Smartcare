@@ -58,6 +58,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# --- Security Headers Middleware (Helmet-style) ---
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
 # 5. Include Routers
 app.include_router(signaling_module.router)
 app.include_router(dashboard_module.router, prefix="/api/v1/patient")
