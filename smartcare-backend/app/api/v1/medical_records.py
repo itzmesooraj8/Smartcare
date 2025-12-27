@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import date
 from jose import jwt, JWTError
 from ...core.config import settings
-from ...core.encryption import encrypt_text, decrypt_text
+from ...core.encryption import encrypt_data, decrypt_data
 from ...database import get_db
 from sqlalchemy.orm import Session
 import uuid
@@ -74,9 +74,9 @@ def create_medical_record(payload: MedicalRecordCreate, current_user: User = Dep
         raise HTTPException(status_code=400, detail="Provided doctor_id does not reference a valid user")
 
     try:
-        enc_diagnosis = encrypt_text(payload.diagnosis)
+        enc_diagnosis = encrypt_data(payload.diagnosis)
         notes_plain = f"DoctorId: {payload.doctor_id}; file: {payload.file_url or ''}"
-        enc_notes = encrypt_text(notes_plain)
+        enc_notes = encrypt_data(notes_plain)
 
         mr = MedicalRecord(
             patient_id=str(current_user.id),
@@ -120,13 +120,13 @@ def create_medical_record(payload: MedicalRecordCreate, current_user: User = Dep
 
     # Decrypt fields for response
     try:
-        summary = decrypt_text(mr.diagnosis)
+        summary = decrypt_data(mr.diagnosis)
     except Exception:
-        summary = mr.diagnosis
+        summary = "[decryption-error]"
     try:
-        notes = decrypt_text(mr.notes)
+        notes = decrypt_data(mr.notes)
     except Exception:
-        notes = mr.notes
+        notes = "[decryption-error]"
 
     return {
         "id": str(mr.id),
@@ -185,13 +185,13 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
     for r in rows:
         # attempt to decrypt fields; if they are not encrypted, return raw
         try:
-            dec_summary = decrypt_text(r.diagnosis)
+            dec_summary = decrypt_data(r.diagnosis)
         except Exception:
-            dec_summary = r.diagnosis
+            dec_summary = "[decryption-error]"
         try:
-            dec_notes = decrypt_text(r.notes)
+            dec_notes = decrypt_data(r.notes)
         except Exception:
-            dec_notes = r.notes
+            dec_notes = "[decryption-error]"
 
         result.append({
             "id": str(r.id),

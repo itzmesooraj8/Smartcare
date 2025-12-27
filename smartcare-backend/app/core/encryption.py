@@ -1,6 +1,9 @@
 from cryptography.fernet import Fernet, InvalidToken
 from .config import settings
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _get_fernet() -> Fernet:
@@ -14,19 +17,28 @@ def _get_fernet() -> Fernet:
     return Fernet(key_bytes)
 
 
-def encrypt_text(plaintext: Optional[str]) -> Optional[str]:
-    if plaintext is None:
-        return None
+def encrypt_data(data: str) -> str:
+    """Encrypt a string and return the token as text."""
+    if data is None:
+        return ""
     f = _get_fernet()
-    return f.encrypt(plaintext.encode()).decode()
+    token = f.encrypt(data.encode())
+    return token.decode()
 
 
-def decrypt_text(token: Optional[str]) -> Optional[str]:
-    if token is None:
-        return None
+def decrypt_data(token: Optional[str]) -> str:
+    """Attempt to decrypt and return plaintext. If decryption fails, log and return a generic error message.
+
+    This prevents exceptions from bubbling to request handlers while preserving an audit trail.
+    """
+    if not token:
+        return ""
     f = _get_fernet()
     try:
         return f.decrypt(token.encode()).decode()
     except InvalidToken:
-        # Invalid key or corrupted token — fail fast so operator can rotate key or inspect data
-        raise ValueError("FATAL: Unable to decrypt token. ENCRYPTION_KEY may be invalid or data is corrupted.")
+        logger.warning("Failed to decrypt data: InvalidToken encountered")
+        return "[decryption-error]"
+    except Exception as exc:
+        logger.exception("Unexpected error during decryption: %s", exc)
+        return "[decryption-error]"

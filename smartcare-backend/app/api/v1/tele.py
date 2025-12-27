@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.services.chatbot import ChatbotService
 from app.database import get_db
 from app.models.medical_record import MedicalRecord
-from app.core.encryption import decrypt_text
+from app.core.encryption import decrypt_data
 
 router = APIRouter()
 
@@ -33,13 +33,13 @@ async def generate_notes(payload: NotesRequest, db: Session = Depends(get_db)):
     history_lines = []
     for r in records:
         try:
-            diag = decrypt_text(r.diagnosis) if r.diagnosis else ''
+            diag = decrypt_data(r.diagnosis) if r.diagnosis else ''
         except Exception:
-            diag = r.diagnosis or ''
+            diag = '[decryption-error]'
         try:
-            notes = decrypt_text(r.notes) if getattr(r, 'notes', None) else ''
+            notes = decrypt_data(r.notes) if getattr(r, 'notes', None) else ''
         except Exception:
-            notes = getattr(r, 'notes', '')
+            notes = '[decryption-error]'
         history_lines.append(f"- {r.created_at.isoformat() if r.created_at else ''} | {r.title} | Diagnosis: {diag} | Notes: {notes}")
 
     history_text = '\n'.join(history_lines) if history_lines else 'No prior records available.'
