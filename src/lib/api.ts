@@ -1,6 +1,10 @@
 // 1. Dynamic API URL (Prioritizes Env Var, falls back to Render)
-// Use local backend during development
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+// Use configured API base (Vite env should point to backend host).
+// Support either a base host (http://localhost:8000) or a full api url including /api/v1.
+const RAW_API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const API_URL = RAW_API.replace(/\/$/, '');
+// Compute prefix that callers should use for API endpoints
+const API_PREFIX = API_URL.includes('/api/v1') ? API_URL : `${API_URL}/api/v1`;
 
 // 2. Token Helper (check both localStorage and sessionStorage)
 const getToken = () => localStorage.getItem('smartcare_token') || sessionStorage.getItem('smartcare_token');
@@ -21,10 +25,12 @@ export const apiFetch = async <T = any>(endpoint: string, { method = 'GET', body
     const token = getToken();
     if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
   }
-  // Normalize endpoint: if caller passed a full /api/v1 path, strip the prefix
-  if (endpoint.startsWith('/api/v1')) endpoint = endpoint.replace(/^\/api\/v1/, '');
+  // Ensure endpoint begins with a slash
+  if (!endpoint.startsWith('/')) endpoint = '/' + endpoint;
+  // If caller provided a full /api/v1 path, keep it; otherwise prepend API_PREFIX
+  const url = endpoint.startsWith('/api/v1') ? `${API_URL}${endpoint}` : `${API_PREFIX}${endpoint}`;
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(url, {
     method,
     headers: reqHeaders,
     body,

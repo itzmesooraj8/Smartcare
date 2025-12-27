@@ -16,3 +16,5 @@ bcrypt==3.2.2
 uvicorn
 supabase
 cryptography
+python-dotenv
+psycopg2-binary

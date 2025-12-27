@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import SentientOrb from '../components/ui/SentientOrb';
-
-const BACKEND_CHAT = 'https://smartcare-zflo.onrender.com/api/v1/chat';
+import { sendMessageToAI } from '@/api/chatApi';
 
 type Msg = { id: string; role: 'user' | 'assistant'; text: string };
 
@@ -20,14 +19,8 @@ const Chatbot = () => {
     setInput('');
     sendingRef.current = true;
     try {
-      const res = await fetch(BACKEND_CHAT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const reply: string = data?.response ?? 'Sorry, no response.';
+      const reply = await sendMessageToAI(text);
+      const botReply: string = reply ?? 'Sorry, no response.';
       const botMsg: Msg = { id: Date.now().toString() + '-bot', role: 'assistant', text: reply };
       setMessages(m => [...m, botMsg]);
     } catch (err) {
