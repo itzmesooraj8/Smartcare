@@ -32,7 +32,19 @@ ADMIN_EMAIL = "itzmesooraj8@gmail.com"
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt has a 72-byte input limit. Truncate to 72 bytes safely if necessary.
+    try:
+        pw_bytes = password.encode('utf-8')
+    except Exception:
+        pw_bytes = str(password).encode('utf-8', 'ignore')
+    if len(pw_bytes) > 72:
+        truncated = pw_bytes[:72].decode('utf-8', 'ignore')
+        print("[WARN] password longer than 72 bytes; truncating to 72 bytes for bcrypt compatibility")
+        password = truncated
+    try:
+        return pwd_context.hash(password)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to hash password: {exc}")
 
 
 def main() -> None:
