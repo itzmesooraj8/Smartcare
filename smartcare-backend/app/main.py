@@ -143,7 +143,7 @@ def list_doctors(db=Depends(get_db)):
 # --- AUTH ENDPOINTS ---
 @limiter.limit("5/minute")
 @app.post("/api/v1/auth/register", status_code=201)
-def register(payload: RegisterRequest, db=Depends(get_db)):
+def register(request: Request, payload: RegisterRequest, db=Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -162,7 +162,7 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
 
 @limiter.limit("5/minute")
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db=Depends(get_db)):
+def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
