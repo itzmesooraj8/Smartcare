@@ -6,6 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import _rate_limit_exceeded_handler
 
 from app.core.config import settings
 from app.services.chatbot import ChatbotService
@@ -25,6 +30,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 app = FastAPI(title="SmartCare Backend")
+
+# --- RATE LIMITER ---
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # --- CORS (dynamic from settings) ---
 app.add_middleware(
@@ -115,6 +126,7 @@ def list_doctors(db=Depends(get_db)):
     } for d in doctors]
 
 # --- AUTH ENDPOINTS ---
+@limiter.limit("5/minute")
 @app.post("/api/v1/auth/register", status_code=201)
 def register(payload: RegisterRequest, db=Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
@@ -133,6 +145,7 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
 
     return {"id": new_user.id, "email": new_user.email, "message": "Registration successful"}
 
+@limiter.limit("5/minute")
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db=Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()

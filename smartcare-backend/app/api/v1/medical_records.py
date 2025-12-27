@@ -18,11 +18,31 @@ router = APIRouter()
 
 class MedicalRecordCreate(BaseModel):
     title: str
-    # Now require a doctor_id (FK) instead of an arbitrary doctor_name string
+    # Require a doctor_id (FK) instead of an arbitrary doctor_name string
     doctor_id: str
     diagnosis: str
     date: date
     file_url: Optional[str] = None
+
+
+def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+    token = parts[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        sub = payload.get('sub')
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        user = db.query(User).filter_by(id=str(sub)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
@@ -43,7 +63,11 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
 
 
 @router.post("/", status_code=201)
-def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db), request: Request = None):
+def create_medical_record(payload: MedicalRecordCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
+    # Only patients may create records for themselves via this endpoint
+    if getattr(current_user, 'role', 'patient') != 'patient':
+        raise HTTPException(status_code=403, detail="Only patients may create records via this endpoint")
+
     # Verify doctor exists to ensure non-repudiation (doctor_id must reference a real user)
     doctor = db.query(User).filter_by(id=payload.doctor_id).first()
     if not doctor:
@@ -55,7 +79,7 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
         enc_notes = encrypt_text(notes_plain)
 
         mr = MedicalRecord(
-            patient_id=user_id,
+            patient_id=str(current_user.id),
             doctor_id=payload.doctor_id,
             title=payload.title,
             diagnosis=enc_diagnosis,
@@ -80,9 +104,9 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
 
         audit = AuditLog(
             id=str(uuid.uuid4()),
-            user_id=user_id,
+            user_id=str(current_user.id),
             target_id=str(mr.id),
-            action="CREATE",
+            action="ACCESS_RECORD",
             resource_type="MEDICAL_RECORD",
             ip_address=ip,
         )
@@ -116,10 +140,18 @@ def create_medical_record(payload: MedicalRecordCreate, user_id: str = Depends(g
 
 
 @router.get("/", status_code=200)
-def list_medical_records(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db), request: Request = None):
-    """Return medical records for the authenticated user and log the access in AuditLog."""
+def list_medical_records(current_user: User = Depends(get_current_user), db: Session = Depends(get_db), request: Request = None):
+    """Return medical records for the authenticated user and log the access in AuditLog.
+    Patients see only their records; doctors see records assigned to them; admins see all.
+    """
     try:
-        rows = db.query(MedicalRecord).filter_by(patient_id=user_id).order_by(MedicalRecord.created_at.desc()).all()
+        role = getattr(current_user, 'role', 'patient')
+        if role == 'doctor':
+            rows = db.query(MedicalRecord).filter_by(doctor_id=str(current_user.id)).order_by(MedicalRecord.created_at.desc()).all()
+        elif role == 'patient':
+            rows = db.query(MedicalRecord).filter_by(patient_id=str(current_user.id)).order_by(MedicalRecord.created_at.desc()).all()
+        else:
+            rows = db.query(MedicalRecord).order_by(MedicalRecord.created_at.desc()).all()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch medical records: {e}")
 
@@ -129,16 +161,15 @@ def list_medical_records(user_id: str = Depends(get_current_user_id), db: Sessio
         if request:
             xff = request.headers.get("x-forwarded-for")
             if xff:
-                # x-forwarded-for may be comma-separated; client IP is first
                 ip = xff.split(",")[0].strip()
             elif getattr(request, "client", None):
                 ip = request.client.host
 
         audit = AuditLog(
             id=str(uuid.uuid4()),
-            user_id=user_id,
-            target_id=user_id,
-            action="VIEW",
+            user_id=str(current_user.id),
+            target_id=str(current_user.id),
+            action="ACCESS_RECORD",
             resource_type="MEDICAL_RECORD",
             ip_address=ip,
         )

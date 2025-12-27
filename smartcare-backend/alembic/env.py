@@ -1,22 +1,23 @@
 import asyncio
-from logging.config import fileConfig
 import os
 import sys
+from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy import engine_from_config, create_engine
+from sqlalchemy import engine_from_config
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# --- FIX: Add current directory to Python Path ---
+# Ensure project package is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# --- FIX: Import Base from the correct location ---
-# Was: from app.db.base import Base
+# Import application settings which handle dotenv loading and validation
+from app.core.config import settings
+
+# Import Base metadata from the application to support autogenerate
 from app.database import Base
-from app.core.config import Settings
 
 # this is the Alembic Config object
 config = context.config
@@ -27,6 +28,7 @@ if config.config_file_name is not None:
 
 # Set the metadata target for autogenerate
 target_metadata = Base.metadata
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -41,17 +43,30 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
+def do_run_migrations(connection: Connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 async def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    # Use the Environment Variable for DB URL if available (Production/Local)
-    db_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
-    
-    configuration = config.get_section(config.config_ini_section)
+    """Run migrations in 'online' mode.
+
+    Important: use the application's `settings.DATABASE_URL` which loads .env files
+    and validates required environment variables. This avoids Alembic missing the
+    application's dotenv configuration during CI/local runs.
+    """
+    # Prefer the application's settings value (which already loaded .env/.env.local)
+    db_url = getattr(settings, "DATABASE_URL", None) or config.get_main_option("sqlalchemy.url")
+
+    # Update the alembic configuration section so engine_from_config picks it up.
+    configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = db_url
 
-    # If the URL uses an async driver (eg. postgresql+asyncpg), use async engine.
-    # Otherwise fall back to a synchronous engine so classic drivers like psycopg2 work.
-    if db_url.startswith("postgresql+async") or "+async" in db_url:
+    # Use async engine if an async dialect is used; otherwise use classic engine.
+    if db_url and (db_url.startswith("postgresql+async") or "+async" in db_url):
         connectable = async_engine_from_config(
             configuration,
             prefix="sqlalchemy.",
@@ -72,11 +87,6 @@ async def run_migrations_online() -> None:
         with connectable.connect() as connection:
             do_run_migrations(connection)
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-
-    with context.begin_transaction():
-        context.run_migrations()
 
 if context.is_offline_mode():
     run_migrations_offline()

@@ -27,17 +27,17 @@ class Settings:
         self.ALLOWED_ORIGINS = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
 
         missing = []
-        if not self.SECRET_KEY:
+        if not self.SECRET_KEY or str(self.SECRET_KEY).lower() in ("", "change-me", "changeme", "default"):
             missing.append("SECRET_KEY")
-        if not self.DATABASE_URL:
+        if not self.DATABASE_URL or str(self.DATABASE_URL).lower() in ("", "change-me", "changeme", "default"):
             missing.append("DATABASE_URL")
-        if not self.ENCRYPTION_KEY:
+        if not self.ENCRYPTION_KEY or str(self.ENCRYPTION_KEY).lower() in ("", "change-me", "changeme", "default"):
             missing.append("ENCRYPTION_KEY")
 
         if missing:
             print(
-                f"FATAL: Missing required environment variables: {', '.join(missing)}.\n"
-                "Set these before starting the application. Exiting.",
+                f"FATAL: Missing or defaulted required environment variables: {', '.join(missing)}.\n"
+                "Set secure values for these before starting the application. Exiting.",
                 file=sys.stderr,
             )
             sys.exit(1)
