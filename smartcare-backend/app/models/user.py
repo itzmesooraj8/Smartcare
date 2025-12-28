@@ -1,6 +1,7 @@
 from sqlalchemy import Boolean, Column, String, DateTime
 from sqlalchemy import Integer
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
 
@@ -24,3 +25,10 @@ class User(Base):
     mfa_totp_secret = Column(String, nullable=True)
     # Allow a small MFA grace-count for privileged users to enable MFA without immediate lockout
     mfa_grace_count = Column(Integer, default=0, nullable=False)
+
+    # Relationships
+    # A user may have many medical records (as a patient)
+    medical_records = relationship("MedicalRecord", back_populates="patient", cascade="all, delete-orphan")
+
+    # A user may be the doctor for many medical records; use explicit foreign key name on the other side
+    doctor_appointments = relationship("MedicalRecord", back_populates="doctor", foreign_keys='MedicalRecord.doctor_id')
