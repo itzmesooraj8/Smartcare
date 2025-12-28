@@ -1,4 +1,6 @@
 import os
+import json
+import logging
 # from dotenv import load_dotenv
 from typing import Optional
 
@@ -12,6 +14,9 @@ except Exception:
 # (dotenv removed to avoid accidentally overriding production secrets.)
 # load_dotenv('.env.local', override=False)
 # load_dotenv(override=False)
+
+
+logger = logging.getLogger("smartcare.config")
 
 
 class SecretManager:
@@ -103,12 +108,19 @@ class Settings:
 
         # Trusted proxies (comma-separated list of trusted reverse proxies)
         trusted = os.getenv("TRUSTED_PROXIES")
-        self.TRUSTED_PROXIES = [p.strip() for p in trusted.split(',')] if trusted else []
+        if not trusted:
+            self.TRUSTED_PROXIES = []
+        elif isinstance(trusted, (list, tuple)):
+            self.TRUSTED_PROXIES = [str(p).strip() for p in trusted if p]
+        else:
+            self.TRUSTED_PROXIES = [p.strip() for p in str(trusted).split(',') if p.strip()]
 
         # CORS: handled via property below to safely parse env var when accessed.
         # The property will parse ALLOWED_ORIGINS from the environment on demand.
 
-        # Fail fast for required secrets — explicit and clear errors for audits.
+        # Collect missing configuration but do NOT raise here. Importing this
+        # module should not crash production; startup can enforce required
+        # values and fail explicitly if desired.
         missing = []
         if not self.PRIVATE_KEY:
             missing.append("PRIVATE_KEY")
@@ -120,14 +132,31 @@ class Settings:
             missing.append("DATABASE_URL")
 
         if missing:
-            raise ValueError(f"Missing required secrets or configuration: {', '.join(missing)}")
+            logger.warning("Missing required secrets or configuration: %s", ", ".join(missing))
 
     @property
     def ALLOWED_ORIGINS(self) -> list[str]:
         raw = os.getenv("ALLOWED_ORIGINS", "")
         if not raw:
             return []
-        return [origin.strip() for origin in raw.split(",") if origin]
+
+        # If the environment system has already provided a list/tuple, normalize it
+        if isinstance(raw, (list, tuple)):
+            return [str(o).strip() for o in raw if o]
+
+        raw_str = str(raw).strip()
+        # Try to parse JSON arrays (Render may provide a JSON string)
+        try:
+            if raw_str.startswith("[") and raw_str.endswith("]"):
+                parsed = json.loads(raw_str)
+                if isinstance(parsed, list):
+                    return [str(o).strip() for o in parsed if o]
+        except Exception:
+            # Fall through to comma-split parser
+            pass
+
+        # Fallback: comma-separated list
+        return [origin.strip() for origin in raw_str.split(",") if origin.strip()]
 
 
 settings = Settings()

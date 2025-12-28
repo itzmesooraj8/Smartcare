@@ -50,28 +50,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const TOKEN_KEY = 'smartcare_token';
 
   useEffect(() => {
-    const initAuth = async () => {
+        const initAuth = async () => {
       try {
         // We include credentials so the cookie is sent if it exists
         const res = await fetch(`${API_URL}/auth/me`, {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
         });
-
+        
         if (res.ok) {
           const data = await res.json();
           setUser(data?.user ?? data); // Support either {user:...} or direct user
         } else if (res.status === 401) {
-          // --- SILENT CATCH ---
-          // This is normal for a new user. Do NOT log an error.
+          // Normal for unauthenticated visitors — do not treat as an error
+          setUser(null);
+        } else if (res.status >= 500) {
+          // Server error: log for ops
+          console.error('Auth check server error:', res.status);
           setUser(null);
         } else {
-          console.warn('Auth check failed with status:', res.status);
+          // Other 4xx (forbidden, etc.) — treat as unauthenticated without noisy logs
           setUser(null);
         }
       } catch (error) {
-        // Network error (server down or offline)
-        console.warn('Auth probe network error:', error);
+        // Network error (server down or offline) — surface for debugging
+        console.error('Auth probe network error:', error);
         setUser(null);
       } finally {
         setIsLoading(false);
