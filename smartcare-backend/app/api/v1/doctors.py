@@ -1,11 +1,8 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.database import get_db
+from fastapi import APIRouter
 
 router = APIRouter()
 
 
 @router.get("/")
-def get_doctors(db: Session = Depends(get_db)):
-    # Placeholder logic - replace with actual query later
+def get_doctors():
     return []

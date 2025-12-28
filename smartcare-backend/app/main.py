@@ -1,9 +1,17 @@
 import logging
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import auth, doctors, appointments, patients, admin, chatbot, files
-from app.core.config import settings
 from app.database import engine, Base
+
+# --- 1. DIRECT IMPORTS (Safer than package imports) ---
+from app.api.v1.auth import router as auth_router
+from app.api.v1.doctors import router as doctors_router
+from app.api.v1.appointments import router as appointments_router
+from app.api.v1.patients import router as patients_router
+from app.api.v1.admin import router as admin_router
+from app.api.v1.chatbot import router as chatbot_router
+from app.api.v1.files import router as files_router
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -14,24 +22,25 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SmartCare API", version="1.0.0")
 
-# --- 🔓 UNBLOCK EVERYTHING (Temporary Fix) ---
+# --- 2. THE "OPEN DOOR" CORS POLICY ---
+# This allows Vercel, Localhost, and everything else.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow ALL origins (Vercel, localhost, etc.)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow ALL methods (POST, GET, PUT, etc.)
-    allow_headers=["*"],  # Allow ALL headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# ---------------------------------------------
 
-# Include Routers
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(doctors.router, prefix="/api/v1/doctors", tags=["Doctors"])
-app.include_router(appointments.router, prefix="/api/v1/appointments", tags=["Appointments"])
-app.include_router(patients.router, prefix="/api/v1/patient", tags=["Patients"])
-app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
-app.include_router(chatbot.router, prefix="/api/v1/chatbot", tags=["Chatbot"])
-app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
+# --- 3. INCLUDE ROUTERS ---
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(doctors_router, prefix="/api/v1/doctors", tags=["Doctors"])
+app.include_router(appointments_router, prefix="/api/v1/appointments", tags=["Appointments"])
+app.include_router(patients_router, prefix="/api/v1/patient", tags=["Patients"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(chatbot_router, prefix="/api/v1/chatbot", tags=["Chatbot"])
+app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
+
 
 @app.get("/")
 def read_root():
