@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
@@ -89,6 +90,19 @@ def method_not_allowed_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=http_exc.status_code, content={"detail": http_exc.detail})
 
 app.add_exception_handler(HTTPException, lambda request, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}))
+
+# Log validation errors (422) including raw request body and headers to aid debugging
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    try:
+        body_bytes = await request.body()
+        body_preview = body_bytes.decode('utf-8', errors='replace')[:2000]
+    except Exception:
+        body_preview = '<unable to read body>'
+    headers = dict(request.headers)
+    logger.error(f"RequestValidationError on {request.url.path} from origin={headers.get('origin')} method={request.method} body_preview={body_preview}")
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
