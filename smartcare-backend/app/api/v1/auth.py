@@ -1,10 +1,10 @@
-"""
-Auth router: login/register using RS256 and cookie-based session.
+"""Auth router: login/register using RS256 and cookie-based session.
 
-Security: set HttpOnly Secure SameSite=Strict cookie only (no token in response body).
-Return minimal user profile to client.
+Passwords are pre-hashed with SHA-256 on the server before being handed
+to bcrypt to avoid bcrypt's 72-byte truncation issue when clients send
+very large (e.g. encrypted) password strings.
 """
-from fastapi import APIRouter, HTTPException, Request, Response, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends
 import logging
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
@@ -13,13 +13,23 @@ from app.models.user import User
 from app.models.vault_entry import VaultEntry
 from app.core.security import create_jwt
 from app.core.config import settings
-from app.core.security import verify_jwt
-from app.core.config import settings
 from passlib.context import CryptContext
+import hashlib
 
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12, deprecated="auto")
 
 router = APIRouter()
+
+
+def get_safe_hash(password: str) -> str:
+    """Return a SHA-256 hex digest of the provided password string.
+
+    This digest (a fixed-length ASCII hex string) is what we pass to
+    bcrypt to avoid issues with overly long inputs.
+    """
+    if password is None:
+        return ""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 class LoginIn(BaseModel):
@@ -31,7 +41,6 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
-    # Optional wrapped master key fields — client may provide these during registration
     encrypted_master_key: str | None = None
     key_encryption_iv: str | None = None
     key_derivation_salt: str | None = None
@@ -42,12 +51,12 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
     logger = logging.getLogger('smartcare.auth')
     try:
         user = db.query(User).filter(User.email == payload.email).first()
-        if not user or not pwd_context.verify(payload.password, user.hashed_password):
+        safe = get_safe_hash(payload.password)
+        if not user or not pwd_context.verify(safe, user.hashed_password):
             raise HTTPException(status_code=401, detail='Invalid credentials')
 
         token = create_jwt(str(user.id))
 
-        # Prepare minimal user profile
         user_profile = {
             'id': user.id,
             'email': user.email,
@@ -55,7 +64,6 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
             'role': getattr(user, 'role', 'patient')
         }
 
-        # Build JSON response and attach HttpOnly cookie so the browser receives it
         from fastapi.responses import JSONResponse
         response = JSONResponse(content={'user': user_profile})
         response.set_cookie(
@@ -69,12 +77,9 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
         )
         return response
     except HTTPException:
-        # Re-raise HTTPExceptions (e.g., 401) unchanged
         raise
     except Exception as e:
-        # Log unexpected errors with stack trace for ops to inspect
         logger.exception('Unhandled exception in login')
-        # In non-production environments include the exception detail to aid debugging.
         env = getattr(settings, 'ENVIRONMENT', '') or ''
         if env.lower() != 'production':
             raise HTTPException(status_code=500, detail=f'Internal server error: {str(e)}')
@@ -86,19 +91,20 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail='Email already registered')
-    # Disallow registrations using demo/local placeholder domains to prevent accidental demo accounts in production
+
     try:
         domain = payload.email.split('@')[-1].lower()
     except Exception:
         domain = ''
     if domain in ('localhost', 'example.com') or domain.startswith('demo') or 'demo' in domain:
         raise HTTPException(status_code=400, detail='Registration using demo/local domains is not allowed')
-    user = User(email=payload.email, hashed_password=pwd_context.hash(payload.password), full_name=payload.full_name)
+
+    safe = get_safe_hash(payload.password)
+    user = User(email=payload.email, hashed_password=pwd_context.hash(safe), full_name=payload.full_name)
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    # Ensure a VaultEntry row exists for every new user (store provided wrapped key material if present)
     ve = VaultEntry(
         user_id=user.id,
         encrypted_master_key=payload.encrypted_master_key or None,
@@ -109,7 +115,6 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         db.add(ve)
         db.commit()
     except Exception:
-        # Non-fatal but surface the error for ops (rollback to keep DB consistent)
         try:
             db.rollback()
         except Exception:
