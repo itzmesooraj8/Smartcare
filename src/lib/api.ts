@@ -5,15 +5,17 @@ import axios from 'axios';
 // 1. Canonicalize the configured API URL to tolerate trailing slashes
 const cleanBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
-// 2. Define the single versioned API root. If the provided URL already ends
-// with '/api/v1' we keep it as-is to avoid double-prefixing.
-export const API_URL = cleanBase.endsWith('/api/v1') ? cleanBase : `${cleanBase}/api/v1`;
+// 2. Use the clean base API URL (do NOT append '/api/v1' here).
+//    Keep the axios baseURL equal to the raw API host so callers can
+//    specify paths consistently. The fetch helper below will ensure
+//    `/api/v1` is prepended when constructing non-absolute endpoints.
+export const API_URL = cleanBase;
 
 // 3. Set global defaults
 axios.defaults.withCredentials = true; // ensure HttpOnly cookies are sent
 
 export const api = axios.create({
-  baseURL: API_URL, // This handles the prefix for all 'api.request' calls
+  baseURL: API_URL, // Keep baseURL as the API host (no '/api/v1' suffix)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -43,12 +45,16 @@ export async function apiFetch(opts: any = {}, maybeOpts?: any) {
 
   const { url, path, method = 'GET', data, body, params, auth = true, headers = {}, ...rest } = options;
   const endpointRaw = url ?? path ?? '';
-  // If the caller passed an absolute URL, leave it alone. Otherwise strip a
-  // leading `/api/v1` if present to avoid double-prefixing with the configured
-  // `API_URL` which already contains `/api/v1`.
+  // If the caller passed an absolute URL, leave it alone. For relative paths
+  // ensure we always call the versioned API root `/api/v1/...` so callers can
+  // pass either '/api/v1/...' or '/resource' and both will work.
   let endpoint = endpointRaw;
   if (!/^https?:\/\//i.test(endpointRaw)) {
-    endpoint = endpointRaw.replace(/^\/api\/v1/, '');
+    // Remove any leading slashes
+    let e = String(endpointRaw).replace(/^\/+/, '');
+    // Remove a leading 'api/v1' if present to avoid double-prefixing
+    e = e.replace(/^api\/v1\/?/, '');
+    endpoint = `/api/v1/${e}`;
   }
   const payload = data ?? body;
 
