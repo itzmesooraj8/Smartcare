@@ -15,7 +15,7 @@ export const API_URL = cleanBase;
 axios.defaults.withCredentials = true; // ensure HttpOnly cookies are sent
 
 export const api = axios.create({
-  baseURL: API_URL, // Keep baseURL as the API host (no '/api/v1' suffix)
+  baseURL: import.meta.env.VITE_API_URL, // Just the domain: https://smartcare-zflo.onrender.com
   headers: {
     'Content-Type': 'application/json',
   },
