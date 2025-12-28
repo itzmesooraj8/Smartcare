@@ -21,7 +21,15 @@ class SecretManager:
         # Prefer environment variables (explicit and auditable)
         val = os.getenv(name)
         if val:
-            return val
+            # Normalize common PEM encodings: Render/CI often provide PEMs with literal "\n" sequences.
+            v = val.strip()
+            # Remove surrounding quotes if present
+            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                v = v[1:-1]
+            # Unescape literal newlines
+            if "\\n" in v:
+                v = v.replace('\\n', '\n')
+            return v
 
         # If a database-backed secret store is available, try to fetch there
         if not self.db_url or not psycopg2:
@@ -35,7 +43,13 @@ class SecretManager:
             cur.close()
             conn.close()
             if row:
-                return row[0]
+                v = row[0]
+                if isinstance(v, str):
+                    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                        v = v[1:-1]
+                    if "\\n" in v:
+                        v = v.replace('\\n', '\n')
+                return v
         except Exception:
             # Do not leak errors about secret backends — caller will handle missing secrets
             return None

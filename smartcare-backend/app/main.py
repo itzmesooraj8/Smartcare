@@ -135,14 +135,36 @@ async def startup_event():
     if not getattr(settings, 'ENCRYPTION_KEY', None):
         missing.append('ENCRYPTION_KEY')
 
-    # Basic PEM sanity checks: require BEGIN/END and type markers to avoid accepting XML or other formats
+    # Basic PEM sanity checks: accept common PEM headers (RSA or PKCS8) and handle multi-line strings
     pk = getattr(settings, 'PRIVATE_KEY', '') or ''
     pub = getattr(settings, 'PUBLIC_KEY', '') or ''
-    if pk and ("BEGIN" not in pk or "PRIVATE KEY" not in pk):
-        logger.error('PRIVATE_KEY does not appear to be a valid PEM (missing headers)')
+
+    def _looks_like_private_pem(s: str) -> bool:
+        s = s.strip()
+        if not s:
+            return False
+        if 'BEGIN' not in s:
+            return False
+        # Accept 'PRIVATE KEY' or 'RSA PRIVATE KEY'
+        if 'PRIVATE KEY' in s or 'RSA PRIVATE KEY' in s:
+            return True
+        return False
+
+    def _looks_like_public_pem(s: str) -> bool:
+        s = s.strip()
+        if not s:
+            return False
+        if 'BEGIN' not in s:
+            return False
+        if 'PUBLIC KEY' in s:
+            return True
+        return False
+
+    if pk and not _looks_like_private_pem(pk):
+        logger.error('PRIVATE_KEY does not appear to be a valid PEM (missing BEGIN/PRIVATE KEY)')
         missing.append('PRIVATE_KEY')
-    if pub and ("BEGIN" not in pub or "PUBLIC KEY" not in pub):
-        logger.error('PUBLIC_KEY does not appear to be a valid PEM (missing headers)')
+    if pub and not _looks_like_public_pem(pub):
+        logger.error('PUBLIC_KEY does not appear to be a valid PEM (missing BEGIN/PUBLIC KEY)')
         missing.append('PUBLIC_KEY')
 
     if missing:
