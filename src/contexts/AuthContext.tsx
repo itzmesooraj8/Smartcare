@@ -58,9 +58,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const body = await res.json();
           const u = body.user;
           setUser(u);
+        } else if (res.status === 401) {
+          // Silent unauthenticated state: user not logged in yet. Do not log to console.
+          setUser(null);
+        } else {
+          // For other errors, surface minimal info for debugging
+          try {
+            const body = await res.text();
+            console.warn('Auth probe failed:', res.status, body?.slice?.(0, 200));
+          } catch (_) {
+            console.warn('Auth probe failed with status', res.status);
+          }
         }
       } catch (e) {
-        // ignore — unauthenticated
+        // Network/CORS error or similar — keep user null but surface a warning
+        console.warn('Auth probe network error (silenced for 401):', e);
       } finally {
         setIsLoading(false);
       }

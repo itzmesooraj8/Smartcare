@@ -359,7 +359,7 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         value=token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path='/'
     )

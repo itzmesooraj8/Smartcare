@@ -29,6 +29,7 @@ const RegisterPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const { register, isLoading } = useAuth();
+  const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { generateMasterKey, wrapMasterKey } = useEncryption();
@@ -107,16 +108,35 @@ const RegisterPage = () => {
             key_derivation_salt: wrapped.salt,
           };
 
-          await register(payload);
+          // Create account on server
+          const regRes = await register(payload);
           toast({
             title: "Account Created!",
-            description: "Welcome to SmartCare. Your account has been created successfully.",
+            description: "Welcome to SmartCare. Logging you in now...",
           });
-            // Redirect to role-specific dashboard
-            if (formData.role === 'patient') navigate('/patient/dashboard');
-            else if (formData.role === 'doctor') navigate('/doctor/dashboard');
-            else if (formData.role === 'admin') navigate('/admin-dashboard');
-            else navigate('/dashboard');
+
+          // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
+          try {
+            // apiFetch is available via import in this module — use a direct call to the auth login
+            const { apiFetch } = await import('@/lib/api');
+            const loginRes: any = await apiFetch('/auth/login', { method: 'POST', data: { email: formData.email, password: formData.password }, auth: false });
+            const user = loginRes?.user || loginRes?.data?.user || loginRes;
+            // Store in context + keep master key in memory
+            if (user) {
+              login(user, masterKey);
+            }
+          } catch (err) {
+            // If login after register fails, still redirect to login page with a message
+            console.warn('Auto-login failed after registration', err);
+            navigate('/login');
+            return;
+          }
+
+          // Redirect to role-specific dashboard
+          if (formData.role === 'patient') navigate('/patient/dashboard');
+          else if (formData.role === 'doctor') navigate('/doctor/dashboard');
+          else if (formData.role === 'admin') navigate('/admin-dashboard');
+          else navigate('/dashboard');
         } catch (error) {
           toast({
             title: "Registration Failed",
