@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // 1. Canonicalize the configured API URL to tolerate trailing slashes
-const cleanBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$, '');
+const cleanBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 // 2. Define the single versioned API root. If the provided URL already ends
 // with '/api/v1' we keep it as-is to avoid double-prefixing.
