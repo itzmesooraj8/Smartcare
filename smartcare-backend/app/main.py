@@ -1,3 +1,41 @@
+import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1 import auth, doctors, appointments, patients, admin, chatbot, files
+from app.core.config import settings
+from app.database import engine, Base
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create Database Tables
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="SmartCare API", version="1.0.0")
+
+# --- 🔓 UNBLOCK EVERYTHING (Temporary Fix) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow ALL origins (Vercel, localhost, etc.)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow ALL methods (POST, GET, PUT, etc.)
+    allow_headers=["*"],  # Allow ALL headers
+)
+# ---------------------------------------------
+
+# Include Routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(doctors.router, prefix="/api/v1/doctors", tags=["Doctors"])
+app.include_router(appointments.router, prefix="/api/v1/appointments", tags=["Appointments"])
+app.include_router(patients.router, prefix="/api/v1/patient", tags=["Patients"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(chatbot.router, prefix="/api/v1/chatbot", tags=["Chatbot"])
+app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
+
+@app.get("/")
+def read_root():
+    return {"message": "SmartCare API is running", "status": "healthy"}
 import sys
 import logging
 from datetime import datetime, timedelta
