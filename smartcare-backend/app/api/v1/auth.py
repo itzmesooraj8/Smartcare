@@ -82,19 +82,18 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    # If the client supplied wrapped master key material, persist it to the isolated vault table.
+    # Ensure a VaultEntry row exists for every new user (store provided wrapped key material if present)
+    ve = VaultEntry(
+        user_id=user.id,
+        encrypted_master_key=payload.encrypted_master_key or None,
+        key_encryption_iv=payload.key_encryption_iv or None,
+        key_derivation_salt=payload.key_derivation_salt or None,
+    )
     try:
-        if payload.encrypted_master_key:
-            ve = VaultEntry(
-                user_id=user.id,
-                encrypted_master_key=payload.encrypted_master_key,
-                key_encryption_iv=payload.key_encryption_iv,
-                key_derivation_salt=payload.key_derivation_salt,
-            )
-            db.add(ve)
-            db.commit()
+        db.add(ve)
+        db.commit()
     except Exception:
-        # Non-fatal: vault storage failure should not prevent account creation, but log in real deployment.
+        # Non-fatal but surface the error for ops (rollback to keep DB consistent)
         try:
             db.rollback()
         except Exception:

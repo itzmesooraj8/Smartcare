@@ -175,13 +175,10 @@ async def startup_event():
     configured_origins = getattr(settings, 'ALLOWED_ORIGINS', []) or []
     production_origin = "https://smartcare-six.vercel.app"
 
-    # Normalize configured origins (strip trailing slashes and whitespace)
-    def _norm_origin(o: str) -> str:
-        return (o or '').strip().rstrip('/')
+    # Trim accidental whitespace from configured origins before comparing
+    current_origins = [o.strip() for o in configured_origins]
 
-    configured_norm = [_norm_origin(o) for o in configured_origins]
-
-    if production_origin not in configured_norm:
+    if production_origin not in current_origins:
         logger.critical(f"SECURITY ALERT: Production origin {production_origin} is not in ALLOWED_ORIGINS!")
         # Only exit if we are running in production environment
         if getattr(settings, 'ENVIRONMENT', '').lower() == 'production':

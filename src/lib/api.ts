@@ -2,16 +2,16 @@
 
 import axios from 'axios';
 
-// 1. Get the raw configured API URL and canonicalize it
-const RAW_API = import.meta.env.VITE_API_URL || '';
-const CANONICAL = RAW_API.replace(/\/+$/, '');
+// 1. Canonicalize the configured API URL to tolerate trailing slashes
+const rawUrl = import.meta.env.VITE_API_URL || '';
+const cleanUrl = rawUrl.replace(/\/+$/, '');
 
 // 2. Define the single versioned API root. If the provided URL already ends
 // with '/api/v1' we keep it as-is to avoid double-prefixing.
-export const API_URL = CANONICAL.endsWith('/api/v1') ? CANONICAL : `${CANONICAL}/api/v1`;
+export const API_URL = cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
 
 // 3. Set global defaults
-axios.defaults.withCredentials = true;
+axios.defaults.withCredentials = true; // ensure HttpOnly cookies are sent
 
 export const api = axios.create({
   baseURL: API_URL, // This handles the prefix for all 'api.request' calls
