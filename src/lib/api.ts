@@ -2,22 +2,24 @@
 
 import axios from 'axios';
 
-// Use environment-configured API URL. Must be set in production to avoid localhost.
-if (!import.meta.env.VITE_API_URL) {
-  throw new Error('VITE_API_URL is not configured. Set it in your environment.');
-}
-export const API_URL = `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api/v1`;
+// 1. Get the base domain (e.g., https://smartcare-zflo.onrender.com)
+const BASE_DOMAIN = import.meta.env.VITE_API_URL?.replace(/\/+$/, '') || '';
 
-// Ensure axios sends credentials on every request globally (HttpOnly cookie support)
+// 2. Define the single versioned API root
+export const API_URL = `${BASE_DOMAIN}/api/v1`;
+
+// 3. Set global defaults
 axios.defaults.withCredentials = true;
-axios.defaults.baseURL = API_URL;
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL, // This handles the prefix for all 'api.request' calls
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+
+// Add secure token to requests if it exists
 
 // Add secure token to requests if it exists
 api.interceptors.request.use((config) => {
