@@ -5,7 +5,6 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.exceptions import MethodNotAllowed
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
@@ -83,12 +82,13 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # --- 405 Method Not Allowed handler (log origin & method) ---
-def method_not_allowed_handler(request: Request, exc: MethodNotAllowed):
+def method_not_allowed_handler(request: Request, exc: Exception):
     origin = request.headers.get('origin') or request.headers.get('referer')
-    logger.warning(f"405 Method Not Allowed - origin={origin} method={request.method} path={request.url.path}")
-    return JSONResponse(status_code=405, content={"detail": "Method not allowed"})
+    logger.warning(f"405 Method Not Allowed - origin={origin} method={request.method} path={request.url.path} cause={type(exc).__name__}")
+    http_exc = HTTPException(status_code=405, detail="Method not allowed")
+    return JSONResponse(status_code=http_exc.status_code, content={"detail": http_exc.detail})
 
-app.add_exception_handler(MethodNotAllowed, method_not_allowed_handler)
+app.add_exception_handler(HTTPException, lambda request, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}))
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
