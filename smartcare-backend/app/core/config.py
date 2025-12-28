@@ -9,8 +9,9 @@ except Exception:
     psycopg2 = None
 
 # Load .env.local first (if present) then .env — explicit and predictable.
-load_dotenv('.env.local', override=True)
-load_dotenv(override=True)
+# Do NOT override existing environment variables so production (Render) vars take precedence.
+load_dotenv('.env.local', override=False)
+load_dotenv(override=False)
 
 
 class SecretManager:
