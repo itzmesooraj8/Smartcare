@@ -21,7 +21,7 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")

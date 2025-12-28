@@ -9,7 +9,10 @@ load_dotenv(override=True)
 class Settings:
     def __init__(self) -> None:
         # Critical secrets (NO defaults) — application must fail if missing.
-        self.SECRET_KEY: str | None = os.getenv("SECRET_KEY")
+        # For asymmetric JWT signing we require a PRIVATE_KEY (PEM) and PUBLIC_KEY (PEM).
+        # These must be provided as environment variables in production.
+        self.PRIVATE_KEY: str | None = os.getenv("PRIVATE_KEY")
+        self.PUBLIC_KEY: str | None = os.getenv("PUBLIC_KEY")
         self.ENCRYPTION_KEY: str | None = os.getenv("ENCRYPTION_KEY")
         self.DATABASE_URL: str | None = os.getenv("DATABASE_URL")
 
@@ -35,8 +38,11 @@ class Settings:
 
         # Fail fast for required secrets — explicit and clear errors for audits.
         missing = []
-        if not self.SECRET_KEY:
-            missing.append("SECRET_KEY")
+        # Require asymmetric keys for signing (RS256)
+        if not self.PRIVATE_KEY:
+            missing.append("PRIVATE_KEY")
+        if not self.PUBLIC_KEY:
+            missing.append("PUBLIC_KEY")
         if not self.ENCRYPTION_KEY:
             missing.append("ENCRYPTION_KEY")
         if not self.DATABASE_URL:

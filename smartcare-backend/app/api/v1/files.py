@@ -5,6 +5,8 @@ from ...models.audit_log import AuditLog
 from ...core.config import settings
 from supabase import create_client, Client
 import logging
+import hmac
+import hashlib
 
 from .medical_records import get_current_user_id
 
@@ -53,7 +55,7 @@ def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_curr
             if isinstance(data, dict):
                 signed_url = data.get("signedURL") or data.get("signed_url") or data.get("signedUrl")
 
-        # 2. AUDIT LOGGING
+        # 2. AUDIT LOGGING - pseudonymize IP addresses before storage (GDPR)
         ip = None
         if request:
             xff = request.headers.get("x-forwarded-for")
@@ -62,12 +64,19 @@ def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_curr
             elif getattr(request, "client", None):
                 ip = request.client.host
 
+        masked_ip = '0.0.0.0'
+        try:
+            if ip and settings.ENCRYPTION_KEY:
+                masked_ip = hmac.new(settings.ENCRYPTION_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
+        except Exception:
+            masked_ip = '0.0.0.0'
+
         audit_entry = AuditLog(
             user_id=user_id,
             target_id=payload.file_path,
             action="SHARE_FILE",
             resource_type="FILE_ATTACHMENT",
-            ip_address=ip or '0.0.0.0'
+            ip_address=masked_ip
         )
         db.add(audit_entry)
         db.commit()

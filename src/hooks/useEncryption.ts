@@ -24,7 +24,11 @@ const base64ToArrayBuffer = (base64: string): ArrayBuffer => {
 export const useEncryption = () => {
   // 1. Generate a brand new Master Key (Do this once on account creation)
   const generateMasterKey = useCallback(async (): Promise<CryptoKey> => {
-    return await window.crypto.subtle.generateKey(
+    // Use cryptographically secure random bytes as the raw key material
+    const keyBytes = window.crypto.getRandomValues(new Uint8Array(32));
+    return await window.crypto.subtle.importKey(
+      'raw',
+      keyBytes.buffer,
       { name: 'AES-GCM', length: 256 },
       true,
       ['encrypt', 'decrypt']
@@ -33,7 +37,7 @@ export const useEncryption = () => {
 
   // Derive a wrapping key from password + salt using PBKDF2
   const deriveWrappingKey = useCallback(
-    async (password: string, salt: ArrayBuffer, iterations = 250_000) => {
+    async (password: string, salt: ArrayBuffer, iterations = 600_000) => {
       const pwUtf8 = new TextEncoder().encode(password);
       const baseKey = await window.crypto.subtle.importKey('raw', pwUtf8, 'PBKDF2', false, ['deriveKey']);
 
@@ -116,7 +120,6 @@ export const useEncryption = () => {
       return decoder.decode(decryptedContent);
     } catch (e) {
       // Keep minimal error surface in hook
-      console.error('Decryption Failed:', e);
       return '[[Encrypted Data - Key Missing]]';
     }
   }, []);

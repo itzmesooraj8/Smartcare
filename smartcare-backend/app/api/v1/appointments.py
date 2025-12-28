@@ -6,6 +6,21 @@ from datetime import datetime
 from jose import jwt, JWTError
 from ...core.config import settings
 from ...database import get_db
+import logging
+import hmac
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+
+def _pseudonymize(value: str) -> str:
+    try:
+        key = getattr(settings, 'ENCRYPTION_KEY', '')
+        if not key:
+            return 'pseudonym-missing-key'
+        return hmac.new(key.encode(), value.encode(), hashlib.sha256).hexdigest()
+    except Exception:
+        return 'pseudonym-error'
 
 router = APIRouter()
 
@@ -15,7 +30,10 @@ class NotificationService:
     @staticmethod
     def send_confirmation(patient_id: str, doctor_id: int, time: datetime):
         # In production, replace this print with SendGrid/Twilio API calls
-        print(f"📧 [NOTIFICATION] SMS/Email sent to Patient {patient_id}: 'Appointment confirmed with Dr. {doctor_id} at {time}'")
+        # Log pseudonymized identifiers only
+        pid = _pseudonymize(str(patient_id))
+        did = _pseudonymize(str(doctor_id))
+        logger.info(f"[NOTIFICATION] appointment confirmed pid={pid} did={did} at={time.isoformat()}")
 # ----------------------------------------
 
 
@@ -34,7 +52,7 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -75,7 +93,7 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
             NotificationService.send_confirmation(user_id, payload.doctor_id, payload.appointment_time)
         except Exception:
             # Do not fail appointment creation if notification fails; just log
-            print("[WARNING] NotificationService failed to send confirmation")
+            logger.warning('NotificationService failed to send confirmation')
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Doctor is already booked at this time")

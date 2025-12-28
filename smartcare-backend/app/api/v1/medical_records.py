@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.medical_record import MedicalRecord
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from datetime import datetime
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -18,6 +19,8 @@ limiter = Limiter(key_func=get_remote_address)
 # --- Local helper: JWT-based current user resolution ---
 from jose import jwt, JWTError
 from app.core.config import settings
+import hmac
+import hashlib
 
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
     if not authorization:
@@ -27,7 +30,8 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        # Verify token with RS256 public key
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -47,19 +51,25 @@ class EncryptedBlob(BaseModel):
 
 
 class MedicalRecordCreate(BaseModel):
+    # Align with HL7 FHIR minimal metadata
+    patient_id: str
+    effectiveDateTime: Optional[str] = None
+    visit_type: str = "consultation"
+    # Encrypted clinical blobs
     chief_complaint: EncryptedBlob
     diagnosis: EncryptedBlob
     notes: Optional[EncryptedBlob] = None
-    visit_type: str = "Consultation"
 
 
 class MedicalRecordResponse(BaseModel):
     id: str
-    patient_id: int
+    resourceType: str = "MedicalRecord"
+    patient_id: str
+    effectiveDateTime: Optional[str] = None
+    visit_type: str
     chief_complaint: Any
     diagnosis: Any
     notes: Optional[Any]
-    visit_type: str
     created_at: Any
 
 
@@ -73,29 +83,50 @@ def create_medical_record(
     current_user: User = Depends(get_current_user)
 ):
     try:
+        # Build a canonical FHIR Observation wrapper for audit/export purposes
+        fhir_obs = {
+            "resourceType": "Observation",
+            "id": str(uuid.uuid4()),
+            "status": "final",
+            "effectiveDateTime": payload.effectiveDateTime or datetime.utcnow().isoformat(),
+            "subject": {"reference": f"Patient/{current_user.id}"},
+            "performer": [],
+            "extension": [
+                {"url": "http://smartcare.local/EncryptedPayload", "valueString": payload.chief_complaint.cipher_text}
+            ]
+        }
+
         new_record = MedicalRecord(
             patient_id=current_user.id,
             doctor_id=None,
             chief_complaint=payload.chief_complaint.dict(),
             diagnosis=payload.diagnosis.dict(),
             notes=payload.notes.dict() if payload.notes else None,
-            visit_type=payload.visit_type
+            visit_type=payload.visit_type,
+            fhir_observation=fhir_obs,
         )
         db.add(new_record)
         db.commit()
         db.refresh(new_record)
 
-        # Audit Log
+        # Audit Log - pseudonymize IP address before storage
         ip = request.client.host if getattr(request, 'client', None) else None
         if request.headers.get("x-forwarded-for"):
             ip = request.headers.get("x-forwarded-for").split(",")[0]
+
+        masked_ip = None
+        try:
+            if ip and settings.ENCRYPTION_KEY:
+                masked_ip = hmac.new(settings.ENCRYPTION_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
+        except Exception:
+            masked_ip = None
 
         audit = AuditLog(
             user_id=str(current_user.id),
             target_id=str(new_record.id),
             action="CREATE_RECORD",
             resource_type="MEDICAL_RECORD",
-            ip_address=ip
+            ip_address=masked_ip
         )
         db.add(audit)
         db.commit()
@@ -160,7 +191,7 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -180,7 +211,7 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -204,12 +235,26 @@ def create_medical_record(payload: MedicalRecordCreate, current_user: User = Dep
 
     try:
         # Store the encrypted blobs as-is (server does NOT attempt to decrypt)
+        # Build FHIR Observation wrapper
+        fhir_obs = {
+            "resourceType": "Observation",
+            "id": str(uuid.uuid4()),
+            "status": "final",
+            "effectiveDateTime": (payload.date.isoformat() if getattr(payload, 'date', None) else datetime.utcnow().isoformat()),
+            "subject": {"reference": f"Patient/{current_user.id}"},
+            "performer": ([{"reference": f"Practitioner/{payload.doctor_id}"}] if payload.doctor_id else []),
+            "extension": [
+                {"url": "http://smartcare.local/EncryptedPayload", "valueString": payload.diagnosis.cipher_text}
+            ]
+        }
+
         mr = MedicalRecord(
             patient_id=str(current_user.id),
             doctor_id=payload.doctor_id,
             title=payload.title,
             diagnosis=payload.diagnosis.dict(),
             notes={"file_url": payload.file_url} if payload.file_url else None,
+            fhir_observation=fhir_obs,
         )
         db.add(mr)
         db.commit()
@@ -228,13 +273,20 @@ def create_medical_record(payload: MedicalRecordCreate, current_user: User = Dep
             elif getattr(request, "client", None):
                 ip = request.client.host
 
+        masked_ip = None
+        try:
+            if ip and settings.ENCRYPTION_KEY:
+                masked_ip = hmac.new(settings.ENCRYPTION_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
+        except Exception:
+            masked_ip = None
+
         audit = AuditLog(
             id=str(uuid.uuid4()),
             user_id=str(current_user.id),
             target_id=str(mr.id),
             action="ACCESS_RECORD",
             resource_type="MEDICAL_RECORD",
-            ip_address=ip,
+            ip_address=masked_ip,
         )
         db.add(audit)
         db.commit()
@@ -282,13 +334,20 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
             elif getattr(request, "client", None):
                 ip = request.client.host
 
+        masked_ip = None
+        try:
+            if ip and settings.ENCRYPTION_KEY:
+                masked_ip = hmac.new(settings.ENCRYPTION_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
+        except Exception:
+            masked_ip = None
+
         audit = AuditLog(
             id=str(uuid.uuid4()),
             user_id=str(current_user.id),
             target_id=str(current_user.id),
             action="ACCESS_RECORD",
             resource_type="MEDICAL_RECORD",
-            ip_address=ip,
+            ip_address=masked_ip,
         )
         db.add(audit)
         db.commit()

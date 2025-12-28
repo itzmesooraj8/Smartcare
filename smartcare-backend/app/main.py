@@ -1,3 +1,5 @@
+import sys
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -7,6 +9,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
+import hashlib
+import hmac
+from fastapi import Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -22,13 +27,22 @@ from app.api.v1 import tele as tele_module
 from app.api.v1 import admin as admin_module
 from app.api.v1 import files as files_module
 from app.api.v1 import video as video_module  # <--- ADD THIS
+from app.api.v1 import mfa as mfa_module
+from app.api.v1 import vault as vault_module
+from app.api.v1 import protected_key as protected_key_module
+from app.api.v1 import auth as auth_module
+from app.api.v1 import mfa_recovery as mfa_recovery_module
 
 from app.database import engine, get_db, Base
 from app.models.user import User
+from app.models.vault_entry import VaultEntry
 
 # --- SECURITY CONFIGURATION ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12, deprecated="auto")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+logger = logging.getLogger("smartcare")
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="SmartCare Backend")
 
@@ -60,7 +74,6 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 # 🔒 PRODUCTION ONLY CONFIGURATION
 origins = [
     "https://smartcare-six.vercel.app",
-    "https://smartcare-six.vercel.app/"
 ]
 
 app.add_middleware(
@@ -80,6 +93,11 @@ app.include_router(tele_module.router, prefix="/api/v1/tele")
 app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(video_module.router, prefix="/api/v1/video", tags=["Video"]) # <--- ADD THIS
+app.include_router(mfa_module.router, prefix="/api/v1/mfa", tags=["MFA"])
+app.include_router(vault_module.router, prefix="/api/v1/vault", tags=["Vault"])
+app.include_router(protected_key_module.router, prefix="/api/v1/keys", tags=["Keys"])
+app.include_router(auth_module.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(mfa_recovery_module.router, prefix="/api/v1/mfa/recovery", tags=["MFA-Recovery"])
 
 # --- SHARED SCHEMAS ---
 class RegisterRequest(BaseModel):
@@ -108,18 +126,51 @@ class ChatRequest(BaseModel):
 # --- EVENTS ---
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 SmartCare Backend Starting...")
-    print("🏗️  Verifying database tables...")
+    logger.info("SmartCare Backend starting")
+
+    # Fail-secure checks: require cryptographic secrets and strict CORS
+    missing = []
+    if not getattr(settings, 'PRIVATE_KEY', None):
+        missing.append('PRIVATE_KEY')
+    if not getattr(settings, 'PUBLIC_KEY', None):
+        missing.append('PUBLIC_KEY')
+    if not getattr(settings, 'ENCRYPTION_KEY', None):
+        missing.append('ENCRYPTION_KEY')
+    # Basic PEM sanity checks
+    pk = getattr(settings, 'PRIVATE_KEY', '') or ''
+    pub = getattr(settings, 'PUBLIC_KEY', '') or ''
+    if pk and 'BEGIN' not in pk:
+        logger.error('PRIVATE_KEY does not appear to be a valid PEM')
+        missing.append('PRIVATE_KEY')
+    if pub and 'BEGIN' not in pub:
+        logger.error('PUBLIC_KEY does not appear to be a valid PEM')
+        missing.append('PUBLIC_KEY')
+
+    if missing:
+        logger.critical(f'Missing required environment variables: {", ".join(sorted(set(missing)))}')
+        raise SystemExit(1)
+
+    # Enforce strict CORS origins in production
+    expected_origins = ["https://smartcare-six.vercel.app"]
+    try:
+        current_origins = origins
+    except NameError:
+        current_origins = []
+    if current_origins != expected_origins:
+        logger.critical(f'CORS misconfiguration: allow_origins must be {expected_origins}')
+        raise SystemExit(1)
+
+    logger.info('Verifying database tables...')
     Base.metadata.create_all(bind=engine)
-    print("✅ Database connection established.")
+    logger.info('Database connection established')
     
     if getattr(settings, "REDIS_URL", None):
         try:
             import asyncio
             asyncio.create_task(signaling_module.manager.start_redis_listener())
-            print("🔁 Redis signaling listener active")
+            logger.info('Redis signaling listener active')
         except Exception as e:
-            print(f"⚠️ Redis Warning: {e}")
+            logger.warning('Redis listener warning (masked)')
 
 # --- UTILITIES ---
 def create_access_token(subject: str, role: Optional[str] = None, email: Optional[str] = None) -> str:
@@ -129,7 +180,8 @@ def create_access_token(subject: str, role: Optional[str] = None, email: Optiona
         to_encode["role"] = role
     if email:
         to_encode["email"] = email
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+    # Use RS256 with server-side PRIVATE_KEY (PEM). PRIVATE_KEY must be present in env.
+    return jwt.encode(to_encode, settings.PRIVATE_KEY, algorithm="RS256")
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
@@ -175,18 +227,26 @@ def register(request: Request, payload: RegisterRequest, db=Depends(get_db)):
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name,
         role="patient",
-        encrypted_master_key=payload.encrypted_master_key,
-        key_encryption_iv=payload.key_encryption_iv,
-        key_derivation_salt=payload.key_derivation_salt,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
+    # Store encrypted master key in isolated vault table if provided
+    if payload.encrypted_master_key:
+        ve = VaultEntry(
+            user_id=new_user.id,
+            encrypted_master_key=payload.encrypted_master_key,
+            key_encryption_iv=payload.key_encryption_iv,
+            key_derivation_salt=payload.key_derivation_salt,
+        )
+        db.add(ve)
+        db.commit()
+
     return {"id": new_user.id, "email": new_user.email, "message": "Registration successful"}
 
 @limiter.limit("5/minute")
-@app.post("/api/v1/auth/login", response_model=TokenResponse)
+@app.post("/api/v1/auth/login")
 # CRITICAL FIX: Added 'request: Request'. This prevents the crash.
 def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
@@ -194,20 +254,56 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     role = getattr(user, 'role', 'patient')
+    # Enforce MFA setup for privileged roles (doctors)
+    if role == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
+        # Require the doctor to set up TOTP MFA before allowing cookie issuance
+        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
+
     token = create_access_token(subject=str(user.id), role=role, email=user.email)
-    
-    return {
-        "access_token": token,
-        "token_type": "bearer",
+
+    # Set HttpOnly, Secure cookie with SameSite=Strict to prevent XSS/CSRF token theft
+    resp = {
         "user": {
             "id": user.id,
             "email": user.email,
             "full_name": getattr(user, 'full_name', None),
             "role": role,
-        },
-        "key_data": {
-            "encrypted_master_key": getattr(user, 'encrypted_master_key', None),
-            "key_encryption_iv": getattr(user, 'key_encryption_iv', None),
-            "key_derivation_salt": getattr(user, 'key_derivation_salt', None),
         }
     }
+    response = JSONResponse(content={"user": resp["user"]})
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path='/'
+    )
+    return response
+
+
+@app.get("/api/v1/auth/me")
+def me(request: Request, db=Depends(get_db)):
+    # Read token from HttpOnly cookie set at login
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
+        sub = payload.get('sub')
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        user = db.query(User).filter(User.id == str(sub)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return {"user": {"id": user.id, "email": user.email, "full_name": getattr(user, 'full_name', None), "role": getattr(user, 'role', 'patient')}}
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.post("/api/v1/auth/logout")
+def logout():
+    response = JSONResponse(content={"message": "logged out"})
+    response.delete_cookie("access_token", path='/')
+    return response

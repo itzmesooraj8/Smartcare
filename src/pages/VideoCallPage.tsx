@@ -178,7 +178,7 @@ const VideoCallPage: React.FC = () => {
 
   // Device change handling
   useEffect(() => {
-    const handler = () => { console.log('Media devices changed'); };
+    const handler = () => { /* device change */ };
     navigator.mediaDevices.addEventListener('devicechange', handler);
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler);
   }, []);
@@ -206,7 +206,7 @@ const VideoCallPage: React.FC = () => {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('[WS] connected to', wsUrl);
+      // websocket opened
       try {
         ws.send(JSON.stringify({ type: 'announce', role, peerId, name: (user as any)?.full_name || user?.email }));
       } catch (e) {}
@@ -311,13 +311,13 @@ const VideoCallPage: React.FC = () => {
           return;
         }
 
-        if (type === 'peer-joined') { console.log('[WS] peer joined', msg?.peer ?? from); }
-        if (type === 'peer-left') { console.log('[WS] peer left', msg?.peer ?? from); }
+        if (type === 'peer-joined') { /* peer joined */ }
+        if (type === 'peer-left') { /* peer left */ }
       } catch (e) { console.warn('Failed handling incoming signal', e); }
     };
 
     ws.onclose = () => {
-      console.log('[WS] connection closed');
+      // websocket closed
       if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
     };
 

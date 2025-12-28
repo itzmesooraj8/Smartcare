@@ -19,7 +19,7 @@ def get_token_payload(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     token = parts[1]
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")

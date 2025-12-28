@@ -31,8 +31,8 @@ interface AuthContextType {
   masterKey: CryptoKey | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  // login is now called with the final token, user payload and the unwrapped master key
-  login: (token: string, userData: User, key: CryptoKey) => void;
+  // login is called with the user payload and the unwrapped master key (token is stored in an HttpOnly cookie)
+  login: (userData: User, key: CryptoKey) => void;
   register: (data: any) => Promise<void>;
   logout: () => void;
 }
@@ -41,32 +41,34 @@ const AuthContext = createContext<AuthContextType>({} as any);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('smartcare_token'));
+  const [token, setToken] = useState<string | null>(null);
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Preference: localStorage is authoritative for tokens
+  // Using HttpOnly cookies for session tokens; tokens are not stored in localStorage.
   const TOKEN_KEY = 'smartcare_token';
 
   useEffect(() => {
-    const t = localStorage.getItem(TOKEN_KEY);
-    if (t) {
-      const decoded = decodeJwtSafe(t);
-      if (decoded && decoded.sub) {
-        const decodedEmail = decoded.email || 'user@smartcare.app';
-        const resolvedRole = (decoded.role as any) || 'patient';
-        setUser({ id: decoded.sub, email: decodedEmail, role: resolvedRole });
-        setToken(t);
+    // On mount, check server session cookie for logged-in user
+    (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          const body = await res.json();
+          const u = body.user;
+          setUser(u);
+        }
+      } catch (e) {
+        // ignore — unauthenticated
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    })();
   }, []);
 
-  // Login sets the token, user and the unwrapped master key (kept only in RAM)
-  const login = (newToken: string, userData: User, extractedKey: CryptoKey) => {
-    localStorage.setItem(TOKEN_KEY, newToken);
-    setToken(newToken);
+  // Login accepts user (server sets HttpOnly cookie) and the unwrapped master key (kept only in RAM)
+  const login = (userData: User, extractedKey: CryptoKey) => {
     setUser(userData);
     setMasterKey(extractedKey);
   };
@@ -75,15 +77,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await apiFetch({ url: '/api/v1/auth/register', method: 'POST', data: JSON.stringify(data) });
   };
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
+  const logout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      // ignore
+    }
     setToken(null);
     setUser(null);
     setMasterKey(null);
     window.location.href = '/login';
   };
 
-  const isAuthenticated = !!token;
+  const isAuthenticated = !!user;
 
   return (
     <AuthContext.Provider value={{ user, token, masterKey, isLoading, isAuthenticated, login, register, logout }}>

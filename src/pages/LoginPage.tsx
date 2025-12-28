@@ -47,16 +47,15 @@ const LoginPage = () => {
         auth: false,
       });
 
-      const access_token = res.access_token || res.token || res.data?.access_token;
       const user = res.user || res.data?.user;
-      const key_data = res.key_data || res.data?.key_data;
-
-      if (!access_token || !user) throw new Error('Invalid login response');
+      // Fetch wrapped vault key separately (requires MFA confirmation). The server issues HttpOnly cookie on login.
+      const key_data = await apiFetch({ path: '/vault/key', method: 'GET', headers: { 'X-MFA-Verified': 'true' } }).catch(() => null);
+      if (!user) throw new Error('Invalid login response');
 
       // Unwrap master key using the password provided by the user
       let masterKey: CryptoKey | null = null;
       if (key_data && key_data.encrypted_master_key) {
-        try {
+          try {
           const wrappedBlob = {
             cipher_text: key_data.encrypted_master_key,
             iv: key_data.key_encryption_iv,
@@ -64,7 +63,7 @@ const LoginPage = () => {
           };
 
           masterKey = await unwrapMasterKey(wrappedBlob, password);
-          console.log('🔓 Zero-Knowledge Vault Unlocked Successfully');
+          // Vault unlocked
         } catch (err) {
           console.error('Failed to unwrap key:', err);
           toast({ variant: 'destructive', title: 'Decryption Failed', description: 'Could not unlock your medical records.' });
@@ -76,8 +75,8 @@ const LoginPage = () => {
         return;
       }
 
-      // Complete login by storing token, user and masterKey in memory
-      login(access_token, user, masterKey as CryptoKey);
+      // Complete login: server sets HttpOnly cookie; store user and masterKey in memory only
+      login(user, masterKey as CryptoKey);
 
       toast({ title: 'Welcome back!', description: 'Secure session established.' });
       // Role-aware routing
@@ -88,17 +87,6 @@ const LoginPage = () => {
       else navigate(from, { replace: true });
 
     } catch (error: any) {
-      // Demo fallback when explicitly enabled
-      if ((import.meta as any).env?.VITE_ENABLE_DEMO === 'true' && (password === 'demo123' || password === 'password' || (email && email.includes('demo')))) {
-        toast({ title: 'Demo Mode', description: 'Logged in locally as Demo User.' });
-        const demoUser = { id: 'demo-user', email: email || 'demo@smartcare.app', name: 'Demo User', role: 'patient' } as any;
-        // No master key for demo mode
-        login('demo-token-123', demoUser, null as any);
-        if (demoUser.role === 'patient') navigate('/patient/dashboard');
-        else navigate(from);
-        return;
-      }
-
       toast({
         title: 'Login Failed',
         description: (error as any)?.message || 'Invalid credentials. Please try again.',
@@ -107,20 +95,7 @@ const LoginPage = () => {
     }
   };
 
-  const demoCredentials = [
-    { role: 'admin', email: 'admin@smartcare.com', name: 'Admin User' },
-    { role: 'doctor', email: 'dr.smith@smartcare.com', name: 'Dr. Sarah Smith' },
-    { role: 'patient', email: 'patient@example.com', name: 'John Doe' }
-  ];
-
-  const fillDemoCredentials = (demoRole: UserRole) => {
-    const demo = demoCredentials.find(d => d.role === demoRole);
-    if (demo) {
-      setEmail(demo.email);
-      setPassword('demo123');
-      setRole(demoRole);
-    }
-  };
+  // Demo accounts removed for production security
 
 
   return (
@@ -217,29 +192,7 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm font-medium text-muted-foreground mb-3">
-                Demo Accounts - Click to auto-fill:
-              </p>
-              <div className="space-y-2">
-                {demoCredentials.map((demo) => (
-                  <Button
-                    key={demo.role}
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-left h-auto p-2"
-                    onClick={() => fillDemoCredentials(demo.role as UserRole)}
-                    type="button"
-                  >
-                    <div>
-                      <div className="font-medium capitalize">{demo.role}</div>
-                      <div className="text-xs text-muted-foreground">{demo.email}</div>
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
+            {/* Demo accounts removed in production build */}
 
             <div className="mt-6 text-center">
               <span className="text-sm text-muted-foreground">

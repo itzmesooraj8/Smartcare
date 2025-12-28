@@ -1,2 +1,12 @@
+
+# Security Secrets
 .vercel
 .env*.local
+*.pem
+*.xml
+.env
+__pycache__/
+.venv/
+private_key.pem
+public_key.pem
+

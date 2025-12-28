@@ -26,7 +26,6 @@ export default function CreateMedicalRecord({ patientId }: { patientId: string }
 
     try {
       // 1. ENCRYPT CLIENT-SIDE
-      console.log('🔒 Encrypting data with Zero-Knowledge Key...');
       const encryptedComplaint = await encryptData(formData.chief_complaint, masterKey);
       const encryptedDiagnosis = await encryptData(formData.diagnosis, masterKey);
 

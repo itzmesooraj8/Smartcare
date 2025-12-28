@@ -14,11 +14,10 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     # --- Zero-Knowledge Key Storage ---
-    # Encrypted master key blob produced by the client (Base64)
-    encrypted_master_key = Column(String, nullable=True)
-    # IV used to encrypt the master key (Base64)
-    key_encryption_iv = Column(String, nullable=True)
-    # Salt used during client-side PBKDF2 derivation (Base64)
-    key_derivation_salt = Column(String, nullable=True)
+    # NOTE: Encrypted master key material has been moved to a separate
+    # `vault_entries` table to isolate key material from primary auth flows.
+    # This reduces the risk of accidental exposure during authentication.
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # TOTP secret for MFA (stored server-side encrypted in production)
+    mfa_totp_secret = Column(String, nullable=True)
