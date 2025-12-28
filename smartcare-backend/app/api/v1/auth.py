@@ -70,6 +70,13 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail='Email already registered')
+    # Disallow registrations using demo/local placeholder domains to prevent accidental demo accounts in production
+    try:
+        domain = payload.email.split('@')[-1].lower()
+    except Exception:
+        domain = ''
+    if domain in ('localhost', 'example.com') or domain.startswith('demo') or 'demo' in domain:
+        raise HTTPException(status_code=400, detail='Registration using demo/local domains is not allowed')
     user = User(email=payload.email, hashed_password=pwd_context.hash(payload.password), full_name=payload.full_name)
     db.add(user)
     db.commit()

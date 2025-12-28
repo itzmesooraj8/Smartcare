@@ -174,10 +174,16 @@ async def startup_event():
     # Enforce strict CORS in production: only allow the approved frontend origin.
     expected_origins = ["https://smartcare-six.vercel.app"]
     configured = getattr(settings, 'ALLOWED_ORIGINS', []) or []
-    logger.info(f"Configured allowed origins: {configured}")
-    # Fail-secure if ALLOWED_ORIGINS is not explicitly set to production domain(s).
-    if set(configured) != set(expected_origins):
-        logger.critical(f"CORS misconfiguration: ALLOWED_ORIGINS must be {expected_origins}")
+    # Normalize configured origins (strip trailing slashes and whitespace)
+    def _norm_origin(o: str) -> str:
+        return (o or '').strip().rstrip('/')
+
+    configured_norm = [_norm_origin(o) for o in configured]
+    logger.info(f"Configured allowed origins: {configured_norm}")
+    # Fail-secure if ALLOWED_ORIGINS is not exactly the expected production domain(s).
+    # Use exact list equality of normalized origins to avoid accidental extra entries like 'http://localhost' or 'demo' values.
+    if configured_norm != expected_origins:
+        logger.critical(f"CORS misconfiguration: ALLOWED_ORIGINS must be exactly {expected_origins}")
         raise SystemExit(1)
 
     logger.info('Verifying database tables...')
