@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from sqlalchemy.orm import Session
 from app.models.user import User
+from app.models.vault_entry import VaultEntry
 from app.core.security import create_jwt
 from app.core.config import settings
 from app.core.security import verify_jwt
@@ -29,6 +30,10 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
+    # Optional wrapped master key fields — client may provide these during registration
+    encrypted_master_key: str | None = None
+    key_encryption_iv: str | None = None
+    key_derivation_salt: str | None = None
 
 
 @router.post('/login')
@@ -69,4 +74,23 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # If the client supplied wrapped master key material, persist it to the isolated vault table.
+    try:
+        if payload.encrypted_master_key:
+            ve = VaultEntry(
+                user_id=user.id,
+                encrypted_master_key=payload.encrypted_master_key,
+                key_encryption_iv=payload.key_encryption_iv,
+                key_derivation_salt=payload.key_derivation_salt,
+            )
+            db.add(ve)
+            db.commit()
+    except Exception:
+        # Non-fatal: vault storage failure should not prevent account creation, but log in real deployment.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
     return {'id': user.id, 'email': user.email}

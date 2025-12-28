@@ -171,8 +171,14 @@ async def startup_event():
         logger.critical(f'Missing or malformed required secrets: {", ".join(sorted(set(missing)))}')
         raise SystemExit(1)
 
-    # Log configured CORS origins (controlled by settings.ALLOWED_ORIGINS)
-    logger.info(f"Allowed CORS origins: {getattr(settings, 'ALLOWED_ORIGINS', [])}")
+    # Enforce strict CORS in production: only allow the approved frontend origin.
+    expected_origins = ["https://smartcare-six.vercel.app"]
+    configured = getattr(settings, 'ALLOWED_ORIGINS', []) or []
+    logger.info(f"Configured allowed origins: {configured}")
+    # Fail-secure if ALLOWED_ORIGINS is not explicitly set to production domain(s).
+    if set(configured) != set(expected_origins):
+        logger.critical(f"CORS misconfiguration: ALLOWED_ORIGINS must be {expected_origins}")
+        raise SystemExit(1)
 
     logger.info('Verifying database tables...')
     Base.metadata.create_all(bind=engine)

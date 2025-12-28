@@ -66,6 +66,22 @@ class Settings:
         self.PUBLIC_KEY: str | None = self._secrets.get("PUBLIC_KEY")
         self.ENCRYPTION_KEY: str | None = self._secrets.get("ENCRYPTION_KEY")
 
+        # Normalize PEMs: Render often injects PEMs as single-line with literal \n sequences.
+        def _normalize_pem(val: str | None) -> str | None:
+            if not val:
+                return None
+            v = val.strip()
+            # Remove wrapping quotes if present
+            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                v = v[1:-1]
+            # Convert literal \n sequences into real newlines
+            if "\\n" in v:
+                v = v.replace('\\n', '\n')
+            return v.strip()
+
+        self.PRIVATE_KEY = _normalize_pem(self.PRIVATE_KEY)
+        self.PUBLIC_KEY = _normalize_pem(self.PUBLIC_KEY)
+
         # Optional runtime settings
         self.REDIS_URL: str | None = os.getenv("REDIS_URL")
 
