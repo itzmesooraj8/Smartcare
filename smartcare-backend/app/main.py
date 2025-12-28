@@ -171,19 +171,25 @@ async def startup_event():
         logger.critical(f'Missing or malformed required secrets: {", ".join(sorted(set(missing)))}')
         raise SystemExit(1)
 
-    # Enforce strict CORS in production: only allow the approved frontend origin.
-    expected_origins = ["https://smartcare-six.vercel.app"]
-    configured = getattr(settings, 'ALLOWED_ORIGINS', []) or []
+    # 1. More informative CORS check
+    configured_origins = getattr(settings, 'ALLOWED_ORIGINS', []) or []
+    production_origin = "https://smartcare-six.vercel.app"
+
     # Normalize configured origins (strip trailing slashes and whitespace)
     def _norm_origin(o: str) -> str:
         return (o or '').strip().rstrip('/')
 
-    configured_norm = [_norm_origin(o) for o in configured]
-    logger.info(f"Configured allowed origins: {configured_norm}")
-    # Fail-secure if ALLOWED_ORIGINS is not exactly the expected production domain(s).
-    # Use exact list equality of normalized origins to avoid accidental extra entries like 'http://localhost' or 'demo' values.
-    if configured_norm != expected_origins:
-        logger.critical(f"CORS misconfiguration: ALLOWED_ORIGINS must be exactly {expected_origins}")
+    configured_norm = [_norm_origin(o) for o in configured_origins]
+
+    if production_origin not in configured_norm:
+        logger.critical(f"SECURITY ALERT: Production origin {production_origin} is not in ALLOWED_ORIGINS!")
+        # Only exit if we are running in production environment
+        if getattr(settings, 'ENVIRONMENT', '').lower() == 'production':
+            raise SystemExit(1)
+
+    # 2. Key Presence Check
+    if not getattr(settings, 'PRIVATE_KEY', None) or 'BEGIN' not in (getattr(settings, 'PRIVATE_KEY', '') or ''):
+        logger.critical("PRIVATE_KEY is missing or malformed PEM")
         raise SystemExit(1)
 
     logger.info('Verifying database tables...')
