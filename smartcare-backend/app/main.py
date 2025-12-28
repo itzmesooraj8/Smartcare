@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 
-# --- 1. DIRECT IMPORTS (Safer than package imports) ---
+# --- DIRECT IMPORTS ---
 from app.api.v1.auth import router as auth_router
 from app.api.v1.doctors import router as doctors_router
 from app.api.v1.appointments import router as appointments_router
@@ -22,17 +22,24 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SmartCare API", version="1.0.0")
 
-# --- 2. THE "OPEN DOOR" CORS POLICY ---
-# This allows Vercel, Localhost, and everything else.
+# --- 🚀 CORS CONFIGURATION (HARDCODED) ---
+# We list the EXACT URLs allowed to talk to this backend.
+origins = [
+    "https://smartcare-six.vercel.app",  # Your Vercel Frontend
+    "http://localhost:5173",             # Localhost (Vite)
+    "http://localhost:3000"              # Localhost (Alternative)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=origins,     # ✅ Specific origins only (Required for credentials)
+    allow_credentials=True,    # ✅ Allows cookies/tokens
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ---------------------------------------
 
-# --- 3. INCLUDE ROUTERS ---
+# Include Routers
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(doctors_router, prefix="/api/v1/doctors", tags=["Doctors"])
 app.include_router(appointments_router, prefix="/api/v1/appointments", tags=["Appointments"])
@@ -40,7 +47,6 @@ app.include_router(patients_router, prefix="/api/v1/patient", tags=["Patients"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(chatbot_router, prefix="/api/v1/chatbot", tags=["Chatbot"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
-
 
 @app.get("/")
 def read_root():
