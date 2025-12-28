@@ -262,7 +262,7 @@ export default function Sidebar(): JSX.Element {
                   </Avatar>
 
                   <motion.div animate={collapsed ? { opacity: 0, x: -20 } : { opacity: 1, x: 0 }} className="flex-1">
-                    <div className="text-sm font-medium text-[var(--sc-panel-text, #0f172a)]">{user?.name || 'Demo User'}</div>
+                    <div className="text-sm font-medium text-[var(--sc-panel-text, #0f172a)]">{user?.name || 'User'}</div>
                     <div className="text-xs text-zinc-600">{user?.role || 'patient'}</div>
                   </motion.div>
                 </motion.div>

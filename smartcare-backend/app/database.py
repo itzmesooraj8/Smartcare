@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from .core.config import settings
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine import Engine
+from sqlalchemy import text
 import urllib.parse
 import os
 
@@ -60,9 +61,21 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db():
+def get_db(user_id: str | None = None):
+    """Database session dependency.
+
+    If `user_id` is provided (usually set by a wrapper dependency after auth), this will
+    immediately execute `SET LOCAL app.current_user_id = :user_id` on the session so
+    Postgres Row-Level Security policies can rely on `current_setting('app.current_user_id')::uuid`.
+    """
     db = SessionLocal()
     try:
+        if user_id:
+            try:
+                db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
+            except Exception:
+                # Do not fail the request here; log at higher level if needed.
+                pass
         yield db
     finally:
         db.close()

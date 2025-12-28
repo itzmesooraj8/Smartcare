@@ -1,6 +1,13 @@
 import uuid
 import sqlalchemy as sa
 from app.database import Base
+from sqlalchemy import event
+
+
+# Prevent accidental deletion of audit logs at the ORM level: these records are immutable.
+def _prevent_audit_delete(mapper, connection, target):
+    raise Exception("Audit logs are immutable and cannot be deleted")
+
 
 
 class AuditLog(Base):
@@ -14,3 +21,7 @@ class AuditLog(Base):
     resource_type = sa.Column(sa.String, nullable=False)
     ip_address = sa.Column(sa.String, nullable=True)
     timestamp = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+
+
+# Register ORM-level guard to prevent deletes
+event.listen(AuditLog, 'before_delete', _prevent_audit_delete)

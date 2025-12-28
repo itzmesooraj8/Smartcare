@@ -1,20 +1,56 @@
 import os
 from dotenv import load_dotenv
+from typing import Optional
+
+# Optional lightweight secret fetch from a protected 'secrets' table (simulated vault)
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None
 
 # Load .env.local first (if present) then .env — explicit and predictable.
 load_dotenv('.env.local', override=True)
 load_dotenv(override=True)
 
 
+class SecretManager:
+    def __init__(self, db_url: Optional[str]):
+        self.db_url = db_url
+
+    def get(self, name: str) -> Optional[str]:
+        # Prefer environment variables (explicit and auditable)
+        val = os.getenv(name)
+        if val:
+            return val
+
+        # If a database-backed secret store is available, try to fetch there
+        if not self.db_url or not psycopg2:
+            return None
+
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM secrets WHERE name=%s LIMIT 1", (name,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                return row[0]
+        except Exception:
+            # Do not leak errors about secret backends — caller will handle missing secrets
+            return None
+
+
 class Settings:
     def __init__(self) -> None:
-        # Critical secrets (NO defaults) — application must fail if missing.
-        # For asymmetric JWT signing we require a PRIVATE_KEY (PEM) and PUBLIC_KEY (PEM).
-        # These must be provided as environment variables in production.
-        self.PRIVATE_KEY: str | None = os.getenv("PRIVATE_KEY")
-        self.PUBLIC_KEY: str | None = os.getenv("PUBLIC_KEY")
-        self.ENCRYPTION_KEY: str | None = os.getenv("ENCRYPTION_KEY")
+        # Load connection settings early so SecretManager can use them
         self.DATABASE_URL: str | None = os.getenv("DATABASE_URL")
+        self._secrets = SecretManager(self.DATABASE_URL)
+
+        # Secrets are pulled via SecretManager (env first, then DB-backed vault)
+        self.PRIVATE_KEY: str | None = self._secrets.get("PRIVATE_KEY")
+        self.PUBLIC_KEY: str | None = self._secrets.get("PUBLIC_KEY")
+        self.ENCRYPTION_KEY: str | None = self._secrets.get("ENCRYPTION_KEY")
 
         # Optional runtime settings
         self.REDIS_URL: str | None = os.getenv("REDIS_URL")
@@ -23,6 +59,10 @@ class Settings:
         self.SUPABASE_URL: str | None = os.getenv("SUPABASE_URL")
         self.SUPABASE_ANON_KEY: str | None = os.getenv("SUPABASE_ANON_KEY")
         self.SUPABASE_SERVICE_ROLE_KEY: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+        # Trusted proxies (comma-separated list of trusted reverse proxies)
+        trusted = os.getenv("TRUSTED_PROXIES")
+        self.TRUSTED_PROXIES = [p.strip() for p in trusted.split(',')] if trusted else []
 
         # CORS: comma separated list; default to local dev origins if not supplied
         allowed_origins_str = os.getenv("ALLOWED_ORIGINS")
@@ -37,7 +77,6 @@ class Settings:
 
         # Fail fast for required secrets — explicit and clear errors for audits.
         missing = []
-        # Require asymmetric keys for signing (RS256)
         if not self.PRIVATE_KEY:
             missing.append("PRIVATE_KEY")
         if not self.PUBLIC_KEY:
@@ -48,7 +87,7 @@ class Settings:
             missing.append("DATABASE_URL")
 
         if missing:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+            raise ValueError(f"Missing required secrets or configuration: {', '.join(missing)}")
 
 
 settings = Settings()

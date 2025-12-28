@@ -1,4 +1,5 @@
 from sqlalchemy import Boolean, Column, String, DateTime
+from sqlalchemy import Integer
 from sqlalchemy.sql import func
 from app.database import Base
 import uuid
@@ -21,3 +22,5 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # TOTP secret for MFA (stored server-side encrypted in production)
     mfa_totp_secret = Column(String, nullable=True)
+    # Allow a small MFA grace-count for privileged users to enable MFA without immediate lockout
+    mfa_grace_count = Column(Integer, default=0, nullable=False)

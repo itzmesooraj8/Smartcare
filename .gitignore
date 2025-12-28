@@ -74,6 +74,7 @@ smartcare-backend/mock_xai.py
 .env.*.local
 *.pem
 *.key
+*.xml
 
 # Python
 *.py[cod]

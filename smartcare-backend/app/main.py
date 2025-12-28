@@ -36,6 +36,7 @@ from app.api.v1 import mfa_recovery as mfa_recovery_module
 from app.database import engine, get_db, Base
 from app.models.user import User
 from app.models.vault_entry import VaultEntry
+from app.models.audit_log import AuditLog
 
 # --- SECURITY CONFIGURATION ---
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12, deprecated="auto")
@@ -47,17 +48,18 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="SmartCare Backend")
 
 # --- GLOBAL USER IP FIX ---
-# On Render, the real IP is in the 'x-forwarded-for' header.
-# If we don't use this, everyone shares the same IP and gets blocked together.
-def get_real_ip(request: Request):
+# Only trust X-Forwarded-For when the connecting peer is a known, trusted proxy.
+def get_client_ip(request: Request):
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0]
-    return request.client.host
+    peer = request.client.host
+    trusted = getattr(settings, 'TRUSTED_PROXIES', []) or []
+    if forwarded and peer in trusted:
+        return forwarded.split(",")[0].strip()
+    return peer
 
 # --- RATE LIMITER ---
-# Use get_real_ip so users from all over the world have separate limits
-limiter = Limiter(key_func=get_real_ip) 
+# Use get_client_ip so rate limits are keyed by true client IP (when trusted proxy present)
+limiter = Limiter(key_func=get_client_ip)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
@@ -70,15 +72,11 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# --- CORS (Allow Vercel Access) ---
-# 🔒 PRODUCTION ONLY CONFIGURATION
-origins = [
-    "https://smartcare-six.vercel.app",
-]
-
+# --- CORS ---
+# Origins are now controlled by `settings.ALLOWED_ORIGINS` and can be set per-environment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # Only allow Vercel
+    allow_origins=getattr(settings, 'ALLOWED_ORIGINS', []),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,7 +126,7 @@ class ChatRequest(BaseModel):
 async def startup_event():
     logger.info("SmartCare Backend starting")
 
-    # Fail-secure checks: require cryptographic secrets and strict CORS
+    # Fail-secure checks: require cryptographic secrets and perform PEM sanity checks
     missing = []
     if not getattr(settings, 'PRIVATE_KEY', None):
         missing.append('PRIVATE_KEY')
@@ -136,29 +134,23 @@ async def startup_event():
         missing.append('PUBLIC_KEY')
     if not getattr(settings, 'ENCRYPTION_KEY', None):
         missing.append('ENCRYPTION_KEY')
-    # Basic PEM sanity checks
+
+    # Basic PEM sanity checks: require BEGIN/END and type markers to avoid accepting XML or other formats
     pk = getattr(settings, 'PRIVATE_KEY', '') or ''
     pub = getattr(settings, 'PUBLIC_KEY', '') or ''
-    if pk and 'BEGIN' not in pk:
-        logger.error('PRIVATE_KEY does not appear to be a valid PEM')
+    if pk and ("BEGIN" not in pk or "PRIVATE KEY" not in pk):
+        logger.error('PRIVATE_KEY does not appear to be a valid PEM (missing headers)')
         missing.append('PRIVATE_KEY')
-    if pub and 'BEGIN' not in pub:
-        logger.error('PUBLIC_KEY does not appear to be a valid PEM')
+    if pub and ("BEGIN" not in pub or "PUBLIC KEY" not in pub):
+        logger.error('PUBLIC_KEY does not appear to be a valid PEM (missing headers)')
         missing.append('PUBLIC_KEY')
 
     if missing:
-        logger.critical(f'Missing required environment variables: {", ".join(sorted(set(missing)))}')
+        logger.critical(f'Missing or malformed required secrets: {", ".join(sorted(set(missing)))}')
         raise SystemExit(1)
 
-    # Enforce strict CORS origins in production
-    expected_origins = ["https://smartcare-six.vercel.app"]
-    try:
-        current_origins = origins
-    except NameError:
-        current_origins = []
-    if current_origins != expected_origins:
-        logger.critical(f'CORS misconfiguration: allow_origins must be {expected_origins}')
-        raise SystemExit(1)
+    # Log configured CORS origins (controlled by settings.ALLOWED_ORIGINS)
+    logger.info(f"Allowed CORS origins: {getattr(settings, 'ALLOWED_ORIGINS', [])}")
 
     logger.info('Verifying database tables...')
     Base.metadata.create_all(bind=engine)
@@ -259,8 +251,22 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     role = getattr(user, 'role', 'patient')
     # Enforce MFA setup for privileged roles (doctors)
     if role == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
-        # Require the doctor to set up TOTP MFA before allowing cookie issuance
-        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
+        # Allow a short grace period (3 logins) for doctors to enable MFA.
+        if getattr(user, 'mfa_grace_count', 0) < 3:
+            # Increment grace counter and log high-severity audit entry
+            try:
+                user.mfa_grace_count = (user.mfa_grace_count or 0) + 1
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                audit = AuditLog(user_id=user.id, target_id=user.id, action='MFA_GRACE_USED', resource_type='User', ip_address=request.client.host)
+                db.add(audit)
+                db.commit()
+            except Exception:
+                db.rollback()
+        else:
+            # Require the doctor to set up TOTP MFA before allowing cookie issuance
+            raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
 
     token = create_access_token(subject=str(user.id), role=role)
 

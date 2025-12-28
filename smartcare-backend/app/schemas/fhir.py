@@ -1,3 +1,26 @@
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, Literal
+
+
+class Reference(BaseModel):
+    reference: str
+    display: Optional[str]
+
+
+class CodeableConcept(BaseModel):
+    coding: Optional[list[Dict[str, Any]]] = None
+    text: Optional[str] = None
+
+
+class ObservationResource(BaseModel):
+    resourceType: Literal['Observation'] = Field('Observation', const=True)
+    status: str
+    code: CodeableConcept
+    subject: Reference
+    effectiveDateTime: Optional[str] = None
+    valueString: Optional[str] = None
+    # Additional extension or meta if needed
+    meta: Optional[Dict[str, Any]] = None
 """
 FHIR adapter schemas.
 

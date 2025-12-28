@@ -33,7 +33,54 @@ class MedicalRecord(Base):
     
     created_at = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now())
     updated_at = sa.Column(sa.DateTime(timezone=True), onupdate=sa.func.now())
+    # GDPR: deactivated_at indicates when the record was deactivated for right-to-forget
+    deactivated_at = sa.Column(sa.DateTime(timezone=True), nullable=True)
 
     # ORM relationships
     patient = relationship("User", foreign_keys=[patient_id], back_populates="medical_records")
     doctor = relationship("User", foreign_keys=[doctor_id], back_populates="doctor_appointments")
+
+    @classmethod
+    def hard_delete(cls, db, record_id: str, pseudonymize_key: str | None = None):
+        """Pseudonymize PHI in related audit logs and remove the primary record.
+
+        This method will replace references in AuditLog.target_id with an HMAC-derived
+        pseudonym and then delete the medical record row. Use with caution — this is
+        intended for GDPR Right-To-Be-Forgotten workflows executed by an administrator.
+        """
+        import hmac, hashlib
+        from datetime import datetime
+        from app.models.audit_log import AuditLog
+
+        rec = db.query(cls).filter(cls.id == record_id).first()
+        if not rec:
+            return False
+
+        # Pseudonymize audit references
+        if pseudonymize_key:
+            try:
+                pseud = hmac.new(pseudonymize_key.encode(), record_id.encode(), hashlib.sha256).hexdigest()
+                db.query(AuditLog).filter(AuditLog.target_id == record_id).update({"target_id": pseud})
+            except Exception:
+                pass
+
+        # Attempt to scrub sensitive fields before deletion
+        try:
+            rec.chief_complaint = None
+            rec.diagnosis = None
+            rec.notes = None
+            rec.value_string = None
+            rec.fhir_observation = None
+            rec.deactivated_at = datetime.utcnow()
+            db.add(rec)
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        try:
+            db.delete(rec)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            return False
