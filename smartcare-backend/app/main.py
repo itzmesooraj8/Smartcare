@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import MethodNotAllowed
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
@@ -47,6 +48,15 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="SmartCare Backend")
 
+# --- CORS (must be first middleware) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=getattr(settings, 'ALLOWED_ORIGINS', []),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- GLOBAL USER IP FIX ---
 # Only trust X-Forwarded-For when the connecting peer is a known, trusted proxy.
 def get_client_ip(request: Request):
@@ -72,15 +82,13 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# --- CORS ---
-# Origins are now controlled by `settings.ALLOWED_ORIGINS` and can be set per-environment
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=getattr(settings, 'ALLOWED_ORIGINS', []),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- 405 Method Not Allowed handler (log origin & method) ---
+def method_not_allowed_handler(request: Request, exc: MethodNotAllowed):
+    origin = request.headers.get('origin') or request.headers.get('referer')
+    logger.warning(f"405 Method Not Allowed - origin={origin} method={request.method} path={request.url.path}")
+    return JSONResponse(status_code=405, content={"detail": "Method not allowed"})
+
+app.add_exception_handler(MethodNotAllowed, method_not_allowed_handler)
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)

@@ -87,6 +87,13 @@ const LoginPage = () => {
       else navigate(from, { replace: true });
 
     } catch (error: any) {
+      // Log full axios error response to help debug CORS/preflight or server errors
+      try {
+        // eslint-disable-next-line no-console
+        console.error('Login error response:', error.response || error);
+      } catch (e) {
+        // ignore logging failures
+      }
       toast({
         title: 'Login Failed',
         description: (error as any)?.message || 'Invalid credentials. Please try again.',
