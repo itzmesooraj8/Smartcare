@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from typing import Optional
 
 # Optional lightweight secret fetch from a protected 'secrets' table (simulated vault)
@@ -8,10 +8,10 @@ try:
 except Exception:
     psycopg2 = None
 
-# Load .env.local first (if present) then .env — explicit and predictable.
-# Do NOT override existing environment variables so production (Render) vars take precedence.
-load_dotenv('.env.local', override=False)
-load_dotenv(override=False)
+# Render and other hosts inject environment variables directly; do not load or override from .env files.
+# (dotenv removed to avoid accidentally overriding production secrets.)
+# load_dotenv('.env.local', override=False)
+# load_dotenv(override=False)
 
 
 class SecretManager:
