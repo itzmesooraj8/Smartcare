@@ -40,14 +40,14 @@ const LoginPage = () => {
     }
 
     try {
-      // Call login API
+      // Call login API — send JSON object (axios will serialize)
       const res = await apiFetch('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        data: { email, password },
         auth: false,
       });
 
-      const user = res.user || res.data?.user;
+      const user = res.user || res.data?.user || res;
       // Fetch wrapped vault key separately (requires MFA confirmation). The server issues HttpOnly cookie on login.
       const key_data = await apiFetch({ path: '/vault/key', method: 'GET', headers: { 'X-MFA-Verified': 'true' } }).catch(() => null);
       if (!user) throw new Error('Invalid login response');

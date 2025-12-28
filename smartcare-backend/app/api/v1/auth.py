@@ -47,9 +47,18 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
 
         token = create_jwt(str(user.id))
 
-        # Set Secure HttpOnly SameSite cookie. Cookie path is '/' so frontend can call /auth/me.
-        resp = Response(content='')
-        resp.set_cookie(
+        # Prepare minimal user profile
+        user_profile = {
+            'id': user.id,
+            'email': user.email,
+            'full_name': getattr(user, 'full_name', None),
+            'role': getattr(user, 'role', 'patient')
+        }
+
+        # Build JSON response and attach HttpOnly cookie so the browser receives it
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content={'user': user_profile})
+        response.set_cookie(
             key='access_token',
             value=token,
             httponly=True,
@@ -58,14 +67,7 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
             max_age=60 * 60,
             path='/'
         )
-
-        # Return minimal profile only
-        return {
-            'id': user.id,
-            'email': user.email,
-            'full_name': getattr(user, 'full_name', None),
-            'role': getattr(user, 'role', 'patient')
-        }
+        return response
     except HTTPException:
         # Re-raise HTTPExceptions (e.g., 401) unchanged
         raise
