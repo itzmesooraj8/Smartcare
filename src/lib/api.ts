@@ -43,7 +43,14 @@ export async function apiFetch(opts: any = {}, maybeOpts?: any) {
   }
 
   const { url, path, method = 'GET', data, body, params, auth = true, headers = {}, ...rest } = options;
-  const endpoint = url ?? path ?? '';
+  const endpointRaw = url ?? path ?? '';
+  // If the caller passed an absolute URL, leave it alone. Otherwise strip a
+  // leading `/api/v1` if present to avoid double-prefixing with the configured
+  // `API_URL` which already contains `/api/v1`.
+  let endpoint = endpointRaw;
+  if (!/^https?:\/\//i.test(endpointRaw)) {
+    endpoint = endpointRaw.replace(/^\/api\/v1/, '');
+  }
   const payload = data ?? body;
 
   const cfg: any = {
