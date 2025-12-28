@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const initAuth = async () => {
       try {
         // We include credentials so the cookie is sent if it exists
-        const res = await fetch(`${API_URL}/auth/me`, {
+        const res = await fetch(`${API_URL}/api/v1/auth/me`, {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -96,7 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
+      await fetch(`${API_URL}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch (e) {
       // ignore
     }
