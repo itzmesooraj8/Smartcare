@@ -8,12 +8,15 @@ if (!import.meta.env.VITE_API_URL) {
 }
 export const API_URL = `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api/v1`;
 
+// Ensure axios sends credentials on every request globally (HttpOnly cookie support)
+axios.defaults.withCredentials = true;
+axios.defaults.baseURL = API_URL;
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true // Crucial for CORS
 });
 
 // Add secure token to requests if it exists
