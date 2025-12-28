@@ -24,7 +24,8 @@ class ChatbotService:
             # This is the exact model string we confirmed works for your key.
             model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
             
-            logger.info(f"Sending request to Gemini: {message}")
+            # Avoid logging user-provided content (may contain PHI). Log only redacted indicator.
+            logger.info("Sending request to Gemini (message redacted)")
             
             # 4. Generate Content
             response = model.generate_content(message)

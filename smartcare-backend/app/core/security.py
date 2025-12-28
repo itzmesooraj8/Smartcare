@@ -43,5 +43,6 @@ def verify_jwt(token: str) -> Dict[str, Any]:
         payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=['RS256'])
         return payload
     except JWTError as e:
-        logger.debug('JWT verification failed')
+        # Keep logs minimal and non-PII: do not log token contents or user identifiers
+        logger.debug('JWT verification failed (token invalid or expired)')
         raise

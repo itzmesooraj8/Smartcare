@@ -173,13 +173,16 @@ async def startup_event():
             logger.warning('Redis listener warning (masked)')
 
 # --- UTILITIES ---
-def create_access_token(subject: str, role: Optional[str] = None, email: Optional[str] = None) -> str:
+def create_access_token(subject: str, role: Optional[str] = None) -> str:
+    """Create a minimal RS256 JWT for session use.
+
+    Tokens intentionally contain minimal claims (`sub`, `exp`, optional `role`) to
+    avoid embedding PII such as email addresses.
+    """
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": subject, "exp": expire}
     if role:
         to_encode["role"] = role
-    if email:
-        to_encode["email"] = email
     # Use RS256 with server-side PRIVATE_KEY (PEM). PRIVATE_KEY must be present in env.
     return jwt.encode(to_encode, settings.PRIVATE_KEY, algorithm="RS256")
 
@@ -259,7 +262,7 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         # Require the doctor to set up TOTP MFA before allowing cookie issuance
         raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
 
-    token = create_access_token(subject=str(user.id), role=role, email=user.email)
+    token = create_access_token(subject=str(user.id), role=role)
 
     # Set HttpOnly, Secure cookie with SameSite=Strict to prevent XSS/CSRF token theft
     resp = {

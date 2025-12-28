@@ -29,10 +29,9 @@ class Settings:
         if allowed_origins_str:
             self.ALLOWED_ORIGINS = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
         else:
-            # Include common local dev hosts and the Vercel production domain used by the frontend.
+            # Production default: only allow the Vercel frontend domain.
+            # Local development should set ALLOWED_ORIGINS via environment variables.
             self.ALLOWED_ORIGINS = [
-                "http://localhost:5173",
-                "http://localhost:3000",
                 "https://smartcare-six.vercel.app",
             ]
 

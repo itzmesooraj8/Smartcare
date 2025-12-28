@@ -3,29 +3,32 @@
 
 Run once locally: python seed_admin.py
 """
+import logging
 from app.database import SessionLocal
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 def main():
     email = input("Enter the email address to promote to admin: ").strip()
     if not email:
-        print("No email provided; aborting.")
+        logger.error("No email provided; aborting.")
         return
 
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            print("User not found")
+            logger.error("User not found for email provided")
             return
         user.role = "admin"
         db.add(user)
         db.commit()
-        print("Success")
+        logger.info("User promoted to admin")
     except Exception as exc:
         db.rollback()
-        print("Error promoting user:", exc)
+        logger.exception("Error promoting user")
     finally:
         db.close()
 

@@ -29,13 +29,16 @@ async def get_livekit_token(room_id: str, current_user = Depends(get_current_use
     Generates a secure JWT Access Token for LiveKit Video Rooms.
     """
     if not LIVEKIT_API_KEY or "devkey" in LIVEKIT_API_KEY:
-        print("WARNING: LiveKit Keys not set in .env")
+        # Do not print sensitive data to STDOUT; log a warning instead.
+        import logging
+        logging.getLogger(__name__).warning("LiveKit keys not configured; using defaults for local development")
 
     # Define permissions (User can join room, publish video/audio)
     grant = api.VideoGrant(room_join=True, room_name=room_id)
 
     # Identify the user
-    identity = str(getattr(current_user, 'email', getattr(current_user, 'id', 'guest')))
+    # Use user id as identity to avoid leaking email addresses into third-party tokens
+    identity = str(getattr(current_user, 'id', 'guest'))
 
     # Create the token
     token = api.AccessToken(
