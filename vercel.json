@@ -5,7 +5,6 @@
     "builds": [
         { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
     ],
-    "functions": {},
     "ignoreCommand": "echo 'Building frontend only; backend code is not used in static build'",
     "rewrites": [
         {
