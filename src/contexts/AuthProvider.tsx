@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import apiFetch from '@/lib/api';
 
 // Strict TypeScript AuthProvider adapted for cookie-based sessions
 
@@ -28,15 +29,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // On mount, call the server endpoint which returns profile when cookie is present
     (async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/me`, {
-          credentials: 'include',
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
-          const body = await res.json();
-          setUser(body.user as User);
-        }
+        // Use the shared apiFetch helper so the API version prefix is applied
+        const body = await apiFetch({ url: '/auth/me', method: 'GET' }).catch(() => null);
+        if (body && body.user) setUser(body.user as User);
       } catch (e) {
         // ignore
       } finally {
@@ -53,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
+      await apiFetch({ url: '/auth/logout', method: 'POST' });
     } catch (e) {
       // ignore
     }
