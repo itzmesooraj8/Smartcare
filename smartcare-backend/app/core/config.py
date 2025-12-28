@@ -58,7 +58,17 @@ class SecretManager:
 class Settings:
     def __init__(self) -> None:
         # Load connection settings early so SecretManager can use them
-        self.DATABASE_URL: str | None = os.getenv("DATABASE_URL")
+        # --- FIX STARTS HERE ---
+        # Read raw env var and sanitize common copy/paste issues
+        raw_url = os.getenv("DATABASE_URL")
+        if raw_url:
+            # Remove surrounding whitespace and quotes
+            raw_url = raw_url.strip().strip("'").strip('"')
+            # SQLAlchemy prefers postgresql:// over postgres://
+            if raw_url.startswith("postgres://"):
+                raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+        self.DATABASE_URL: str | None = raw_url
+        # --- FIX ENDS HERE ---
         self._secrets = SecretManager(self.DATABASE_URL)
 
         # Secrets are pulled via SecretManager (env first, then DB-backed vault)
@@ -94,16 +104,8 @@ class Settings:
         trusted = os.getenv("TRUSTED_PROXIES")
         self.TRUSTED_PROXIES = [p.strip() for p in trusted.split(',')] if trusted else []
 
-        # CORS: comma separated list; default to local dev origins if not supplied
-        allowed_origins_str = os.getenv("ALLOWED_ORIGINS")
-        if allowed_origins_str:
-            self.ALLOWED_ORIGINS = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
-        else:
-            # Production default: only allow the Vercel frontend domain.
-            # Local development should set ALLOWED_ORIGINS via environment variables.
-            self.ALLOWED_ORIGINS = [
-                "https://smartcare-six.vercel.app",
-            ]
+        # CORS: handled via property below to safely parse env var when accessed.
+        # The property will parse ALLOWED_ORIGINS from the environment on demand.
 
         # Fail fast for required secrets — explicit and clear errors for audits.
         missing = []
@@ -118,6 +120,13 @@ class Settings:
 
         if missing:
             raise ValueError(f"Missing required secrets or configuration: {', '.join(missing)}")
+
+    @property
+    def ALLOWED_ORIGINS(self) -> list[str]:
+        raw = os.getenv("ALLOWED_ORIGINS", "")
+        if not raw:
+            return []
+        return [origin.strip() for origin in raw.split(",") if origin]
 
 
 settings = Settings()

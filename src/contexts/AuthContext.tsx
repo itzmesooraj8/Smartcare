@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import apiFetch from '@/lib/api';
+import apiFetch, { API_URL } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Safe JWT decoder: decodes base64url payload and handles UTF-8 correctly
@@ -50,33 +50,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const TOKEN_KEY = 'smartcare_token';
 
   useEffect(() => {
-    // On mount, check server session cookie for logged-in user
-    (async () => {
+    const initAuth = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/auth/me`, { credentials: 'include' });
+        // We include credentials so the cookie is sent if it exists
+        const res = await fetch(`${API_URL}/auth/me`, {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
         if (res.ok) {
-          const body = await res.json();
-          const u = body.user;
-          setUser(u);
+          const data = await res.json();
+          setUser(data?.user ?? data); // Support either {user:...} or direct user
         } else if (res.status === 401) {
-          // Silent unauthenticated state: user not logged in yet. Do not log to console.
+          // --- SILENT CATCH ---
+          // This is normal for a new user. Do NOT log an error.
           setUser(null);
         } else {
-          // For other errors, surface minimal info for debugging
-          try {
-            const body = await res.text();
-            console.warn('Auth probe failed:', res.status, body?.slice?.(0, 200));
-          } catch (_) {
-            console.warn('Auth probe failed with status', res.status);
-          }
+          console.warn('Auth check failed with status:', res.status);
+          setUser(null);
         }
-      } catch (e) {
-        // Network/CORS error or similar — keep user null but surface a warning
-        console.warn('Auth probe network error (silenced for 401):', e);
+      } catch (error) {
+        // Network error (server down or offline)
+        console.warn('Auth probe network error:', error);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
-    })();
+    };
+
+    initAuth();
   }, []);
 
   // Login accepts user (server sets HttpOnly cookie) and the unwrapped master key (kept only in RAM)

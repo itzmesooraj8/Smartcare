@@ -360,6 +360,7 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         httponly=True,
         secure=True,
         samesite="none",
+        domain=None,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path='/'
     )
@@ -388,5 +389,5 @@ def me(request: Request, db=Depends(get_db)):
 @app.post("/api/v1/auth/logout")
 def logout():
     response = JSONResponse(content={"message": "logged out"})
-    response.delete_cookie("access_token", path='/')
+    response.delete_cookie("access_token", path='/', domain=None)
     return response
