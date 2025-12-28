@@ -48,27 +48,16 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="SmartCare Backend")
 
-# --- CORS (must be first middleware) ---
-production_origin = "https://smartcare-six.vercel.app"
-
-# Build allow_origins from configured list plus the hard-coded production origin (trim entries)
-configured = getattr(settings, 'ALLOWED_ORIGINS', []) or []
-normalized = []
-for o in configured:
-    try:
-        normalized.append(o.strip().rstrip('/'))
-    except Exception:
-        continue
-if production_origin.rstrip('/') not in normalized:
-    normalized.append(production_origin.rstrip('/'))
-
+# --- CORS (Dynamic Lockdown) ---
+# This pulls the list of trusted URLs from your Render environment variables.
+# It allows anyone using your official domain to register from any IP globally.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=normalized,
-    allow_credentials=True,
+    allow_origins=settings.ALLOWED_ORIGINS, # Dynamic trust from Dashboard
+    allow_credentials=True,                 # Required for HttpOnly login cookies
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Set-Cookie"],
+    expose_headers=["set-cookie"],        # Let the browser see the session cookie
 )
 
 # --- GLOBAL USER IP FIX ---
@@ -211,13 +200,19 @@ async def startup_event():
     configured_origins = getattr(settings, 'ALLOWED_ORIGINS', []) or []
     production_origin = "https://smartcare-six.vercel.app"
 
+    # If running in production, require ALLOWED_ORIGINS to be explicitly set
+    env_val = getattr(settings, 'ENVIRONMENT', '') or ''
+    if env_val.lower() == 'production' and (not configured_origins or all((not (o or '').strip()) for o in configured_origins)):
+        logger.critical('SECURITY ALERT: ALLOWED_ORIGINS is empty in production environment; refusing to start')
+        raise SystemExit(1)
+
     # Trim accidental whitespace from configured origins before comparing
     current_origins = [o.strip() for o in configured_origins]
 
     if production_origin not in current_origins:
         logger.critical(f"SECURITY ALERT: Production origin {production_origin} is not in ALLOWED_ORIGINS!")
         # Only exit if we are running in production environment
-        if getattr(settings, 'ENVIRONMENT', '').lower() == 'production':
+        if env_val.lower() == 'production':
             raise SystemExit(1)
 
     # 2. Key Presence Check
@@ -249,7 +244,13 @@ def create_access_token(subject: str, role: Optional[str] = None) -> str:
     if role:
         to_encode["role"] = role
     # Use RS256 with server-side PRIVATE_KEY (PEM). PRIVATE_KEY must be present in env.
-    return jwt.encode(to_encode, settings.PRIVATE_KEY, algorithm="RS256")
+    try:
+        token = jwt.encode(to_encode, settings.PRIVATE_KEY, algorithm="RS256")
+        return token
+    except Exception as e:
+        # Log the exact error for operators/ops while returning a generic message to clients
+        logger.exception('JWT signing failed: %s', str(e))
+        raise HTTPException(status_code=500, detail='Security Token Generation Failed')
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)

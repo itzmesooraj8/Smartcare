@@ -93,6 +93,15 @@ const LoginPage = () => {
       if (error && error.response) {
         // eslint-disable-next-line no-console
         console.log('SERVER DATA:', error.response.data);
+        // eslint-disable-next-line no-console
+        console.log('SERVER STATUS:', error.response.status);
+        if (error.response.status === 500) {
+          toast({
+            title: 'Server Error',
+            description: 'Backend encountered an internal error (500). Check server logs and secrets.',
+            variant: 'destructive',
+          });
+        }
       } else {
         // eslint-disable-next-line no-console
         console.log('NETWORK/CORS ERROR DETECTED');

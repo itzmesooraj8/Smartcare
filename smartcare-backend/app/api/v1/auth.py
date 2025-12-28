@@ -74,6 +74,10 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
     except Exception as e:
         # Log unexpected errors with stack trace for ops to inspect
         logger.exception('Unhandled exception in login')
+        # In non-production environments include the exception detail to aid debugging.
+        env = getattr(settings, 'ENVIRONMENT', '') or ''
+        if env.lower() != 'production':
+            raise HTTPException(status_code=500, detail=f'Internal server error: {str(e)}')
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
