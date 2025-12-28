@@ -3,12 +3,11 @@
 import axios from 'axios';
 
 // 1. Canonicalize the configured API URL to tolerate trailing slashes
-const rawUrl = import.meta.env.VITE_API_URL || '';
-const cleanUrl = rawUrl.replace(/\/+$/, '');
+const cleanBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$, '');
 
 // 2. Define the single versioned API root. If the provided URL already ends
 // with '/api/v1' we keep it as-is to avoid double-prefixing.
-export const API_URL = cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
+export const API_URL = cleanBase.endsWith('/api/v1') ? cleanBase : `${cleanBase}/api/v1`;
 
 // 3. Set global defaults
 axios.defaults.withCredentials = true; // ensure HttpOnly cookies are sent

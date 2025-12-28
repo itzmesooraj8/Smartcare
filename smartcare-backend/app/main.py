@@ -49,12 +49,26 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="SmartCare Backend")
 
 # --- CORS (must be first middleware) ---
+production_origin = "https://smartcare-six.vercel.app"
+
+# Build allow_origins from configured list plus the hard-coded production origin (trim entries)
+configured = getattr(settings, 'ALLOWED_ORIGINS', []) or []
+normalized = []
+for o in configured:
+    try:
+        normalized.append(o.strip().rstrip('/'))
+    except Exception:
+        continue
+if production_origin.rstrip('/') not in normalized:
+    normalized.append(production_origin.rstrip('/'))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=getattr(settings, 'ALLOWED_ORIGINS', []),
+    allow_origins=normalized,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Set-Cookie"],
 )
 
 # --- GLOBAL USER IP FIX ---

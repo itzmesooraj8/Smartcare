@@ -87,12 +87,15 @@ const LoginPage = () => {
       else navigate(from, { replace: true });
 
     } catch (error: any) {
-      // Log full axios error response to help debug CORS/preflight or server errors
-      try {
+      // Detailed debug logging for login failures
+      // eslint-disable-next-line no-console
+      console.error('FULL LOGIN ERROR OBJECT:', error);
+      if (error && error.response) {
         // eslint-disable-next-line no-console
-        console.error('Login error response:', error.response || error);
-      } catch (e) {
-        // ignore logging failures
+        console.log('SERVER DATA:', error.response.data);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('NETWORK/CORS ERROR DETECTED');
       }
       toast({
         title: 'Login Failed',

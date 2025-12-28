@@ -63,7 +63,7 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
             value=token,
             httponly=True,
             secure=True,
-            samesite='strict',
+            samesite='none',
             max_age=60 * 60,
             path='/'
         )
