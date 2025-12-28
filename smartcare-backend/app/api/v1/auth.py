@@ -5,6 +5,7 @@ Security: set HttpOnly Secure SameSite=Strict cookie only (no token in response 
 Return minimal user profile to client.
 """
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
+import logging
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from sqlalchemy.orm import Session
@@ -38,31 +39,40 @@ class RegisterIn(BaseModel):
 
 @router.post('/login')
 def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not pwd_context.verify(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail='Invalid credentials')
+    logger = logging.getLogger('smartcare.auth')
+    try:
+        user = db.query(User).filter(User.email == payload.email).first()
+        if not user or not pwd_context.verify(payload.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail='Invalid credentials')
 
-    token = create_jwt(str(user.id))
+        token = create_jwt(str(user.id))
 
-    # Set Secure HttpOnly SameSite cookie. Cookie path is '/' so frontend can call /auth/me.
-    resp = Response(content='')
-    resp.set_cookie(
-        key='access_token',
-        value=token,
-        httponly=True,
-        secure=True,
-        samesite='strict',
-        max_age=60 * 60,
-        path='/'
-    )
+        # Set Secure HttpOnly SameSite cookie. Cookie path is '/' so frontend can call /auth/me.
+        resp = Response(content='')
+        resp.set_cookie(
+            key='access_token',
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite='strict',
+            max_age=60 * 60,
+            path='/'
+        )
 
-    # Return minimal profile only
-    return {
-        'id': user.id,
-        'email': user.email,
-        'full_name': getattr(user, 'full_name', None),
-        'role': getattr(user, 'role', 'patient')
-    }
+        # Return minimal profile only
+        return {
+            'id': user.id,
+            'email': user.email,
+            'full_name': getattr(user, 'full_name', None),
+            'role': getattr(user, 'role', 'patient')
+        }
+    except HTTPException:
+        # Re-raise HTTPExceptions (e.g., 401) unchanged
+        raise
+    except Exception as e:
+        # Log unexpected errors with stack trace for ops to inspect
+        logger.exception('Unhandled exception in login')
+        raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post('/register')
