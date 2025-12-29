@@ -30,7 +30,10 @@ api.interceptors.request.use(
   }
 );
 
-export default api;
+// RESPONSE INTERCEPTOR: handle 401 by removing token
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
     if (error?.response?.status === 401) {
       try {
         localStorage.removeItem('access_token');
@@ -42,4 +45,4 @@ export default api;
   }
 );
 
-export default apiFetch;
+export default api;
