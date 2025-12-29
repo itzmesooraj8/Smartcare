@@ -25,6 +25,8 @@ from app.api.v1 import (
     files as files_module,
     auth as auth_module
 )
+# Signaling lives at app/signaling.py
+from app import signaling as signaling_module
 
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
@@ -57,34 +59,27 @@ def create_access_token(subject: str, role: Optional[str] = None) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
 
-@app.post("/api/v1/auth/login")
-@limiter.limit("5/minute")
-def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    role = getattr(user, 'role', 'patient')
-    if role == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
-        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
+# --- ROUTER REGISTRATION ---
+# 1. Signaling (Usually no prefix or specific one)
+app.include_router(signaling_module.router)
 
-    token = create_access_token(subject=str(user.id), role=role)
-    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}})
-    response.set_cookie(
-        key="access_token", value=token, httponly=True, secure=True, 
-        samesite="none", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, path='/'
-    )
-    return response
+# 2. Auth (CRITICAL: This is where login/logout live)
+# If your auth.py router already has prefix="/api/v1/auth", don't double it.
+app.include_router(auth_module.router, prefix="/api/v1/auth", tags=["Auth"])
 
-# Register Routers
-app.include_router(dashboard_module.router, prefix="/api/v1/patient")
-app.include_router(appointments_module.router, prefix="/api/v1/appointments")
-app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
-app.include_router(files_module.router, prefix="/api/v1/files")
+# 3. Patient Dashboard
+app.include_router(dashboard_module.router, prefix="/api/v1/patient", tags=["Dashboard"])
+
+# 4. Medical Records
+app.include_router(medical_records_module.router, prefix="/api/v1/medical-records", tags=["Records"])
+
+# 5. Files
+app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
+
+# 6. Appointments
+app.include_router(appointments_module.router, prefix="/api/v1/appointments", tags=["Appointments"])
 
 @app.get("/")
 def root():
