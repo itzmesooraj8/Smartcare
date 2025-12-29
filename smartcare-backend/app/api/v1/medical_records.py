@@ -11,6 +11,8 @@ from app.models.medical_record import MedicalRecord
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from datetime import datetime
+import json
+from app.core.encryption import encrypt_data, decrypt_data
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -96,12 +98,20 @@ def create_medical_record(
             ]
         }
 
+        # Server-side encrypt the client-provided encrypted blobs before persisting.
+        # We store the server Fernet-encrypted JSON string so DB dumps are resistant
+        # to accidental exposure. The server will decrypt for returning the
+        # original client-encrypted blobs so clients can decrypt locally.
+        chief_blob_json = json.dumps(payload.chief_complaint.dict())
+        diagnosis_blob_json = json.dumps(payload.diagnosis.dict())
+        notes_blob_json = json.dumps(payload.notes.dict()) if payload.notes else None
+
         new_record = MedicalRecord(
             patient_id=current_user.id,
             doctor_id=None,
-            chief_complaint=payload.chief_complaint.dict(),
-            diagnosis=payload.diagnosis.dict(),
-            notes=payload.notes.dict() if payload.notes else None,
+            chief_complaint=encrypt_data(chief_blob_json),
+            diagnosis=encrypt_data(diagnosis_blob_json),
+            notes=encrypt_data(notes_blob_json) if notes_blob_json else None,
             visit_type=payload.visit_type,
             fhir_observation=fhir_obs,
         )
@@ -131,7 +141,17 @@ def create_medical_record(
         db.add(audit)
         db.commit()
 
-        return new_record
+        # Return the original client-provided blobs (still encrypted by client)
+        return {
+            "id": str(new_record.id),
+            "patient_id": new_record.patient_id,
+            "effectiveDateTime": fhir_obs.get('effectiveDateTime'),
+            "visit_type": new_record.visit_type,
+            "chief_complaint": payload.chief_complaint.dict(),
+            "diagnosis": payload.diagnosis.dict(),
+            "notes": payload.notes.dict() if payload.notes else None,
+            "created_at": new_record.created_at.isoformat() if new_record.created_at else None,
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save record: {str(e)}")
@@ -140,9 +160,53 @@ def create_medical_record(
 @router.get("/", response_model=List[MedicalRecordResponse])
 def list_medical_records(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role == 'doctor':
-        return db.query(MedicalRecord).order_by(MedicalRecord.created_at.desc()).all()
+        rows = db.query(MedicalRecord).order_by(MedicalRecord.created_at.desc()).all()
     else:
-        return db.query(MedicalRecord).filter(MedicalRecord.patient_id == current_user.id).order_by(MedicalRecord.created_at.desc()).all()
+        rows = db.query(MedicalRecord).filter(MedicalRecord.patient_id == current_user.id).order_by(MedicalRecord.created_at.desc()).all()
+
+    result = []
+    for r in rows:
+        # Decrypt server-side stored blobs to recover the client encrypted JSON
+        try:
+            diag_raw = r.diagnosis
+            if isinstance(diag_raw, str):
+                diag_json = decrypt_data(diag_raw)
+                diagnosis_blob = json.loads(diag_json) if diag_json else None
+            else:
+                diagnosis_blob = diag_raw
+        except Exception:
+            diagnosis_blob = None
+
+        try:
+            notes_raw = r.notes
+            if isinstance(notes_raw, str):
+                notes_json = decrypt_data(notes_raw)
+                notes_blob = json.loads(notes_json) if notes_json else None
+            else:
+                notes_blob = notes_raw
+        except Exception:
+            notes_blob = None
+
+        try:
+            chief_raw = r.chief_complaint
+            if isinstance(chief_raw, str):
+                chief_json = decrypt_data(chief_raw)
+                chief_blob = json.loads(chief_json) if chief_json else None
+            else:
+                chief_blob = chief_raw
+        except Exception:
+            chief_blob = None
+
+        result.append({
+            "id": str(r.id),
+            "patient_id": r.patient_id,
+            "record_type": getattr(r, 'title', None) or getattr(r, 'visit_type', None),
+            "diagnosis": diagnosis_blob,
+            "notes": notes_blob,
+            "chief_complaint": chief_blob,
+            "created_at": r.created_at.isoformat() if r.created_at is not None else None,
+        })
+    return result
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from typing import Optional

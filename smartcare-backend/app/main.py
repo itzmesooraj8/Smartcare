@@ -20,37 +20,10 @@ logger = logging.getLogger(__name__)
 # Create Database Tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="SmartCare API", version="1.0.0")
-
-# --- 🚀 CORS CONFIGURATION (HARDCODED) ---
-# We list the EXACT URLs allowed to talk to this backend.
-origins = [
-    "https://smartcare-six.vercel.app",  # Your Vercel Frontend
-    "http://localhost:5173",             # Localhost (Vite)
-    "http://localhost:3000"              # Localhost (Alternative)
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,     # ✅ Specific origins only (Required for credentials)
-    allow_credentials=True,    # ✅ Allows cookies/tokens
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# ---------------------------------------
-
-# Include Routers
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(doctors_router, prefix="/api/v1/doctors", tags=["Doctors"])
-app.include_router(appointments_router, prefix="/api/v1/appointments", tags=["Appointments"])
-app.include_router(patients_router, prefix="/api/v1/patient", tags=["Patients"])
-app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
-app.include_router(chatbot_router, prefix="/api/v1/chatbot", tags=["Chatbot"])
-app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
-
-@app.get("/")
-def read_root():
-    return {"message": "SmartCare API is running", "status": "healthy"}
+# NOTE: The application is defined and configured further below. The
+# earlier lightweight `app` declaration and duplicate router includes were
+# removed to avoid double-app instantiation and middleware loss. The
+# primary `app = FastAPI(...)` is declared further down in this file.
 import sys
 import logging
 from datetime import datetime, timedelta

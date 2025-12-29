@@ -2,21 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import apiFetch, { API_URL } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
-// Safe JWT decoder: decodes base64url payload and handles UTF-8 correctly
-function decodeJwtSafe(token: string) {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) base64 += '=';
-    const binary = atob(base64);
-    const bytes = Uint8Array.from(binary.split('').map((c) => c.charCodeAt(0)));
-    const text = new TextDecoder().decode(bytes);
-    return JSON.parse(text);
-  } catch (e) {
-    return null;
-  }
-}
+// NOTE: Do NOT decode JWTs client-side and trust the result for authorization.
+// Backend must verify tokens on every protected endpoint. The server-provided
+// `/api/v1/auth/me` endpoint is used on init to establish the authenticated user.
 
 interface User {
   id: string;
