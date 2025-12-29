@@ -85,7 +85,19 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
     import secrets
     recovery_key = secrets.token_hex(32)
 
-    return {"status": "created", "user": {"id": user.id, "email": user.email, "role": user.role}, "recovery_key": recovery_key}
+    # Create access token and set cookie + return token in body as a fallback
+    token = create_access_token(subject=str(user.id), role=user.role, scopes=["full_access"])
+    response = JSONResponse(content={"message": "created", "user": {"id": user.id, "email": user.email, "role": user.role}, "recovery_key": recovery_key, "access_token": token, "token_type": "bearer"})
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return response
 
 
 @router.post("/login")
