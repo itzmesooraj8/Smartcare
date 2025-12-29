@@ -8,7 +8,7 @@ import logging
 import hmac
 import hashlib
 
-from .medical_records import get_current_user_id
+from .auth import get_current_user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
