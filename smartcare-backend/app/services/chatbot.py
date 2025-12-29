@@ -10,21 +10,32 @@ logger = logging.getLogger(__name__)
 class ChatbotService:
     @staticmethod
     async def get_response(message: str) -> str:
+        # Safety guard: ensure enterprise/BAA-enabled mode before sending any PHI to external models.
+        # Operators MUST set GEMINI_ENTERPRISE=true and GEMINI_BAA_SIGNED=true when using Google Vertex/Enterprise.
+        use_enterprise = os.getenv("GEMINI_ENTERPRISE", "false").lower() in ("1", "true", "yes")
+        baa_signed = os.getenv("GEMINI_BAA_SIGNED", "false").lower() in ("1", "true", "yes")
+
+        if not (use_enterprise and baa_signed):
+            logger.warning("External AI is disabled: enterprise BAA mode not enabled. Request blocked.")
+            raise HTTPException(status_code=503, detail="AI service disabled for PHI protection")
+
         # 1. Check for API Key
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             logger.error("GEMINI_API_KEY is missing.")
             raise HTTPException(status_code=500, detail="Configuration Error: API Key Missing")
 
+        # Proceed with enterprise/BAA usage only
         try:
             # 2. Configure the Google AI Client
             genai.configure(api_key=api_key)
 
-            # 3. Use the Experimental Model (Free Tier Friendly)
-            model = genai.GenerativeModel("models/gemini-2.0-flash-exp")
+            # 3. Use the configured enterprise/vertex model
+            model_name = os.getenv("GEMINI_MODEL", "models/gemini-2.0")
+            model = genai.GenerativeModel(model_name)
 
             # Avoid logging user-provided content (may contain PHI). Log only redacted indicator.
-            logger.info("Sending request to Gemini (message redacted)")
+            logger.info("Sending request to Gemini Enterprise (message redacted)")
 
             # 4. Generate Content
             response = model.generate_content(message)
@@ -32,7 +43,6 @@ class ChatbotService:
             # Attempt to extract a confidence score from the model response if present.
             score = None
             try:
-                # The exact structure may vary by SDK; attempt a couple of common fields.
                 if hasattr(response, 'candidates') and response.candidates:
                     cand = response.candidates[0]
                     score = getattr(cand, 'confidence', None) or getattr(cand, 'score', None)
@@ -40,10 +50,8 @@ class ChatbotService:
             except Exception:
                 score = None
 
-            # Default confidence if not available
             confidence = float(score) if score is not None else 0.9
 
-            # Clinical/legal disclaimer must be appended to every AI response for safety/audit
             disclaimer = (
                 "\n\n[Automated Clinical Assistant — for informational purposes only. "
                 "Not a substitute for professional medical advice. Verify with a clinician.]"
@@ -60,6 +68,7 @@ class ChatbotService:
 
             return result
 
-        except Exception as e:
-            logger.error(f"Gemini API Error: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
+        except Exception:
+            # Avoid logging exception details that may include PHI or sensitive payloads.
+            logger.error("Gemini Enterprise API Error (redacted)")
+            raise HTTPException(status_code=500, detail="AI service error")
