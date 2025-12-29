@@ -112,7 +112,7 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         # deployments you may want to fail the action instead of failing open.
         logger.error("AUDIT LOG FAILURE: %s", str(e))
     # Indicate whether MFA is required so the frontend can prompt for the code
-    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}, "mfa_required": mfa_required})
+    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}, "mfa_required": mfa_required, "access_token": token})
     response.set_cookie(
         key="access_token",
         value=token,

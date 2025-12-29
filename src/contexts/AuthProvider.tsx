@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (userData: User, masterKey: CryptoKey | null) => void;
+  login: (email: string, passwordHash: string, masterKey: CryptoKey | null) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -26,11 +26,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // On mount, call the server endpoint which returns profile when cookie is present
     (async () => {
       try {
-        // Use the shared apiFetch helper so the API version prefix is applied
-        const body = await apiFetch({ url: '/auth/me', method: 'GET' }).catch(() => null);
+        const res = await apiFetch.get('/auth/me').catch(() => null);
+        const body = res?.data ?? null;
         if (body && body.user) setUser(body.user as User);
       } catch (e) {
         // ignore
@@ -40,21 +39,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })();
   }, []);
 
-  const login = (userData: User, mk: CryptoKey | null) => {
-    // Server must set the HttpOnly cookie; client keeps masterKey in RAM only
-    setUser(userData);
-    setMasterKey(mk);
+  const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
+    setIsLoading(true);
+    try {
+      const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
+
+      // Save token to localStorage if backend returned one
+      try {
+        const token = res?.data?.access_token;
+        if (token) localStorage.setItem('access_token', token);
+      } catch (e) {
+        // ignore localStorage errors
+      }
+
+      const meRes = await apiFetch.get('/auth/me');
+      const body = meRes?.data ?? null;
+      if (body && body.user) {
+        setUser(body.user as User);
+        setMasterKey(key);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err) {
+      console.error('Login error', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = async () => {
     try {
-      await apiFetch({ url: '/auth/logout', method: 'POST' });
+      await apiFetch.post('/auth/logout');
     } catch (e) {
       // ignore
+    } finally {
+      try {
+        localStorage.removeItem('access_token');
+      } catch (e) {
+        // ignore
+      }
+      setUser(null);
+      setMasterKey(null);
+      window.location.href = '/login';
     }
-    setUser(null);
-    setMasterKey(null);
-    window.location.href = '/login';
   };
 
   const isAuthenticated = !!user;
