@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, status, Response, Cookie
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt, JWTError
+from fastapi.security import OAuth2PasswordBearer
+from typing import Optional
 
 from app.core.config import settings
 from slowapi import Limiter
@@ -15,6 +17,9 @@ import logging
 logger = logging.getLogger("smartcare.audit")
 
 router = APIRouter()
+
+# OAuth2 scheme (will read Authorization: Bearer ... header if present)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # Use settings-defined TTL (config enforces a conservative maximum)
@@ -125,22 +130,33 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     return response
 
 
-def get_current_user_id(request: Request) -> str:
-    """Decodes the JWT from the access_token cookie."""
-    token = request.cookies.get("access_token")
+async def get_current_user(
+    request: Request,
+    # Try cookie first (named access_token)
+    cookie_token: Optional[str] = Cookie(None, alias="access_token"),
+    # Try Authorization header next
+    header_token: Optional[str] = Depends(oauth2_scheme),
+    db=Depends(get_db),
+) -> User:
+    # Prefer header token (standard for APIs), fall back to cookie
+    token = header_token or cookie_token
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        # Helpful debug for deployments; avoid leaking sensitive contents
+        print(f"DEBUG: Auth failed. Headers: {request.headers.get('authorization')}, Cookie: {cookie_token}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
         payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return user_id
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-
-def get_current_user(user_id: str = Depends(get_current_user_id), db=Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
