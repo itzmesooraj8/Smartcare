@@ -1,3 +1,64 @@
+from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy.orm import Session
+from app.database import SessionLocal
+from app.core import settings
+from app.models import User
+from app.utils import verify_password, create_access_token
+from app.schemas import TokenResponse, LoginRequest
+
+
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(title="SmartCare Backend")
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+app.add_middleware(SlowAPIMiddleware)
+
+# Strict CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user or not verify_password(request.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    role = "doctor" if user.is_doctor else "patient"
+
+    # Enforce MFA immediately for doctors
+    if role == "doctor" and not user.mfa_totp_secret:
+        raise HTTPException(status_code=428, detail="MFA required. Please set up TOTP before logging in.")
+
+    token = create_access_token(subject=str(user.id), role=role)
+
+    response = {"access_token": token, "token_type": "bearer"}
+    return response
+
+
+@app.get("/api/v1/health")
+def health():
+    return {"status": "ok"}
 import logging
 import sys
 from datetime import datetime, timedelta
