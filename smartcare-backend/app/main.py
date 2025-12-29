@@ -149,13 +149,11 @@ app.add_exception_handler(HTTPException, lambda request, exc: JSONResponse(statu
 
 # Log validation errors (422) including raw request body and headers to aid debugging
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    try:
-        body_bytes = await request.body()
-        body_preview = body_bytes.decode('utf-8', errors='replace')[:2000]
-    except Exception:
-        body_preview = '<unable to read body>'
-    headers = dict(request.headers)
-    logger.error(f"RequestValidationError on {request.url.path} from origin={headers.get('origin')} method={request.method} body_preview={body_preview}")
+    # IMPORTANT: Do NOT read or log the request body here — it may contain
+    # sensitive data such as plaintext passwords. Logging request body
+    # to server logs or external logging providers can leak credentials.
+    origin = request.headers.get('origin') or request.headers.get('referer')
+    logger.error(f"RequestValidationError on {request.url.path} from origin={origin} method={request.method} error={type(exc).__name__}")
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -376,24 +374,11 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     role = getattr(user, 'role', 'patient')
-    # Enforce MFA setup for privileged roles (doctors)
+    # Enforce immediate MFA setup for privileged roles (doctors).
+    # DO NOT allow a grace period — issuing a session before MFA setup
+    # creates an easy path for stolen credentials to be used.
     if role == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
-        # Allow a short grace period (3 logins) for doctors to enable MFA.
-        if getattr(user, 'mfa_grace_count', 0) < 3:
-            # Increment grace counter and log high-severity audit entry
-            try:
-                user.mfa_grace_count = (user.mfa_grace_count or 0) + 1
-                db.add(user)
-                db.commit()
-                db.refresh(user)
-                audit = AuditLog(user_id=user.id, target_id=user.id, action='MFA_GRACE_USED', resource_type='User', ip_address=request.client.host)
-                db.add(audit)
-                db.commit()
-            except Exception:
-                db.rollback()
-        else:
-            # Require the doctor to set up TOTP MFA before allowing cookie issuance
-            raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
+        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
 
     token = create_access_token(subject=str(user.id), role=role)
 

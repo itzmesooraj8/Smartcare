@@ -98,9 +98,21 @@ const RegisterPage = () => {
           const masterKey = await generateMasterKey();
           const wrapped = await wrapMasterKey(masterKey, formData.password);
 
+          // Hash password client-side (SHA-256) before sending to backend.
+          // Server stores bcrypt(SHA256(password)) and never sees the raw password.
+          const sha256Hex = async (msg: string) => {
+            const enc = new TextEncoder();
+            const data = enc.encode(msg);
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            const arr = Array.from(new Uint8Array(hash));
+            return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+          };
+
+          const hashedPassword = await sha256Hex(formData.password);
+
           const payload: any = {
             email: formData.email,
-            password: formData.password,
+            password: hashedPassword,
             full_name: formData.name,
             role: formData.role,
             encrypted_master_key: wrapped.cipher_text,
@@ -116,10 +128,10 @@ const RegisterPage = () => {
           });
 
           // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
-          try {
+            try {
             // apiFetch is available via import in this module — use a direct call to the auth login
             const { apiFetch } = await import('@/lib/api');
-            const loginRes: any = await apiFetch('/auth/login', { method: 'POST', data: { email: formData.email, password: formData.password }, auth: false });
+            const loginRes: any = await apiFetch('/auth/login', { method: 'POST', data: { email: formData.email, password: hashedPassword }, auth: false });
             const user = loginRes?.user || loginRes?.data?.user || loginRes;
             // Store in context + keep master key in memory
             if (user) {

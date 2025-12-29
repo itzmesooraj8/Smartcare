@@ -1,124 +1,143 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
-from app.database import get_db
-from app.models.user import User
-import hashlib
-from datetime import datetime
+"""Authentication router (cleaned).
 
-# --- 1. SETUP LOCAL HASHING CONTEXT ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+Key fixes in this file:
+- Use a fixed-length SHA-256 digest (`get_safe_hash`) as the input to
+  bcrypt to avoid bcrypt truncation issues and to avoid storing raw
+  passwords as plain text in any logs.
+- Include `role` in registration so privileged users can be created.
+- Enforce immediate MFA for privileged roles (doctors) at login time.
+"""
 
-router = APIRouter()
-
-# --- 2. DEFINE SCHEMAS ---
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-# --- 3. THE SAFE HASH HELPER ---
-def get_safe_hash(password: str) -> str:
-    # Compresses long encrypted password to 64 bytes to prevent Bcrypt crash
-    return hashlib.sha256(password.encode()).hexdigest()
-
-# --- 4. ENDPOINTS ---
-
-@router.post("/register")
-def register(payload: UserRegister, db: Session = Depends(get_db)):
-    # Check if user exists
-    existing_user = db.query(User).filter(User.email == payload.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    # 👇 CRITICAL FIX: Hash happens HERE, not inside User()
-    safe_pw_input = get_safe_hash(payload.password)
-    hashed_pw = pwd_context.hash(safe_pw_input)
-
-    # Create User
-    new_user = User(
-        email=payload.email,
-        hashed_password=hashed_pw, # Uses the pre-hashed value
-        full_name=payload.full_name,
-        created_at=datetime.utcnow()
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return {"message": "User created successfully", "user": {"email": new_user.email, "id": new_user.id}}
-
-@router.post("/login")
-def login(payload: UserLogin, response: Response, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
-    
-    # Check password using the same safe hash logic
-    safe_pw_input = get_safe_hash(payload.password)
-    
-    if not user or not pwd_context.verify(safe_pw_input, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    response.set_cookie(key="smartcare_token", value=f"user_{user.id}", httponly=True, samesite="none", secure=True)
-    
-    return {"message": "Login successful", "user": {"email": user.email, "full_name": user.full_name, "role": user.role}}
-
-@router.get("/me")
-def read_users_me(response: Response, db: Session = Depends(get_db)):
-    raise HTTPException(status_code=401, detail="Not authenticated")
-
-@router.post("/logout")
-def logout(response: Response):
-    response.delete_cookie("smartcare_token")
-    return {"message": "Logged out"}
-
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from app.database import get_db
 from app.models.user import User
+from app.models.vault_entry import VaultEntry
+from app.core.security import create_jwt
+from app.core.config import settings
 import hashlib
+import logging
 from datetime import datetime
 
-# --- 1. SETUP LOCAL HASHING CONTEXT ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger('smartcare.auth')
 
+pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12, deprecated="auto")
 router = APIRouter()
 
-# --- 2. DEFINE SCHEMAS ---
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-# --- 3. THE MAGIC FIX (Must be used!) ---
 def get_safe_hash(password: str) -> str:
-    """
-    Compresses the long encrypted password into a 64-character SHA-256 string.
-    This prevents Bcrypt from crashing on passwords > 72 bytes.
-    """
-    return hashlib.sha256(password.encode()).hexdigest()
+    if password is None:
+        return ""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
-# --- 4. ENDPOINTS ---
 
-@router.post("/register")
-def register(payload: UserRegister, db: Session = Depends(get_db)):
-    # Check if user exists
-    existing_user = db.query(User).filter(User.email == payload.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str | None = None
+    role: str = "patient"
+    encrypted_master_key: str | None = None
+    key_encryption_iv: str | None = None
+    key_derivation_salt: str | None = None
 
-    # 👇 CRITICAL: We hash the SAFE (short) version, not the raw payload
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+@router.post('/register')
+def register(payload: RegisterIn, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail='Email already registered')
+
+    try:
+        domain = payload.email.split('@')[-1].lower()
+    except Exception:
+        domain = ''
+    if domain in ('localhost', 'example.com') or domain.startswith('demo') or 'demo' in domain:
+        raise HTTPException(status_code=400, detail='Registration using demo/local domains is not allowed')
+
+    safe = get_safe_hash(payload.password)
+    user = User(email=payload.email, hashed_password=pwd_context.hash(safe), full_name=payload.full_name, role=payload.role, created_at=datetime.utcnow())
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    if payload.encrypted_master_key:
+        ve = VaultEntry(
+            user_id=user.id,
+            encrypted_master_key=payload.encrypted_master_key,
+            key_encryption_iv=payload.key_encryption_iv,
+            key_derivation_salt=payload.key_derivation_salt,
+        )
+        try:
+            db.add(ve)
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    return {'id': user.id, 'email': user.email}
+
+
+@router.post('/login')
+def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
+    try:
+        user = db.query(User).filter(User.email == payload.email).first()
+        safe = get_safe_hash(payload.password)
+        if not user or not pwd_context.verify(safe, user.hashed_password):
+            raise HTTPException(status_code=401, detail='Invalid credentials')
+
+        # Enforce immediate MFA for privileged roles (doctors)
+        if getattr(user, 'role', 'patient') == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
+            raise HTTPException(status_code=428, detail='MFA_SETUP_REQUIRED')
+
+        token = create_jwt(str(user.id))
+
+        user_profile = {
+            'id': user.id,
+            'email': user.email,
+            'full_name': getattr(user, 'full_name', None),
+            'role': getattr(user, 'role', 'patient')
+        }
+
+        response = JSONResponse(content={'user': user_profile})
+        response.set_cookie(
+            key='access_token',
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite='none',
+            max_age=60 * 60,
+            path='/'
+        )
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception('Unhandled exception in login')
+        env = getattr(settings, 'ENVIRONMENT', '') or ''
+        if env.lower() != 'production':
+            raise HTTPException(status_code=500, detail=f'Internal server error: {str(e)}')
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@router.post('/logout')
+def logout():
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content={'message': 'Logged out'})
+    response.delete_cookie('access_token', path='/', domain=None)
+    return response
+
     safe_pw_input = get_safe_hash(payload.password)
     hashed_pw = pwd_context.hash(safe_pw_input)
 
