@@ -62,6 +62,7 @@ Environment Variables (copy-paste)
 Notes & Best Practices
 - Replace `ALLOWED_ORIGINS="*"` with your frontend domain(s) in production for security.
 - Keep `SECRET_KEY` secret; use a strong random value (e.g., `openssl rand -hex 32`).
+- Use a dedicated secrets manager (AWS Secrets Manager, HashiCorp Vault, or GCP Secret Manager) for private keys and encryption keys rather than relying on plain environment variables in the deployment dashboard.
 - For database migrations: if you need Alembic, add `alembic` to `requirements.txt` and run migrations as part of a build hook or via a separate CI step.
 - If realtime WebRTC signaling uses Supabase Realtime, confirm Realtime is enabled in your Supabase project and the anon key allows channel subscriptions.
 
@@ -78,7 +79,6 @@ Contact
 
 When deploying to production, ensure the following environment variables are set (concise):
 
-- `VITE_ENABLE_DEMO`: Set to `false` to disable the demo/backdoor behavior in production.
 - `TURN_SERVER_URL`: TURN server URL (backend uses this to build ICE/TURN config).
 - `TURN_USER`: TURN server username.
 - `TURN_PASS`: TURN server password.
@@ -92,10 +92,11 @@ Keep credentials secret and provision them via your platform's secure env var st
 When deploying to Vercel/Render, add these extra variables:
 
 **Backend (smartcare-backend):**
-- `VITE_ENABLE_DEMO`: `false` (CRITICAL: Disables the demo123 backdoor)
 - `TURN_SERVER_URL`: *(Not required for STUN-only free mode)*
 - `TURN_USER`: *(Not required for STUN-only free mode)*
 - `TURN_PASS`: *(Not required for STUN-only free mode)*
 
 **Frontend (smartcare):**
 - Ensure `VITE_API_URL` points to your production backend (https://your-backend.onrender.com).
+
+Important: The project previously included a demo/backdoor flag. Backdoor login mechanisms are removed from the codebase and MUST NOT be reintroduced (do not add `VITE_ENABLE_DEMO` or similar flags). Use dedicated test environments or feature flags behind strong access controls for demos.

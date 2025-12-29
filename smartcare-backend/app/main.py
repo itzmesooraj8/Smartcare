@@ -29,7 +29,8 @@ from app.api.v1 import (
 from app import signaling as signaling_module
 
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Use application settings for token TTL; config enforces a conservative maximum (<=15)
+ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
 logger = logging.getLogger("smartcare")
 
 app = FastAPI(title="SmartCare Backend")

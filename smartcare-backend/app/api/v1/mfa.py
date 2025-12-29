@@ -5,6 +5,11 @@ from app.database import get_db
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.api.v1.medical_records import get_current_user
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+# Conservative rate limits for MFA endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
@@ -16,6 +21,7 @@ class VerifyRequest(BaseModel):
     token: str
 
 @router.post("/setup", response_model=SetupResponse)
+@limiter.limit("1/minute")
 def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Generate a TOTP secret for the user. In production this should be encrypted at rest.
     secret = pyotp.random_base32()
@@ -27,6 +33,7 @@ def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depe
     return {"provisioning_uri": provisioning_uri, "secret": secret}
 
 @router.post("/verify")
+@limiter.limit("5/minute")
 def verify_mfa(req: VerifyRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user.mfa_totp_secret:
         raise HTTPException(status_code=400, detail="MFA not configured for this user")

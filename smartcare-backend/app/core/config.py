@@ -101,6 +101,20 @@ class Settings:
         # Optional runtime settings
         self.REDIS_URL: str | None = os.getenv("REDIS_URL")
 
+        # Access token TTL: allow override via env but enforce a conservative maximum
+        # For healthcare workflows, keep short-lived tokens. Default to 15 minutes.
+        raw_ttl = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+        try:
+            parsed = int(raw_ttl) if raw_ttl else 15
+        except Exception:
+            parsed = 15
+        # Enforce minimum 1 minute and maximum 15 minutes for safety
+        if parsed < 1:
+            parsed = 1
+        if parsed > 15:
+            parsed = 15
+        self.ACCESS_TOKEN_EXPIRE_MINUTES: int = parsed
+
         # Supabase keys (server-side operations)
         self.SUPABASE_URL: str | None = os.getenv("SUPABASE_URL")
         self.SUPABASE_ANON_KEY: str | None = os.getenv("SUPABASE_ANON_KEY")

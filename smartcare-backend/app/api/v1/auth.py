@@ -5,13 +5,19 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 from app.core.config import settings
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 
 router = APIRouter()
 
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Use settings-defined TTL (config enforces a conservative maximum)
+ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
+
+# Local limiter for auth endpoints (conservative limits to reduce brute-force risk)
+limiter = Limiter(key_func=get_remote_address)
 
 
 class LoginRequest(BaseModel):
@@ -33,6 +39,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
