@@ -1,22 +1,30 @@
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.orm import Session
-from app.database import SessionLocal
+
+from app.database import get_db
 from app.core import settings
-from app.models import User
+from app.models.user import User
 from app.utils import verify_password, create_access_token
 from app.schemas import TokenResponse, LoginRequest
 
 
-limiter = Limiter(key_func=get_remote_address)
+def get_client_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for")
+    peer = request.client.host
+    trusted = getattr(settings, 'TRUSTED_PROXIES', []) or []
+    if forwarded and peer in trusted:
+        return forwarded.split(",")[0].strip()
+    return peer
+
+
+limiter = Limiter(key_func=get_client_ip)
 
 app = FastAPI(title="SmartCare Backend")
 app.state.limiter = limiter
-app.add_exception_handler(429, _rate_limit_exceeded_handler)
-
 app.add_middleware(SlowAPIMiddleware)
 
 # Strict CORS
@@ -29,36 +37,53 @@ app.add_middleware(
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+@limiter.limit("5/minute")
+@app.post("/api/v1/auth/login")
+def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-
-@app.post("/api/v1/login", response_model=TokenResponse)
-@limiter.limit("10/minute")
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user or not verify_password(request.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    role = "doctor" if user.is_doctor else "patient"
-
-    # Enforce MFA immediately for doctors
-    if role == "doctor" and not user.mfa_totp_secret:
-        raise HTTPException(status_code=428, detail="MFA required. Please set up TOTP before logging in.")
+    role = getattr(user, 'role', 'patient')
+    
+    # Check MFA
+    if role == 'doctor' and not getattr(user, 'mfa_totp_secret', None):
+        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
 
     token = create_access_token(subject=str(user.id), role=role)
 
-    response = {"access_token": token, "token_type": "bearer"}
+    response = JSONResponse(content={
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": getattr(user, 'full_name', None),
+            "role": role,
+        }
+    })
+    
+    # Secure Cookie
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=60 * 60,
+        path='/'
+    )
     return response
 
 
-@app.get("/api/v1/health")
-def health():
-    return {"status": "ok"}
+@app.post("/api/v1/auth/logout")
+def logout():
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie("access_token", path='/', domain=None)
+    return response
+
+
+@app.get("/")
+def root():
+    return {"status": "online", "service": "SmartCare Backend"}
 import logging
 import sys
 from datetime import datetime, timedelta
