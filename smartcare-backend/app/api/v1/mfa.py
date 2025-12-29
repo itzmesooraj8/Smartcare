@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 import pyotp
 from app.database import get_db
@@ -22,7 +22,7 @@ class VerifyRequest(BaseModel):
 
 @router.post("/setup", response_model=SetupResponse)
 @limiter.limit("1/minute")
-def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def setup_mfa(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Generate a TOTP secret for the user. In production this should be encrypted at rest.
     secret = pyotp.random_base32()
     provisioning_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=current_user.email, issuer_name="SmartCare")
@@ -34,7 +34,7 @@ def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depe
 
 @router.post("/verify")
 @limiter.limit("5/minute")
-def verify_mfa(req: VerifyRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def verify_mfa(request: Request, req: VerifyRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user.mfa_totp_secret:
         raise HTTPException(status_code=400, detail="MFA not configured for this user")
     totp = pyotp.TOTP(current_user.mfa_totp_secret)
