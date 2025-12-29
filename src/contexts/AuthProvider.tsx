@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiFetch.get('/auth/me').catch(() => null);
+        const res = await apiFetch.get<{ user?: User }>('/auth/me').catch(() => null);
         const body = res?.data ?? null;
         if (body && body.user) setUser(body.user as User);
       } catch (e) {
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
     setIsLoading(true);
     try {
-      const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
+      const res = await apiFetch.post<{ access_token?: string }>('/auth/login', { email, password: passwordHash });
 
       // Save token to localStorage if backend returned one
       try {
@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ignore localStorage errors
       }
 
-      const meRes = await apiFetch.get('/auth/me');
+      const meRes = await apiFetch.get<{ user?: User }>('/auth/me');
       const body = meRes?.data ?? null;
       if (body && body.user) {
         setUser(body.user as User);
