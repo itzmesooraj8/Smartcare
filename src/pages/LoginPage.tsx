@@ -49,7 +49,9 @@ const LoginPage = () => {
 
       const user = res.user || res.data?.user || res;
       // Fetch wrapped vault key separately (requires MFA confirmation). The server issues HttpOnly cookie on login.
-      const key_data = await apiFetch({ path: '/vault/key', method: 'GET', headers: { 'X-MFA-Verified': 'true' } }).catch(() => null);
+      // Do not send client-side flags that assert MFA verification. The server
+      // must always verify MFA via `X-MFA-Token` or a full token scope.
+      const key_data = await apiFetch({ path: '/vault/key', method: 'GET' }).catch(() => null);
       if (!user) throw new Error('Invalid login response');
 
       // Unwrap master key using the password provided by the user

@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from fastapi import Request
 from .core.config import settings
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine import Engine
@@ -61,7 +62,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db(user_id: str | None = None):
+def get_db(request: Request | None = None, user_id: str | None = None):
     """Database session dependency.
 
     If `user_id` is provided (usually set by a wrapper dependency after auth), this will
@@ -70,11 +71,16 @@ def get_db(user_id: str | None = None):
     """
     db = SessionLocal()
     try:
+        # If no explicit user_id was provided, try to read it from the Request state
+        # (injected by middleware that decodes the bearer cookie/token).
+        if not user_id and request is not None and hasattr(request, "state"):
+            user_id = getattr(request.state, "current_user_id", None)
+
         if user_id:
             try:
                 db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
             except Exception:
-                # Do not fail the request here; log at higher level if needed.
+                # Do not fail the request here; higher-level logic can surface DB issues.
                 pass
         yield db
     finally:

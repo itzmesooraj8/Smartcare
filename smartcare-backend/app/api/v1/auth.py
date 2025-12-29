@@ -10,6 +10,9 @@ from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 from app.models.audit_log import AuditLog
+import logging
+
+logger = logging.getLogger("smartcare.audit")
 
 router = APIRouter()
 
@@ -59,8 +62,10 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         audit = AuditLog(user_id=str(user.id), action="LOGIN", resource_type="auth", ip_address=ip)
         db.add(audit)
         db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        # Do not silently ignore audit failures — record for operators. In higher-security
+        # deployments you may want to fail the action instead of failing open.
+        logger.error("AUDIT LOG FAILURE: %s", str(e))
     response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}})
     response.set_cookie(
         key="access_token",

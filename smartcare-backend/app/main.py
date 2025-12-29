@@ -35,6 +35,40 @@ logger = logging.getLogger("smartcare")
 
 app = FastAPI(title="SmartCare Backend")
 
+
+@app.middleware("http")
+async def inject_current_user(request: Request, call_next):
+    """Decode the incoming JWT (cookie or Authorization header) and set
+    `request.state.current_user_id` for use by DB session dependency so
+    Postgres RLS policies can use `current_setting('app.current_user_id')`.
+    """
+    request.state.current_user_id = None
+    token = None
+    # Prefer HttpOnly cookie named `access_token` set by login
+    try:
+        token = request.cookies.get("access_token")
+    except Exception:
+        token = None
+
+    # Fallback: Authorization: Bearer <token>
+    if not token:
+        auth = request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1]
+
+    if token:
+        try:
+            payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
+            sub = payload.get("sub")
+            if sub:
+                request.state.current_user_id = str(sub)
+        except Exception:
+            # Do not raise here; leave current_user_id as None
+            request.state.current_user_id = None
+
+    response = await call_next(request)
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
