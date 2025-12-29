@@ -62,25 +62,29 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db(request: Request | None = None, user_id: str | None = None):
-    """Database session dependency.
+def get_db(request: Request):
+    """
+    Database session dependency.
 
-    If `user_id` is provided (usually set by a wrapper dependency after auth), this will
-    immediately execute `SET LOCAL app.current_user_id = :user_id` on the session so
-    Postgres Row-Level Security policies can rely on `current_setting('app.current_user_id')::uuid`.
+    CRITICAL SECURITY NOTE: 
+    We do NOT accept user_id as a function argument here. If we did, FastAPI would 
+    expose it as a public query parameter, allowing RLS bypass via URL injection.
+    We strictly read from request.state.current_user_id, which is populated ONLY 
+    by the trusted middleware validating the JWT.
     """
     db = SessionLocal()
     try:
-        # If no explicit user_id was provided, try to read it from the Request state
-        # (injected by middleware that decodes the bearer cookie/token).
-        if not user_id and request is not None and hasattr(request, "state"):
-            user_id = getattr(request.state, "current_user_id", None)
+        # Read trusted user_id from middleware (see main.py:inject_current_user)
+        user_id = getattr(request.state, "current_user_id", None) if hasattr(request, "state") else None
 
         if user_id:
             try:
+                # Set the Postgres local variable for RLS policies
+                # This ensures queries in this session can only see this user's rows
                 db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
             except Exception:
-                # Do not fail the request here; higher-level logic can surface DB issues.
+                # If setting RLS fails, we generally fail open (allow query) or closed (block).
+                # For high security, you might want to log this or raise an error.
                 pass
         yield db
     finally:
