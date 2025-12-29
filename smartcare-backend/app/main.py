@@ -28,7 +28,8 @@ from app.api.v1 import (
 # Signaling lives at app/signaling.py
 from app import signaling as signaling_module
 
-pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
+# Use Argon2 for password hashing to avoid bcrypt 72-byte limit and DoS risk
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # Use application settings for token TTL; config enforces a conservative maximum (<=15)
 ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
 logger = logging.getLogger("smartcare")

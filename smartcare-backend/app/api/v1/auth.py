@@ -16,7 +16,7 @@ logger = logging.getLogger("smartcare.audit")
 
 router = APIRouter()
 
-pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # Use settings-defined TTL (config enforces a conservative maximum)
 ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
 
