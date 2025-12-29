@@ -87,7 +87,13 @@ def register(payload: RegisterRequest, db=Depends(get_db)):
 
     # Create access token and set cookie + return token in body as a fallback
     token = create_access_token(subject=str(user.id), role=user.role, scopes=["full_access"])
-    response = JSONResponse(content={"message": "created", "user": {"id": user.id, "email": user.email, "role": user.role}, "recovery_key": recovery_key, "access_token": token, "token_type": "bearer"})
+    response = JSONResponse(content={
+        "message": "created",
+        "user": {"id": str(user.id), "email": user.email, "full_name": user.full_name, "role": user.role},
+        "recovery_key": recovery_key,
+        "access_token": token,
+        "token_type": "bearer",
+    })
     response.set_cookie(
         key="access_token",
         value=token,
@@ -129,7 +135,11 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         # deployments you may want to fail the action instead of failing open.
         logger.error("AUDIT LOG FAILURE: %s", str(e))
     # Indicate whether MFA is required so the frontend can prompt for the code
-    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}, "mfa_required": mfa_required, "access_token": token})
+    response = JSONResponse(content={
+        "user": {"id": str(user.id), "email": user.email, "full_name": getattr(user, 'full_name', None), "role": role},
+        "mfa_required": mfa_required,
+        "access_token": token,
+    })
     response.set_cookie(
         key="access_token",
         value=token,
