@@ -1,3 +1,132 @@
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+
+from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.database import engine, get_db, Base
+from app.models.user import User
+from app.services import signaling as signaling_module
+from app.api.v1 import (
+    dashboard as dashboard_module,
+    appointments as appointments_module,
+    medical_records as medical_records_module,
+    tele as tele_module,
+    admin as admin_module,
+    files as files_module,
+    video as video_module,
+    mfa as mfa_module,
+    vault as vault_module,
+    protected_key as protected_key_module,
+    auth as auth_module,
+    mfa_recovery as mfa_recovery_module,
+)
+from app.utils import verify_password, create_access_token
+from app.schemas import TokenResponse, LoginRequest
+
+
+logger = logging.getLogger("smartcare")
+logging.basicConfig(level=logging.INFO)
+
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+
+def get_client_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for")
+    peer = request.client.host
+    trusted = getattr(settings, "TRUSTED_PROXIES", []) or []
+    if forwarded and peer in trusted:
+        return forwarded.split(",")[0].strip()
+    return peer
+
+
+limiter = Limiter(key_func=get_client_ip)
+
+app = FastAPI(title="SmartCare Backend")
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# Strict CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+@limiter.limit("5/minute")
+@app.post("/api/v1/auth/login", response_model=TokenResponse)
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    role = getattr(user, "role", "patient")
+
+    # Enforce MFA immediately for doctors
+    if role == "doctor" and not getattr(user, "mfa_totp_secret", None):
+        # Return 428 Precondition Required to trigger frontend setup flow
+        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
+
+    # THIS LINE must be aligned with the `if` above (no extra indentation)
+    token = create_access_token(subject=str(user.id), role=role)
+
+    response = JSONResponse(content={
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": getattr(user, "full_name", None),
+            "role": role,
+        }
+    })
+
+    # Secure Cookie
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return response
+
+
+@app.post("/api/v1/auth/logout")
+def logout():
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie("access_token", path="/", domain=None)
+    return response
+
+
+@app.get("/")
+def root():
+    return {"status": "online", "service": "SmartCare Backend"}
+
+
+# Router registration (kept at bottom to avoid circular imports at top-level)
+app.include_router(signaling_module.router)
+app.include_router(dashboard_module.router, prefix="/api/v1/patient")
+app.include_router(appointments_module.router, prefix="/api/v1/appointments")
+app.include_router(medical_records_module.router, prefix="/api/v1/medical-records")
+app.include_router(tele_module.router, prefix="/api/v1/tele")
+app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
+app.include_router(video_module.router, prefix="/api/v1/video", tags=["Video"])
+app.include_router(mfa_module.router, prefix="/api/v1/mfa", tags=["MFA"])
+app.include_router(vault_module.router, prefix="/api/v1/vault", tags=["Vault"])
+app.include_router(protected_key_module.router, prefix="/api/v1/keys", tags=["Keys"])
+app.include_router(auth_module.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(mfa_recovery_module.router, prefix="/api/v1/mfa/recovery", tags=["MFA-Recovery"])
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
