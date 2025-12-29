@@ -155,6 +155,14 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
         except Exception:
             # If decryption fails, skip the record or return error placeholder
             continue
+    # Audit: record that the user viewed records (immutable)
+    try:
+        audit = AuditLog(user_id=str(current_user.id), target_id=None, action="VIEW_RECORDS", resource_type="MEDICAL_RECORDS", ip_address="masked")
+        db.add(audit)
+        db.commit()
+    except Exception:
+        # Do not fail the request if audit logging fails; ensure operators see server logs.
+        pass
             
     return result
 

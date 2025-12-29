@@ -44,9 +44,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ onTranscriptChange }) => {
     setIsLoading(true);
 
     try {
-      // 2. Call the API
-      const aiResponseText = await sendMessageToAI(userMessage.text);
-      
+      // 2. Call the API with a context window (last 6 messages)
+      const context = [...messages, userMessage].slice(-6).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
+      const aiResponseText = await sendMessageToAI(context);
+
       // 3. Add AI Message
       const aiMessage: Message = { id: Date.now() + 1, text: aiResponseText, sender: 'ai' };
       setMessages(prev => [...prev, aiMessage]);

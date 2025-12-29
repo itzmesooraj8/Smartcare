@@ -1,9 +1,10 @@
 // Compatibility shim: proxy legacy sendMessageToAI to the central apiFetch helper.
 import { apiFetch } from '@/lib/api';
 
-export async function sendMessageToAI(message) {
-  // Route through central apiFetch which uses withCredentials and HttpOnly cookies.
-  const res = await apiFetch({ path: '/chat', method: 'POST', body: { message } });
+export async function sendMessageToAI(messageOrMessages) {
+  // Accept either a single message string or an array of messages for context.
+  const body = Array.isArray(messageOrMessages) ? { messages: messageOrMessages } : { messages: [ { role: 'user', content: messageOrMessages } ] };
+  const res = await apiFetch({ path: '/chat', method: 'POST', body });
   return res;
 }
 

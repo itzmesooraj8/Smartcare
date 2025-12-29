@@ -42,6 +42,47 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str | None = None
+    role: str | None = "patient"
+    encrypted_master_key: str | None = None
+    key_encryption_iv: str | None = None
+    key_derivation_salt: str | None = None
+
+
+@router.post("/register")
+def register(payload: RegisterRequest, db=Depends(get_db)):
+    # Server-side password hashing
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    hashed = pwd_context.hash(payload.password)
+    is_doctor = (payload.role == 'doctor')
+    user = User(email=payload.email, hashed_password=hashed, full_name=payload.full_name or None, role=payload.role or 'patient', is_active=(not is_doctor))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # Store wrapped master key in vault if provided
+    if payload.encrypted_master_key:
+        try:
+            from app.models.vault_entry import VaultEntry
+            ve = VaultEntry(user_id=str(user.id), encrypted_master_key=payload.encrypted_master_key, key_encryption_iv=payload.key_encryption_iv, key_derivation_salt=payload.key_derivation_salt)
+            db.add(ve)
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    # Generate a one-time recovery key for the user to save locally (presented to user)
+    import secrets
+    recovery_key = secrets.token_hex(32)
+
+    return {"status": "created", "user": {"id": user.id, "email": user.email, "role": user.role}, "recovery_key": recovery_key}
+
+
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
