@@ -45,6 +45,10 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
     token = authorization.split(" ")[1]
     try:
         payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
+        # Require full_access scope for medical record access
+        scopes = payload.get('scopes', []) or []
+        if 'full_access' not in scopes:
+            raise HTTPException(status_code=403, detail="Full access token required")
         user = db.query(User).filter_by(id=str(payload.get('sub'))).first()
         if not user: raise HTTPException(status_code=401, detail="User not found")
         return user

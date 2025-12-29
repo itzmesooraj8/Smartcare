@@ -21,6 +21,10 @@ def _get_user_from_bearer(authorization: str | None, db: Session) -> User:
     token = parts[1]
     try:
         payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=['RS256'])
+        # Require full_access scope for vault operations
+        scopes = payload.get('scopes', []) or []
+        if 'full_access' not in scopes:
+            raise HTTPException(status_code=403, detail='Full access token required')
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail='Invalid token payload')

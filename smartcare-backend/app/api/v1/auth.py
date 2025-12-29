@@ -29,10 +29,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def create_access_token(subject: str, role: str | None = None) -> str:
+def create_access_token(subject: str, role: str | None = None, scopes: list[str] | None = None) -> str:
     from datetime import datetime, timedelta
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": subject, "exp": expire}
+    to_encode = {"sub": subject, "exp": expire, "scopes": scopes or []}
     if role:
         to_encode["role"] = role
     return jwt.encode(to_encode, settings.PRIVATE_KEY, algorithm="RS256")
@@ -50,10 +50,14 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     role = getattr(user, "role", "patient")
-    if role == "doctor" and not getattr(user, "mfa_totp_secret", None):
-        raise HTTPException(status_code=428, detail="MFA_SETUP_REQUIRED")
-
-    token = create_access_token(subject=str(user.id), role=role)
+    # If user has MFA configured, issue a limited "pre_auth" token and require
+    # the client to complete MFA to receive the full-access token.
+    if getattr(user, "mfa_totp_secret", None):
+        token = create_access_token(subject=str(user.id), role=role, scopes=["pre_auth"])
+        mfa_required = True
+    else:
+        token = create_access_token(subject=str(user.id), role=role, scopes=["full_access"])
+        mfa_required = False
     # Record immutable audit log for successful login (do not block login on failure)
     try:
         ip = None
@@ -66,7 +70,8 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
         # Do not silently ignore audit failures — record for operators. In higher-security
         # deployments you may want to fail the action instead of failing open.
         logger.error("AUDIT LOG FAILURE: %s", str(e))
-    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}})
+    # Indicate whether MFA is required so the frontend can prompt for the code
+    response = JSONResponse(content={"user": {"id": user.id, "email": user.email, "role": role}, "mfa_required": mfa_required})
     response.set_cookie(
         key="access_token",
         value=token,

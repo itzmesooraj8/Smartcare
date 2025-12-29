@@ -22,6 +22,9 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
     token = parts[1]
     try:
         payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
+        scopes = payload.get('scopes', []) or []
+        if 'full_access' not in scopes:
+            raise HTTPException(status_code=403, detail="Full access token required")
         sub = payload.get('sub')
         if not sub:
             raise HTTPException(status_code=401, detail="Invalid token payload")
