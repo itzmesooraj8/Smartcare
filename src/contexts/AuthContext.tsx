@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiFetch } from '@/lib/api';
+import apiFetch from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -28,9 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = (await apiFetch('/auth/me')) as { user?: User } | null;
-        if (res?.user) {
-          setUser(res.user);
+        const res = await apiFetch.get('/auth/me').catch(() => null);
+        const body = (res as any)?.data ?? null;
+        if (body?.user) {
+          setUser(body.user as User);
         }
       } catch (err) {
         setUser(null);
@@ -44,16 +45,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
     setIsLoading(true);
     try {
-      const res = (await apiFetch('/auth/login', {
-        method: 'POST',
-        data: { email, password: passwordHash },
-        auth: false,
-      })) as { user?: User; data?: { user?: User } } | null;
+      const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
 
-      const userData = res?.user || res?.data?.user;
+      // Save token to localStorage if backend returned one (fallback for third-party cookie issues)
+      try {
+        const token = (res as any)?.data?.access_token;
+        if (token) localStorage.setItem('access_token', token);
+      } catch (e) {
+        // ignore localStorage errors (e.g., SSR)
+      }
+
+      // Fetch the authenticated user's profile
+      const meRes = await apiFetch.get('/auth/me');
+      const body = (meRes as any)?.data ?? null;
+      const userData = body?.user ?? null;
       if (!userData) throw new Error('Invalid response from server');
-      
-      setUser(userData);
+      setUser(userData as User);
       setMasterKey(key);
 
     } catch (err) {
@@ -67,10 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (payload: any) => {
     setIsLoading(true);
     try {
-      await apiFetch('/auth/register', {
+      await apiFetch({
+        url: '/auth/register',
         method: 'POST',
         data: payload,
-        auth: false,
       });
     } catch (err) {
       console.error('Registration error', err);
@@ -82,7 +89,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await apiFetch('/auth/logout', { method: 'POST' });
+      await apiFetch.post('/auth/logout');
+    } catch (e) {
+      // ignore
+    }
+    try {
+      localStorage.removeItem('access_token');
     } catch (e) {
       // ignore
     }
