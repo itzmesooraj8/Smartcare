@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+from google import genai
 from fastapi import HTTPException
 import logging
 
@@ -27,28 +27,41 @@ class ChatbotService:
 
         # Proceed with enterprise/BAA usage only
         try:
-            # 2. Configure the Google AI Client
-            genai.configure(api_key=api_key)
+            # 2. Configure and create the google-genai client
+            client = genai.Client(api_key=api_key)
 
             # 3. Use the configured enterprise/vertex model
             model_name = os.getenv("GEMINI_MODEL", "models/gemini-2.0")
-            model = genai.GenerativeModel(model_name)
 
             # Avoid logging user-provided content (may contain PHI). Log only redacted indicator.
             logger.info("Sending request to Gemini Enterprise (message redacted)")
 
-            # 4. Generate Content
-            response = model.generate_content(message)
+            # 4. Generate Content using google-genai
+            # The new SDK exposes a models.generate_content method.
+            response = client.models.generate_content(model=model_name, contents=message)
 
-            # Attempt to extract a confidence score from the model response if present.
+            # Normalize response to extract text and optional confidence safely.
+            text = None
             score = None
+
+            # Response may be an object or dict depending on SDK version; try common shapes.
             try:
                 if hasattr(response, 'candidates') and response.candidates:
                     cand = response.candidates[0]
+                    text = getattr(cand, 'content', None) or getattr(cand, 'text', None)
                     score = getattr(cand, 'confidence', None) or getattr(cand, 'score', None)
-                score = score or getattr(response, 'confidence', None) or getattr(response, 'score', None)
+                elif isinstance(response, dict):
+                    if response.get('candidates'):
+                        cand = response['candidates'][0]
+                        text = cand.get('content') or cand.get('text')
+                        score = cand.get('confidence') or cand.get('score')
+                    else:
+                        text = response.get('text') or response.get('output') or str(response)
+                        score = response.get('confidence') or response.get('score')
+                else:
+                    text = getattr(response, 'text', str(response))
             except Exception:
-                score = None
+                text = str(response)
 
             confidence = float(score) if score is not None else 0.9
 
@@ -57,7 +70,6 @@ class ChatbotService:
                 "Not a substitute for professional medical advice. Verify with a clinician.]"
             )
 
-            text = getattr(response, 'text', str(response))
             combined = f"{text}{disclaimer}"
 
             result = {
