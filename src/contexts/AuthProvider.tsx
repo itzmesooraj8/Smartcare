@@ -42,16 +42,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
     setIsLoading(true);
     try {
-      const res = await apiFetch.post<{ access_token?: string }>('/auth/login', { email, password: passwordHash });
+      const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
 
-      // Save token to localStorage if backend returned one
+      // --- CRITICAL CHANGE ---
+      // Extract token and user from the login response (backend returns both)
       try {
-        const token = res?.data?.access_token;
-        if (token) localStorage.setItem('access_token', token);
+        const { access_token, user: userFromResponse } = (res as any)?.data ?? {};
+        if (access_token) localStorage.setItem('access_token', access_token);
+
+        if (userFromResponse) {
+          setUser(userFromResponse as User);
+          setMasterKey(key);
+          return;
+        }
       } catch (e) {
         // ignore localStorage errors
       }
 
+      // Fallback: fetch the authenticated user's profile
       const meRes = await apiFetch.get<{ user?: User }>('/auth/me');
       const body = meRes?.data ?? null;
       if (body && body.user) {

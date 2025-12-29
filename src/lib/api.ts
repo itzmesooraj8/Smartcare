@@ -2,35 +2,35 @@
 
 import axios from 'axios';
 
-// 1. Create the Axios instance
-const apiFetch = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "https://smartcare-zflo.onrender.com/api/v1",
-  withCredentials: true, // keep cookies enabled as a fallback
+// Create the Axios instance
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1',
+  withCredentials: true, // Important for cookies
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
-// 2. Add a Request Interceptor (THE FIX)
-apiFetch.interceptors.request.use((config) => {
-  try {
+// REQUEST INTERCEPTOR: Attaches the token
+api.interceptors.request.use(
+  (config) => {
+    // 1. Get the token from localStorage
     const token = localStorage.getItem('access_token');
+    
+    // 2. If it exists, attach it as a Bearer token
     if (token) {
-      if (!config.headers) config.headers = {};
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch (e) {
-    // ignore localStorage errors (e.g., SSR)
-  }
-  return config;
-});
-
-// 3. Add a Response Interceptor to handle 401s globally
-apiFetch.interceptors.response.use(
-  (response) => response,
+    
+    return config;
+  },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+export default api;
     if (error?.response?.status === 401) {
       try {
         localStorage.removeItem('access_token');
