@@ -35,12 +35,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const res = await apiFetch.get<{ user?: User }>('/auth/me');
+        // Set a 5-second timeout for the API call
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const res = await apiFetch.get<{ user?: User }>('/auth/me', {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
         if (res.data?.user) {
           setUser(res.data.user);
         }
       } catch (e) {
-        console.warn("Session expired or invalid:", e);
+        console.warn("Session expired, invalid, or timeout:", e);
         localStorage.removeItem('access_token');
       } finally {
         setIsLoading(false);
