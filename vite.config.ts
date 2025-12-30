@@ -49,16 +49,27 @@ export default defineConfig(({ mode }) => ({
   },
   // Build options: split vendor packages into separate chunks to avoid very large bundles
   build: {
+    chunkSizeWarningLimit: 1000, // Suppress warnings for chunks up to 1MB (unavoidable for heavy video features)
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Get the package name from the path
-            const parts = id.split('node_modules/')[1].split('/');
-            // Handle scoped packages like @scope/name
-            const pkgName = parts[0].startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-            return pkgName;
-          }
+        manualChunks: {
+          // Core React ecosystem
+          react: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          
+          // UI & styling
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot', 'class-variance-authority', 'clsx', 'tailwind-merge'],
+          
+          // Animation
+          animation: ['framer-motion'],
+          
+          // Heavy dependencies - isolate separately
+          livekit: ['livekit-client', '@livekit/components-react', '@livekit/components-styles'],
+          ai: ['openai', 'ai', '@ai-sdk/xai'],
+          charts: ['recharts', 'react-chartjs-2', 'chart.js'],
+          
+          // Forms & validation
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
       },
     },
