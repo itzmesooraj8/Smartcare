@@ -67,9 +67,10 @@ const App = (): JSX.Element => {
           <ErrorBoundary>
             <Toaster />
             <Sonner />
-            <React.Suspense fallback={null}>
+            {/* Chatbot temporarily disabled - may cause memory issues */}
+            {/* <React.Suspense fallback={null}>
               <Chatbot />
-            </React.Suspense>
+            </React.Suspense> */}
             <BrowserRouter>
               <Suspense fallback={
                 <div className="min-h-screen flex items-center justify-center bg-white">
