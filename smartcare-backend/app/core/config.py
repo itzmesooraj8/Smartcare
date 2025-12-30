@@ -2,7 +2,15 @@ import os
 import logging
 from typing import List
 
-from pydantic_settings import BaseSettings
+import importlib
+
+BaseSettings = None
+try:
+    _mod = importlib.import_module("pydantic_settings")
+    BaseSettings = getattr(_mod, "BaseSettings")
+except Exception:
+    # Fallback to pydantic's BaseSettings if pydantic-settings is not available
+    from pydantic import BaseSettings
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
