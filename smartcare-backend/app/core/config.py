@@ -33,7 +33,7 @@ class Settings(BaseSettings):
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode('utf-8')
     else:
-        # Handle newlines from env vars
+        # Handle newlines
         PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n')
         PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n')
 
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
-        "https://smartcare-six.vercel.app", 
+        "https://smartcare-six.vercel.app",
         "https://smartcare-six.vercel.app/",
     ]
 
