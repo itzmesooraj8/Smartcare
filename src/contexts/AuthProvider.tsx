@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiFetch from '@/lib/api';
 
-// Strict TypeScript AuthProvider adapted for cookie-based sessions
-
 interface User {
   id: string;
   email: string;
@@ -25,51 +23,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Check auth on mount
   useEffect(() => {
-    (async () => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const res = await apiFetch.get<{ user?: User }>('/auth/me').catch(() => null);
-        const body = res?.data ?? null;
-        if (body && body.user) setUser(body.user as User);
+        const res = await apiFetch.get<{ user?: User }>('/auth/me');
+        if (res.data?.user) {
+          setUser(res.data.user);
+        }
       } catch (e) {
-        // ignore
+        console.warn("Session expired or invalid:", e);
+        localStorage.removeItem('access_token');
       } finally {
         setIsLoading(false);
       }
-    })();
+    };
+    initAuth();
   }, []);
 
   const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
     setIsLoading(true);
     try {
       const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
+      
+      // 1. Force extraction of token from body
+      const { access_token, user: userFromResponse } = (res as any)?.data ?? {};
+      
+      if (!access_token) throw new Error("No access token received from server");
 
-      // --- CRITICAL CHANGE ---
-      // Extract token and user from the login response (backend returns both)
-      try {
-        const { access_token, user: userFromResponse } = (res as any)?.data ?? {};
-        if (access_token) localStorage.setItem('access_token', access_token);
-
-        if (userFromResponse) {
-          setUser(userFromResponse as User);
-          setMasterKey(key);
-          return;
-        }
-      } catch (e) {
-        // ignore localStorage errors
-      }
-
-      // Fallback: fetch the authenticated user's profile
-      const meRes = await apiFetch.get<{ user?: User }>('/auth/me');
-      const body = meRes?.data ?? null;
-      if (body && body.user) {
-        setUser(body.user as User);
+      // 2. Save to Storage IMMEDIATELY
+      localStorage.setItem('access_token', access_token);
+      
+      // 3. Set State
+      if (userFromResponse) {
+        setUser(userFromResponse as User);
         setMasterKey(key);
       } else {
-        throw new Error('Invalid response from server');
+         // Fallback fetch if user object missing (rare)
+         const meRes = await apiFetch.get<{ user?: User }>('/auth/me');
+         setUser(meRes.data.user || null);
       }
     } catch (err) {
       console.error('Login error', err);
+      localStorage.removeItem('access_token'); // Clean up if failed
       throw err;
     } finally {
       setIsLoading(false);
@@ -78,25 +80,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      // Best effort backend logout
       await apiFetch.post('/auth/logout');
     } catch (e) {
-      // ignore
-    } finally {
-      try {
-        localStorage.removeItem('access_token');
-      } catch (e) {
-        // ignore
-      }
-      setUser(null);
-      setMasterKey(null);
-      window.location.href = '/login';
+      // ignore network errors on logout
     }
+    // Always clean up local state
+    localStorage.removeItem('access_token');
+    setUser(null);
+    setMasterKey(null);
+    window.location.href = '/login';
   };
 
-  const isAuthenticated = !!user;
-
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
