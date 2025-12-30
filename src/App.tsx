@@ -35,7 +35,8 @@ const PatientsPage = lazy(() => import('./pages/PatientsPage'));
 const ReportsAnalyticsPage = lazy(() => import('./pages/ReportsAnalyticsPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
-const Chatbot = lazy(() => import('./pages/Chatbot'));
+// Chatbot widget (small floating UI) — import the component, not the page wrapper
+import Chatbot from '@/components/Chatbot';
 
 // Lazy / heavy pages (already heavy)
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
