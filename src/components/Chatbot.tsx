@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { sendMessageToAI } from '../api/chatApi'; // Import the helper we created
+import apiFetch from '@/lib/api';
 
 // Simple type for message structure
 interface Message {
@@ -46,7 +46,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ onTranscriptChange }) => {
     try {
       // 2. Call the API with a context window (last 6 messages)
       const context = [...messages, userMessage].slice(-6).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
-      const aiResponseText = await sendMessageToAI(context);
+      const res: any = await apiFetch.post('/chatbot/message', { message: context });
+      const aiResponseText = res?.data?.text ?? res?.data ?? '';
 
       // 3. Add AI Message
       const aiMessage: Message = { id: Date.now() + 1, text: aiResponseText, sender: 'ai' };
