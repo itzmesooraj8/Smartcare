@@ -1,5 +1,4 @@
 import React, { Suspense, useEffect, lazy } from 'react';
-import LoadingScreen from './components/LoadingScreen';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -67,11 +66,11 @@ const App = (): JSX.Element => {
           <ErrorBoundary>
             <Toaster />
             <Sonner />
-            <React.Suspense fallback={<LoadingScreen />}>
+            <React.Suspense fallback={null}>
               <Chatbot />
             </React.Suspense>
             <BrowserRouter>
-              <Suspense fallback={<LoadingScreen />}>
+              <Suspense fallback={null}>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<HomePage />} />
