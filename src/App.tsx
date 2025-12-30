@@ -36,7 +36,8 @@ const ReportsAnalyticsPage = lazy(() => import('./pages/ReportsAnalyticsPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
 // Chatbot widget (small floating UI) — import the component, not the page wrapper
-import Chatbot from '@/components/Chatbot';
+const Chatbot = React.lazy(() => import('@/components/Chatbot'));
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Lazy / heavy pages (already heavy)
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -62,11 +63,14 @@ const App = (): JSX.Element => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <Chatbot />
-          <BrowserRouter>
-            <Suspense fallback={null}>
+          <ErrorBoundary>
+            <Toaster />
+            <Sonner />
+            <React.Suspense fallback={null}>
+              <Chatbot />
+            </React.Suspense>
+            <BrowserRouter>
+              <Suspense fallback={null}>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<HomePage />} />
@@ -121,6 +125,7 @@ const App = (): JSX.Element => {
               </Routes>
             </Suspense>
           </BrowserRouter>
+          </ErrorBoundary>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
