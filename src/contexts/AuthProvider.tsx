@@ -5,6 +5,8 @@ interface User {
   id: string;
   email: string;
   full_name?: string | null;
+  name?: string | null;
+  avatar?: string | null;
   role: 'patient' | 'doctor' | 'admin' | string;
 }
 
