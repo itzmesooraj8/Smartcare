@@ -1,176 +1,53 @@
 import os
-import json
 import logging
-# from dotenv import load_dotenv
-from typing import Optional
+from typing import List
 
-# Optional lightweight secret fetch from a protected 'secrets' table (simulated vault)
-try:
-    import psycopg2
-except Exception:
-    psycopg2 = None
+from pydantic_settings import BaseSettings
 
-# Render and other hosts inject environment variables directly; do not load or override from .env files.
-# (dotenv removed to avoid accidentally overriding production secrets.)
-# load_dotenv('.env.local', override=False)
-# load_dotenv(override=False)
+class Settings(BaseSettings):
+    API_V1_STR: str = "/api/v1"
+    PROJECT_NAME: str = "SmartCare AI"
+    
+    # 1. DATABASE
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
 
+    # 2. SECURITY (JWT)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    ALGORITHM: str = "RS256"
 
-logger = logging.getLogger("smartcare.config")
+    # 3. CRYPTOGRAPHIC KEYS (The Fix)
+    # We try to read these from Render's Environment Variables first.
+    PRIVATE_KEY: str = os.getenv("PRIVATE_KEY", "")
+    PUBLIC_KEY: str = os.getenv("PUBLIC_KEY", "")
 
+    # If Render didn't provide them (Localhost fallback), we generate temporary ones.
+    if not PRIVATE_KEY or not PUBLIC_KEY:
+        logging.warning("⚠️  SECURITY WARNING: Using temporary generated keys. Sessions will die on restart.")
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        
+        _key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        
+        PRIVATE_KEY = _key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode('utf-8')
+        
+        PUBLIC_KEY = _key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode('utf-8')
+    else:
+        # Clean up newlines if they were pasted weirdly in Render
+        PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n')
+        PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n')
 
-class SecretManager:
-    def __init__(self, db_url: Optional[str]):
-        self.db_url = db_url
-
-    def get(self, name: str) -> Optional[str]:
-        # Prefer environment variables (explicit and auditable)
-        val = os.getenv(name)
-        if val:
-            # Normalize common PEM encodings: Render/CI often provide PEMs with literal "\n" sequences.
-            v = val.strip()
-            # Remove surrounding quotes if present
-            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
-                v = v[1:-1]
-            # Unescape literal newlines
-            if "\\n" in v:
-                v = v.replace('\\n', '\n')
-            return v
-
-        # If a database-backed secret store is available, try to fetch there
-        if not self.db_url or not psycopg2:
-            return None
-
-        try:
-            conn = psycopg2.connect(self.db_url)
-            cur = conn.cursor()
-            cur.execute("SELECT value FROM secrets WHERE name=%s LIMIT 1", (name,))
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-            if row:
-                v = row[0]
-                if isinstance(v, str):
-                    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
-                        v = v[1:-1]
-                    if "\\n" in v:
-                        v = v.replace('\\n', '\n')
-                return v
-        except Exception:
-            # Do not leak errors about secret backends — caller will handle missing secrets
-            return None
-
-
-class Settings:
-    def __init__(self) -> None:
-        # Load connection settings early so SecretManager can use them
-        # --- FIX STARTS HERE ---
-        # Read raw env var and sanitize common copy/paste issues
-        raw_url = os.getenv("DATABASE_URL")
-        if raw_url:
-            # Remove surrounding whitespace and quotes
-            raw_url = raw_url.strip().strip("'").strip('"')
-            # SQLAlchemy prefers postgresql:// over postgres://
-            if raw_url.startswith("postgres://"):
-                raw_url = raw_url.replace("postgres://", "postgresql://", 1)
-        self.DATABASE_URL: str | None = raw_url
-        # --- FIX ENDS HERE ---
-        self._secrets = SecretManager(self.DATABASE_URL)
-
-        # Secrets are pulled via SecretManager (env first, then DB-backed vault)
-        self.PRIVATE_KEY: str | None = self._secrets.get("PRIVATE_KEY")
-        self.PUBLIC_KEY: str | None = self._secrets.get("PUBLIC_KEY")
-        self.ENCRYPTION_KEY: str | None = self._secrets.get("ENCRYPTION_KEY")
-
-        # Normalize PEMs: Render often injects PEMs as single-line with literal \n sequences.
-        def _normalize_pem(val: str | None) -> str | None:
-            if not val:
-                return None
-            v = val.strip()
-            # Remove wrapping quotes if present
-            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
-                v = v[1:-1]
-            # Convert literal \n sequences into real newlines
-            if "\\n" in v:
-                v = v.replace('\\n', '\n')
-            return v.strip()
-
-        self.PRIVATE_KEY = _normalize_pem(self.PRIVATE_KEY)
-        self.PUBLIC_KEY = _normalize_pem(self.PUBLIC_KEY)
-
-        # Optional runtime settings
-        self.REDIS_URL: str | None = os.getenv("REDIS_URL")
-
-        # Access token TTL: allow override via env but enforce a conservative maximum
-        # For healthcare workflows, keep short-lived tokens. Default to 15 minutes.
-        raw_ttl = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
-        try:
-            parsed = int(raw_ttl) if raw_ttl else 15
-        except Exception:
-            parsed = 15
-        # Enforce minimum 1 minute and maximum 15 minutes for safety
-        if parsed < 1:
-            parsed = 1
-        if parsed > 15:
-            parsed = 15
-        self.ACCESS_TOKEN_EXPIRE_MINUTES: int = parsed
-
-        # Supabase keys (server-side operations)
-        self.SUPABASE_URL: str | None = os.getenv("SUPABASE_URL")
-        self.SUPABASE_ANON_KEY: str | None = os.getenv("SUPABASE_ANON_KEY")
-        self.SUPABASE_SERVICE_ROLE_KEY: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-        # Trusted proxies (comma-separated list of trusted reverse proxies)
-        trusted = os.getenv("TRUSTED_PROXIES")
-        if not trusted:
-            self.TRUSTED_PROXIES = []
-        elif isinstance(trusted, (list, tuple)):
-            self.TRUSTED_PROXIES = [str(p).strip() for p in trusted if p]
-        else:
-            self.TRUSTED_PROXIES = [p.strip() for p in str(trusted).split(',') if p.strip()]
-
-        # CORS: handled via property below to safely parse env var when accessed.
-        # The property will parse ALLOWED_ORIGINS from the environment on demand.
-
-        # Collect missing configuration but do NOT raise here. Importing this
-        # module should not crash production; startup can enforce required
-        # values and fail explicitly if desired.
-        missing = []
-        if not self.PRIVATE_KEY:
-            missing.append("PRIVATE_KEY")
-        if not self.PUBLIC_KEY:
-            missing.append("PUBLIC_KEY")
-        if not self.ENCRYPTION_KEY:
-            missing.append("ENCRYPTION_KEY")
-        if not self.DATABASE_URL:
-            missing.append("DATABASE_URL")
-
-        if missing:
-            logger.warning("Missing required secrets or configuration: %s", ", ".join(missing))
-
-    @property
-    def ALLOWED_ORIGINS(self) -> list[str]:
-        raw = os.getenv("ALLOWED_ORIGINS", "")
-        if not raw:
-            return []
-
-        # If the environment system has already provided a list/tuple, normalize it
-        if isinstance(raw, (list, tuple)):
-            return [str(o).strip() for o in raw if o]
-
-        raw_str = str(raw).strip()
-        # Try to parse JSON arrays (Render may provide a JSON string)
-        try:
-            if raw_str.startswith("[") and raw_str.endswith("]"):
-                parsed = json.loads(raw_str)
-                if isinstance(parsed, list):
-                    return [str(o).strip() for o in parsed if o]
-        except Exception:
-            # Fall through to comma-split parser
-            pass
-
-        # Fallback: comma-separated list
-        return [origin.strip() for origin in raw_str.split(",") if origin.strip()]
-
+    # 4. CORS (Frontend URLs)
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "https://smartcare-six.vercel.app", 
+        "https://smartcare-six.vercel.app/",
+    ]
 
 settings = Settings()
