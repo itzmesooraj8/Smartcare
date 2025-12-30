@@ -1,22 +1,32 @@
 import React from 'react';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
-import ChatbotWidget from '@/components/Chatbot';
 
-const ChatbotPage: React.FC = () => {
+const Chatbot: React.FC = () => {
+  const [open, setOpen] = React.useState(false);
+
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6 flex flex-col items-center justify-center">
-            <div className="w-full max-w-4xl h-[80vh] bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-                <ChatbotWidget />
+    <div aria-live="polite">
+      {/* Minimal floating chatbot button/widget to avoid heavy runtime code */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {open ? (
+          <div className="w-80 h-96 bg-white rounded-xl shadow-lg border overflow-hidden">
+            <div className="p-3 border-b flex items-center justify-between">
+              <div className="font-medium">Chatbot</div>
+              <button aria-label="close" onClick={() => setOpen(false)} className="text-sm text-zinc-600">Close</button>
             </div>
-        </main>
+            <div className="p-3 text-sm text-zinc-500">The chatbot widget is temporarily disabled for stability. Use the Triage page.</div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setOpen(true)}
+            className="bg-primary text-white p-3 rounded-full shadow-lg"
+            aria-label="Open chatbot"
+          >
+            💬
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
-export default ChatbotPage;
+export default Chatbot;
