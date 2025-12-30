@@ -59,3 +59,25 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Named export for compatibility with files importing { apiFetch }
+export const apiFetch = api;
+
+// Expose base URL used by the axios instance
+export const API_URL = getBaseUrl();
+
+// Small helper wrappers used in the UI
+export async function getPatientDashboardData(): Promise<any> {
+  const res = await api.get('/patient/dashboard');
+  return res?.data ?? res;
+}
+
+export async function getDoctors(): Promise<any> {
+  const res = await api.get('/doctors');
+  return res?.data ?? res;
+}
+
+export async function bookAppointment(payload: any): Promise<any> {
+  const res = await api.post('/appointments', payload);
+  return res?.data ?? res;
+}
