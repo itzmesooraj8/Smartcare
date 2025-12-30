@@ -79,61 +79,60 @@ const App = (): JSX.Element => {
                   </div>
                 </div>
               }>
-              <Routes>
-                {/* Public */}
-                <Route path="/" element={<HomePage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/doctors" element={<DoctorsPage />} />
-                <Route path="/doctors/:id" element={<DoctorProfilePage />} />
-                <Route path="/contact" element={<ContactPage />} />
+                <Routes>
+                  {/* Public */}
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/doctors" element={<DoctorsPage />} />
+                  <Route path="/doctors/:id" element={<DoctorProfilePage />} />
+                  <Route path="/contact" element={<ContactPage />} />
 
-                {/* Auth */}
-                <Route path="/login" element={<LoggedOutRedirect><LoginPage /></LoggedOutRedirect>} />
-                <Route path="/register" element={<LoggedOutRedirect><RegisterPage /></LoggedOutRedirect>} />
+                  {/* Auth */}
+                  <Route path="/login" element={<LoggedOutRedirect><LoginPage /></LoggedOutRedirect>} />
+                  <Route path="/register" element={<LoggedOutRedirect><RegisterPage /></LoggedOutRedirect>} />
 
-                {/* Protected */}
-                <Route path="/video-call" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
-                <Route path="/waiting-room" element={<ProtectedRoute allowedRoles={['doctor','patient']}><WaitingRoom /></ProtectedRoute>} />
-                <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-                <Route path="/appointments" element={<ProtectedRoute allowedRoles={['patient','doctor']}><AppointmentPage /></ProtectedRoute>} />
-                <Route path="/book-appointment" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentBookingPage /></ProtectedRoute>} />
+                  {/* Protected */}
+                  <Route path="/video-call" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
+                  <Route path="/waiting-room" element={<ProtectedRoute allowedRoles={['doctor','patient']}><WaitingRoom /></ProtectedRoute>} />
+                  <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                  <Route path="/appointments" element={<ProtectedRoute allowedRoles={['patient','doctor']}><AppointmentPage /></ProtectedRoute>} />
+                  <Route path="/book-appointment" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentBookingPage /></ProtectedRoute>} />
 
-                {/* Patient */}
-                <Route path="/patient/dashboard" element={<ProtectedRoute allowedRoles={['patient']}><PatientDashboard /></ProtectedRoute>} />
-                <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentPage /></ProtectedRoute>} />
-                <Route path="/patient/medical-records" element={<ProtectedRoute allowedRoles={['patient','doctor']}><MedicalRecordsPage /></ProtectedRoute>} />
-                <Route path="/patient/messages" element={<ProtectedRoute allowedRoles={['patient','doctor']}><MessagesPage /></ProtectedRoute>} />
-                <Route path="/patient/profile" element={<ProtectedRoute allowedRoles={['patient']}><ProfilePage /></ProtectedRoute>} />
-                <Route path="/patient/settings" element={<ProtectedRoute allowedRoles={['patient','doctor']}><SettingsPage /></ProtectedRoute>} />
-                <Route path="/patient/video-call" element={<ProtectedRoute allowedRoles={['patient','doctor']}><VideoCallPage /></ProtectedRoute>} />
-                <Route path="/patient/lab-results" element={<ProtectedRoute allowedRoles={['patient','doctor']}><LabResultsCenter /></ProtectedRoute>} />
+                  {/* Patient */}
+                  <Route path="/patient/dashboard" element={<ProtectedRoute allowedRoles={['patient']}><PatientDashboard /></ProtectedRoute>} />
+                  <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><AppointmentPage /></ProtectedRoute>} />
+                  <Route path="/patient/medical-records" element={<ProtectedRoute allowedRoles={['patient','doctor']}><MedicalRecordsPage /></ProtectedRoute>} />
+                  <Route path="/patient/messages" element={<ProtectedRoute allowedRoles={['patient','doctor']}><MessagesPage /></ProtectedRoute>} />
+                  <Route path="/patient/profile" element={<ProtectedRoute allowedRoles={['patient']}><ProfilePage /></ProtectedRoute>} />
+                  <Route path="/patient/settings" element={<ProtectedRoute allowedRoles={['patient','doctor']}><SettingsPage /></ProtectedRoute>} />
+                  <Route path="/patient/video-call" element={<ProtectedRoute allowedRoles={['patient','doctor']}><VideoCallPage /></ProtectedRoute>} />
+                  <Route path="/patient/lab-results" element={<ProtectedRoute allowedRoles={['patient','doctor']}><LabResultsCenter /></ProtectedRoute>} />
 
-                {/* Admin / Doctor */}
-                <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/patients" element={<ProtectedRoute allowedRoles={['doctor']}><PatientsPage /></ProtectedRoute>} />
-                <Route path="/reports-analytics" element={<ProtectedRoute allowedRoles={['doctor']}><ReportsAnalyticsPage /></ProtectedRoute>} />
-                <Route path="/doctor/messages" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorMessagesPage /></ProtectedRoute>} />
-                <Route path="/doctor/dashboard" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
+                  {/* Admin / Doctor */}
+                  <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                  <Route path="/patients" element={<ProtectedRoute allowedRoles={['doctor']}><PatientsPage /></ProtectedRoute>} />
+                  <Route path="/reports-analytics" element={<ProtectedRoute allowedRoles={['doctor']}><ReportsAnalyticsPage /></ProtectedRoute>} />
+                  <Route path="/doctor/messages" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorMessagesPage /></ProtectedRoute>} />
+                  <Route path="/doctor/dashboard" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
 
-                {/* Misc Protected */}
-                <Route path="/financial-hub" element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />
-                <Route path="/resources" element={<ProtectedRoute><ResourcesCenter /></ProtectedRoute>} />
-                <Route path="/medical-records" element={<ProtectedRoute allowedRoles={['doctor','patient']}><MedicalRecordsPage /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute allowedRoles={['doctor','patient']}><ProfilePage /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute allowedRoles={['doctor','patient']}><SettingsPage /></ProtectedRoute>} />
-                {/* Shared aliases */}
-                <Route path="/messages" element={<ProtectedRoute allowedRoles={['doctor','patient']}><MessagesPage /></ProtectedRoute>} />
-                <Route path="/teleconsultation" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
-                <Route path="/lab-results" element={<ProtectedRoute allowedRoles={['doctor','patient']}><LabResultsCenter /></ProtectedRoute>} />
+                  {/* Misc Protected */}
+                  <Route path="/financial-hub" element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />
+                  <Route path="/resources" element={<ProtectedRoute><ResourcesCenter /></ProtectedRoute>} />
+                  <Route path="/medical-records" element={<ProtectedRoute allowedRoles={['doctor','patient']}><MedicalRecordsPage /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute allowedRoles={['doctor','patient']}><ProfilePage /></ProtectedRoute>} />
+                  <Route path="/settings" element={<ProtectedRoute allowedRoles={['doctor','patient']}><SettingsPage /></ProtectedRoute>} />
+                  {/* Shared aliases */}
+                  <Route path="/messages" element={<ProtectedRoute allowedRoles={['doctor','patient']}><MessagesPage /></ProtectedRoute>} />
+                  <Route path="/teleconsultation" element={<ProtectedRoute allowedRoles={['doctor','patient']}><VideoCallPage /></ProtectedRoute>} />
+                  <Route path="/lab-results" element={<ProtectedRoute allowedRoles={['doctor','patient']}><LabResultsCenter /></ProtectedRoute>} />
 
-                {/* Errors */}
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-          </ErrorBoundary>
+                  {/* Errors */}
+                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
