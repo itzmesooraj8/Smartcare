@@ -8,7 +8,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 // Inlined components (moved from src/components to keep this page self-contained)
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Calendar, MapPin, Star, Award, Phone, Edit, Save } from 'lucide-react';
 import { API_URL } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,7 +37,8 @@ async function resizeAndCropToSquare(file: File, size = 256): Promise<string> {
 const AvatarUploadInline: React.FC<{ current?: string | null; uploadPath?: string; onUploaded?: (url: string) => void }> = ({ current, uploadPath = '/api/v1/users/me/avatar', onUploaded }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dropRef = useRef<HTMLDivElement | null>(null);
-  const { fetchWithAuth, updateUser, user } = useAuth();
+  const auth = useAuth();
+  const user = auth.user;
   const { toast } = useToast();
   const [preview, setPreview] = useState<string | null>(current || null);
   const [uploading, setUploading] = useState(false);
@@ -66,7 +67,7 @@ const AvatarUploadInline: React.FC<{ current?: string | null; uploadPath?: strin
       clearInterval(progInterval); setProgress(90);
       if (!resp.ok) { const txt = await resp.text(); throw new Error(txt || 'upload-failed'); }
       const json = await resp.json(); const url = json?.avatar || json?.url || json?.data?.avatar; const finalUrl = url || dataUrl;
-      try { updateUser({ avatar: finalUrl }); } catch {}
+      try { (auth as any).updateUser?.({ avatar: finalUrl }); } catch {}
       setProgress(100); setTimeout(() => setProgress(0), 700); setUploading(false); toast({ title: 'Avatar uploaded', description: 'Your profile picture was updated.' }); onUploaded?.(finalUrl);
     } catch (e: any) { setUploading(false); setProgress(0); toast({ title: 'Upload failed', description: e?.message || 'Unable to upload avatar', variant: 'destructive' }); setPreview(current ?? null); }
   };
@@ -82,9 +83,9 @@ const AvatarUploadInline: React.FC<{ current?: string | null; uploadPath?: strin
       </div>
       <div className="flex flex-col">
         <label className="text-sm font-medium">Profile Photo</label>
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <button type="button" className="px-3 py-2 rounded-md bg-white border hover:shadow-sm text-sm" onClick={() => inputRef.current?.click()} aria-label="Upload photo">Change</button>
-          <button type="button" className="px-3 py-2 rounded-md bg-muted/10 text-sm" onClick={() => { setPreview(null); (async () => { try { const resp = await fetch(`${API_URL}${uploadPath}`, { method: 'DELETE', credentials: 'include' }); if (resp.ok) { updateUser({ avatar: '' }); toast({ title: 'Avatar removed', description: 'Your profile photo was removed.' }); onUploaded?.(''); } else { throw new Error('delete-failed'); } } catch (e: any) { toast({ title: 'Remove failed', description: e?.message || 'Unable to remove avatar', variant: 'destructive' }); } })(); }}>Remove</button>
+          <button type="button" className="px-3 py-2 rounded-md bg-muted/10 text-sm" onClick={() => { setPreview(null); (async () => { try { const resp = await fetch(`${API_URL}${uploadPath}`, { method: 'DELETE', credentials: 'include' }); if (resp.ok) { (auth as any).updateUser?.({ avatar: '' }); toast({ title: 'Avatar removed', description: 'Your profile photo was removed.' }); onUploaded?.(''); } else { throw new Error('delete-failed'); } } catch (e: any) { toast({ title: 'Remove failed', description: e?.message || 'Unable to remove avatar', variant: 'destructive' }); } })(); }}>Remove</button>
         </div>
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.currentTarget.value = ''; }} />
       </div>
@@ -127,7 +128,8 @@ type FormValues = z.infer<typeof schema>;
 
 const DoctorProfilePage: React.FC = () => {
   const { id } = useParams();
-  const { user, fetchWithAuth, updateUser } = useAuth();
+  const auth = useAuth();
+  const user = auth.user;
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [doctor, setDoctor] = useState<any>(null);
@@ -202,10 +204,11 @@ const DoctorProfilePage: React.FC = () => {
         education: vals.education,
       };
 
-      const res = await fetchWithAuth(`${API_URL}/api/v1/doctors/${id}`, {
+      const res = await fetch(`${API_URL}/api/v1/doctors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -215,7 +218,7 @@ const DoctorProfilePage: React.FC = () => {
 
       const json = await res.json();
       setDoctor(json || { ...doctor, ...payload });
-      if (user?.id === id) updateUser(json || payload);
+      if (user?.id === id) (auth as any).updateUser?.(json || payload);
       toast({ title: 'Saved', description: 'Doctor profile updated.' });
       setEditing(false);
     } catch (e: any) {
@@ -248,7 +251,7 @@ const DoctorProfilePage: React.FC = () => {
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
                 <div className="mx-auto md:mx-0">
-                  <AvatarUpload current={doctor.image} onUploaded={(url) => setDoctor((d:any)=>({ ...d, image: url }))} />
+                  <AvatarUploadInline current={doctor.image} onUploaded={(url) => setDoctor((d:any)=>({ ...d, image: url }))} />
                 </div>
                 <div className="flex-1 text-center md:text-left">
                   <h1 className="text-3xl font-bold text-foreground mb-2">{doctor.name}</h1>
@@ -340,7 +343,7 @@ const DoctorProfilePage: React.FC = () => {
                         <div className="space-y-2">
                           <Label>Specializations</Label>
                           <Controller control={control} name="specializations" render={({ field }) => (
-                            <ChipInput value={field.value || []} onChange={(v) => field.onChange(v)} placeholder="Type and press Enter" />
+                            <ChipInputInline value={field.value || []} onChange={(v) => field.onChange(v)} placeholder="Type and press Enter" />
                           )} />
                         </div>
                         <div className="space-y-2">
@@ -364,9 +367,9 @@ const DoctorProfilePage: React.FC = () => {
 
                   <div className="flex justify-end gap-4">
                     <Button variant="outline" onClick={() => { setEditing(false); reset(defaultVals); }}>Cancel</Button>
-                    <SaveButton saving={false} onClick={() => { void handleSubmit(onSave)(); }}>
+                    <SaveButtonInline saving={false} onClick={() => { void handleSubmit(onSave)(); }}>
                       Save
-                    </SaveButton>
+                    </SaveButtonInline>
                   </div>
                 </motion.form>
               )}

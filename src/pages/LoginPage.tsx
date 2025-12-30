@@ -41,17 +41,19 @@ const LoginPage = () => {
 
     try {
       // Call login API — send JSON object (axios will serialize)
-      const res = await apiFetch('/auth/login', {
+      const res = await apiFetch({
+        url: '/auth/login',
         method: 'POST',
         data: { email, password },
-        auth: false,
       });
 
-      const user = res.user || res.data?.user || res;
+      // Normalize response to support axios-style responses (res.data) or direct payloads
+      const payload = (res as any)?.data ?? res;
+      const user = (payload as any)?.user ?? payload;
       // Fetch wrapped vault key separately (requires MFA confirmation). The server issues HttpOnly cookie on login.
       // Do not send client-side flags that assert MFA verification. The server
       // must always verify MFA via `X-MFA-Token` or a full token scope.
-      const key_data = await apiFetch({ path: '/vault/key', method: 'GET' }).catch(() => null);
+      const key_data = await apiFetch({ url: '/vault/key', method: 'GET' }).catch(() => null);
       if (!user) throw new Error('Invalid login response');
 
       // Unwrap master key using the password provided by the user
@@ -78,7 +80,7 @@ const LoginPage = () => {
       }
 
       // Complete login: server sets HttpOnly cookie; store user and masterKey in memory only
-      login(user, masterKey as CryptoKey);
+      await login(email, password, masterKey as CryptoKey);
 
       toast({ title: 'Welcome back!', description: 'Secure session established.' });
       // Role-aware routing

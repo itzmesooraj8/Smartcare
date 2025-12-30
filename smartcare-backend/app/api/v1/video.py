@@ -6,10 +6,12 @@ try:
     from livekit import api
 except Exception:
     try:
-        import livekit_api as _lk
+        # import dynamically to avoid static-analysis unresolved-import diagnostics in some editors
+        import importlib
+        _lk = importlib.import_module('livekit_api')  # type: ignore
         api = getattr(_lk, 'api', _lk)
     except Exception:
-        raise
+        raise ImportError("Neither 'livekit' nor 'livekit_api' could be imported; install one of them.") from None
 
 from app.api.v1.medical_records import get_current_user
 

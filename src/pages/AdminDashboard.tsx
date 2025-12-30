@@ -18,10 +18,12 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const s = await apiFetch('/api/v1/admin/stats');
-      const u = await apiFetch('/api/v1/admin/users');
-      setStats(s);
-      setUsers(u || []);
+      const s = await apiFetch({ url: '/api/v1/admin/stats' });
+      const uResp = await apiFetch({ url: '/api/v1/admin/users' });
+      const statsData = (s && (s as any).data) ?? s ?? {};
+      const usersData = (uResp && (uResp as any).data) ?? [];
+      setStats(statsData);
+      setUsers(usersData);
     } catch (e) {
       console.error('Failed to load admin data', e);
     } finally {
@@ -34,7 +36,7 @@ const AdminDashboard = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete user? This cannot be undone.')) return;
     try {
-      await apiFetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' });
+      await apiFetch({ url: `/api/v1/admin/users/${id}`, method: 'DELETE' });
       await fetchData();
     } catch (e) {
       console.error('Delete failed', e);

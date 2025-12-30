@@ -45,7 +45,10 @@ async function resizeAndCropToSquare(file: File, size = 256): Promise<string> {
 const AvatarUpload: React.FC<{ current?: string | null; uploadPath?: string; onUploaded?: (url: string) => void }> = ({ current, uploadPath = '/api/v1/users/me/avatar', onUploaded }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dropRef = useRef<HTMLDivElement | null>(null);
-  const { fetchWithAuth, updateUser, user } = useAuth();
+  const auth = useAuth();
+  const user = auth.user;
+  const fetchWithAuth = (auth as any).fetchWithAuth ?? (async (input: RequestInfo, init?: RequestInit) => fetch(input, init));
+  const updateUser = (auth as any).updateUser;
   const { toast } = useToast();
 
   const [preview, setPreview] = useState<string | null>(current || null);
@@ -370,7 +373,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const ProfilePage: React.FC = () => {
-  const { user, fetchWithAuth, updateUser } = useAuth();
+  const auth = useAuth();
+  const user = auth.user;
+  const fetchWithAuth = (auth as any).fetchWithAuth ?? (async (input: RequestInfo, init?: RequestInit) => fetch(input, init));
+  const updateUser = (auth as any).updateUser;
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);

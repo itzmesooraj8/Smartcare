@@ -35,7 +35,7 @@ class MedicalRecordCreate(BaseModel):
     doctor_id: Optional[str] = None
     diagnosis: EncryptedBlob        # Client-Encrypted Data
     chief_complaint: Optional[EncryptedBlob] = None
-    date: Optional[date] = None
+    record_date: Optional[date] = None
     file_url: Optional[str] = None
 
 # --- Auth Helper ---

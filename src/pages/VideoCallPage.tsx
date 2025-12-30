@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 const TelehealthRoom = React.lazy(() => import('@/components/TelehealthRoom'));
 import { Button } from '@/components/ui/button';

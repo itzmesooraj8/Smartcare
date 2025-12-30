@@ -39,9 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const res = await apiFetch.get<{ user?: User }>('/auth/me', {
-          signal: controller.signal,
-        });
+        const res = await apiFetch.get<{ user?: User }>('/auth/me', { signal: controller.signal } as any);
         clearTimeout(timeoutId);
 
         if (res.data?.user) {

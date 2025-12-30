@@ -117,14 +117,14 @@ const RegisterPage = () => {
           });
 
           // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
-            try {
+          try {
             // apiFetch is available via import in this module — use a direct call to the auth login
             const { apiFetch } = await import('@/lib/api');
-            const loginRes: any = await apiFetch('/auth/login', { method: 'POST', data: { email: formData.email, password: formData.password }, auth: false });
+            const loginRes: any = await apiFetch({ url: '/auth/login', method: 'POST', data: { email: formData.email, password: formData.password } });
             const user = loginRes?.user || loginRes?.data?.user || loginRes;
             // Store in context + keep master key in memory
             if (user) {
-              login(user, masterKey);
+              login(formData.email, formData.password, masterKey);
             }
           } catch (err) {
             // If login after register fails, still redirect to login page with a message

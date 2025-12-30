@@ -22,7 +22,9 @@ interface MedicalRecord {
 }
 
 export default function MedicalRecordsPage() {
-  const { masterKey, token } = useAuth();
+  const auth = useAuth();
+  const { masterKey } = auth;
+  const token = (auth as any).token;
   const { decryptData } = useEncryption();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [decryptedCache, setDecryptedCache] = useState<Record<string, any>>({});

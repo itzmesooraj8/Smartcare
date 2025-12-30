@@ -36,10 +36,14 @@ const AppointmentBookingPage = () => {
     try {
       const data = await getDoctors(); // ✅ Using centralized function
       if (!mountedRef.current) return;
-      setDoctors(data || []);
-      // Auto-select first doctor if available
-      if (data && data.length > 0) {
-        setFormData((s) => ({ ...s, doctor: data[0].id?.toString() }));
+      if (Array.isArray(data)) {
+        setDoctors(data);
+        // Auto-select first doctor if available
+        if (data.length > 0) {
+          setFormData((s) => ({ ...s, doctor: data[0].id?.toString() }));
+        }
+      } else {
+        setDoctors([]);
       }
     } catch (err: any) {
       console.error('Could not fetch doctors', err);
