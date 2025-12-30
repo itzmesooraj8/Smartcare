@@ -215,7 +215,69 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            {/* Demo accounts removed in production build */}
+            {/* Demo Accounts */}
+            <div className="mt-6 space-y-3 border-t pt-6">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">Demo Accounts (for testing):</p>
+              
+              <div className="space-y-2">
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs font-medium text-blue-900 dark:text-blue-200">Patient</p>
+                  <p className="text-xs text-blue-800 dark:text-blue-300 break-all">Email: demo.patient@smartcare.local</p>
+                  <p className="text-xs text-blue-800 dark:text-blue-300">Password: DemoPass123!</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-auto px-2 py-1 text-xs"
+                    onClick={() => {
+                      setEmail('demo.patient@smartcare.local');
+                      setPassword('DemoPass123!');
+                      setRole('patient');
+                    }}
+                  >
+                    Fill Demo Patient
+                  </Button>
+                </div>
+
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <p className="text-xs font-medium text-green-900 dark:text-green-200">Doctor</p>
+                  <p className="text-xs text-green-800 dark:text-green-300 break-all">Email: demo.doctor@smartcare.local</p>
+                  <p className="text-xs text-green-800 dark:text-green-300">Password: DemoPass123!</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-auto px-2 py-1 text-xs"
+                    onClick={() => {
+                      setEmail('demo.doctor@smartcare.local');
+                      setPassword('DemoPass123!');
+                      setRole('doctor');
+                    }}
+                  >
+                    Fill Demo Doctor
+                  </Button>
+                </div>
+
+                <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                  <p className="text-xs font-medium text-purple-900 dark:text-purple-200">Admin</p>
+                  <p className="text-xs text-purple-800 dark:text-purple-300 break-all">Email: demo.admin@smartcare.local</p>
+                  <p className="text-xs text-purple-800 dark:text-purple-300">Password: DemoPass123!</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-auto px-2 py-1 text-xs"
+                    onClick={() => {
+                      setEmail('demo.admin@smartcare.local');
+                      setPassword('DemoPass123!');
+                      setRole('admin');
+                    }}
+                  >
+                    Fill Demo Admin
+                  </Button>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-6 text-center">
               <span className="text-sm text-muted-foreground">
