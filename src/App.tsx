@@ -7,11 +7,12 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import HomePage from './pages/HomePage';
+
 const queryClient = new QueryClient();
 // Removed PageLoader / LoadingSpinner to make Suspense transitions instant
 
 // Lazy-load major routes to reduce initial bundle
-const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -70,7 +71,14 @@ const App = (): JSX.Element => {
               <Chatbot />
             </React.Suspense>
             <BrowserRouter>
-              <Suspense fallback={null}>
+              <Suspense fallback={
+                <div className="min-h-screen flex items-center justify-center bg-white">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                    <p className="text-sm text-muted-foreground">Loading SmartCare...</p>
+                  </div>
+                </div>
+              }>
               <Routes>
                 {/* Public */}
                 <Route path="/" element={<HomePage />} />
