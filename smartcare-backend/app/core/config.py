@@ -37,9 +37,11 @@ class Settings(BaseSettings):
         PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n')
         PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n')
 
-    # 4. SUPABASE (STORAGE) - [ADDED THIS SECTION]
+    # 4. SUPABASE (STORAGE) - [UPDATED]
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    # This was the missing line causing your crash:
+    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
     # 5. LIVEKIT (VIDEO)
     LIVEKIT_API_KEY: str = os.getenv("LIVEKIT_API_KEY", "")
@@ -49,7 +51,10 @@ class Settings(BaseSettings):
     # 6. AI (CHATBOT)
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 
-    # 7. CORS
+    # 7. REDIS (SIGNALING)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    # 8. CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "https://smartcare-six.vercel.app", 
