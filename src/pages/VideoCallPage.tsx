@@ -1,5 +1,6 @@
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import TelehealthRoom from '@/components/TelehealthRoom';
+const TelehealthRoom = React.lazy(() => import('@/components/TelehealthRoom'));
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -29,11 +30,13 @@ export function TelehealthLandingPage() {
 
       {/* The LiveKit Room */}
       <div className="flex-1 overflow-hidden">
-        {/* We pass the roomId from the URL to your component */}
-        <TelehealthRoom 
-          roomId={roomId || 'default-room'} 
-          onLeave={() => navigate('/dashboard')} 
-        />
+        {/* We pass the roomId from the URL to your component (lazy-loaded) */}
+        <React.Suspense fallback={<div className="p-6 text-center text-slate-400">Loading telehealth...</div>}>
+          <TelehealthRoom 
+            roomId={roomId || 'default-room'} 
+            onLeave={() => navigate('/dashboard')} 
+          />
+        </React.Suspense>
       </div>
     </div>
   );

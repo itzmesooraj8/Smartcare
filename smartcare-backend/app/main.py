@@ -14,8 +14,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.database import engine, get_db, Base
+from app.database import engine, get_db, Base, SessionLocal
 from app.models.user import User
+from app.models.audit_log import AuditLog
 
 # Router Imports
 from app.api.v1 import (
@@ -33,12 +34,9 @@ logger = logging.getLogger("smartcare")
 
 app = FastAPI(title="SmartCare Backend")
 
-# --- STRICT CORS SETTINGS FOR PRODUCTION ---
-# explicitly strictly allowing ONLY your production frontend
-ORIGINS = [
-    "https://smartcare-six.vercel.app",
-    "https://smartcare-six.vercel.app/",  # Handle trailing slash variations
-]
+# --- CORS SETTINGS ---
+# Use configured BACKEND_CORS_ORIGINS from settings to allow preview and local domains.
+ORIGINS = list(getattr(settings, 'BACKEND_CORS_ORIGINS', []))
 
 app.add_middleware(
     CORSMiddleware,
@@ -79,6 +77,33 @@ async def inject_current_user(request: Request, call_next):
             request.state.current_user_id = None
 
     response = await call_next(request)
+    return response
+
+
+@app.middleware("http")
+async def audit_sensitive_reads(request: Request, call_next):
+    """
+    Lightweight middleware to record read access to sensitive resources.
+    We persist a minimal AuditLog entry for GETs to the medical-records API.
+    """
+    response = await call_next(request)
+    try:
+        if request.method == 'GET' and request.url.path.startswith('/api/v1/medical-records'):
+            user_id = getattr(request.state, 'current_user_id', None)
+            if user_id:
+                db = SessionLocal()
+                try:
+                    audit = AuditLog(user_id=str(user_id), target_id=None, action='READ', resource_type='MEDICAL_RECORDS', ip_address=(request.client.host if request.client else None))
+                    db.add(audit)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                finally:
+                    db.close()
+    except Exception:
+        # Never fail the request due to auditing issues
+        pass
+
     return response
 
 limiter = Limiter(key_func=get_remote_address)
