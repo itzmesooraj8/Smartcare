@@ -133,6 +133,7 @@ const App = (): JSX.Element => {
                 </Routes>
               </Suspense>
             </BrowserRouter>
+          </ErrorBoundary>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
