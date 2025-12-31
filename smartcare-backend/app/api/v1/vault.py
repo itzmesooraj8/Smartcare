@@ -71,6 +71,8 @@ def get_vault_key(
         'encrypted_master_key': ve.encrypted_master_key,
         'key_encryption_iv': ve.key_encryption_iv,
         'key_derivation_salt': ve.key_derivation_salt,
+    }
+
 from pydantic import BaseModel
 
 class VaultSetupRequest(BaseModel):
