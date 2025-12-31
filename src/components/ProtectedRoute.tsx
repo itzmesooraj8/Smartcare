@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children, requireAuth = true, allowedRo
     );
   }
 
-  const hasToken = !!sessionStorage.getItem('smartcare_token');
+  const hasToken = !!localStorage.getItem('access_token');
 
   // If the route is public (requireAuth === false), allow access when not authenticated.
   if (!requireAuth) {

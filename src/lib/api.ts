@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,7 +21,7 @@ api.interceptors.response.use(
   (response) => response,
   (error: any) => {
     if (error?.response?.status === 401) {
-      try { localStorage.removeItem('access_token'); } catch {}
+      try { localStorage.removeItem('access_token'); } catch { }
       // safe navigation for environments without window
       if (typeof window !== 'undefined') window.location.href = '/login';
     }

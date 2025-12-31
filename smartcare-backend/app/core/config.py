@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     PUBLIC_KEY: str = os.getenv("PUBLIC_KEY", "")
 
     if not PRIVATE_KEY or not PUBLIC_KEY:
+        # Try reading from local files (Docker volume or local dev)
+        try:
+            with open("private_key.pem", "r") as f:
+                PRIVATE_KEY = f.read()
+            with open("public_key.pem", "r") as f:
+                PUBLIC_KEY = f.read()
+        except Exception:
+            pass
+
+    if not PRIVATE_KEY or not PUBLIC_KEY:
         logging.warning("⚠️ USING GENERATED KEYS. LOGIN WILL FAIL AFTER RESTART.")
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
@@ -33,9 +43,9 @@ class Settings(BaseSettings):
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode('utf-8')
     else:
-        # Handle newlines
-        PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n')
-        PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n')
+        # Handle newlines and whitespace
+        PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n').strip()
+        PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n').strip()
 
     # EXTERNAL SERVICES
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")

@@ -29,13 +29,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkSession = async () => {
+      // Check for token first to avoid unnecessary requests
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       try {
-        const res = await apiFetch.get('/auth/me').catch(() => null);
+        const res = await apiFetch.get('/auth/me', {
+          signal: controller.signal
+        } as any).catch(() => null);
+
+        clearTimeout(timeoutId);
+
         const body = (res as any)?.data ?? null;
         if (body?.user) {
           setUser(body.user as User);
+        } else {
+          // Token invalid or expired
+          localStorage.removeItem('access_token');
         }
       } catch (err) {
+        // console.warn("Session validation failed:", err);
+        localStorage.removeItem('access_token');
         setUser(null);
       } finally {
         setIsLoading(false);

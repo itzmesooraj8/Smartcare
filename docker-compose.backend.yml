@@ -1,13 +1,36 @@
-version: '3.8'
 services:
   redis:
     image: redis:7
     restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: smartcare
+      POSTGRES_PASSWORD: smartcare_password
+      POSTGRES_DB: smartcare_db
+    ports:
+      - '5432:5432'
 
   backend:
     build: ./smartcare-backend
     env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://smartcare:smartcare_password@db:5432/smartcare_db
+      - REDIS_URL=redis://redis:6379
     ports:
       - '8000:8000'
     depends_on:
       - redis
+      - db
+    volumes:
+      - ./smartcare-backend/private_key.pem:/app/private_key.pem
+      - ./smartcare-backend/public_key.pem:/app/public_key.pem
+
+volumes:
+  postgres_data:
