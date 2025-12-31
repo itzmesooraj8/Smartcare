@@ -92,59 +92,69 @@ const RegisterPage = () => {
     }
 
     // NOTE: current register mock doesn't accept files. In a real app we would send
-        // the licenseFile in a multipart/form-data request to the backend here.
-        try {
-          // Generate and wrap a master key for client-side encryption
-          const masterKey = await generateMasterKey();
-          const wrapped = await wrapMasterKey(masterKey, formData.password);
+    // the licenseFile in a multipart/form-data request to the backend here.
+    try {
+      // Generate and wrap a master key for client-side encryption
+      const masterKey = await generateMasterKey();
+      const wrapped = await wrapMasterKey(masterKey, formData.password);
 
-          // Send raw password over TLS; let server hash it with bcrypt/argon2.
-          const payload: any = {
-            email: formData.email,
-            password: formData.password,
-            full_name: formData.name,
-            role: formData.role,
-            encrypted_master_key: wrapped.cipher_text,
-            key_encryption_iv: wrapped.iv,
-            key_derivation_salt: wrapped.salt,
-          };
+      // Send raw password over TLS; let server hash it with bcrypt/argon2.
+      const payload: any = {
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.name,
+        role: formData.role,
+        encrypted_master_key: wrapped.cipher_text,
+        key_encryption_iv: wrapped.iv,
+        key_derivation_salt: wrapped.salt,
+      };
 
-          // Create account on server
-          const regRes = await register(payload);
-          toast({
-            title: "Account Created!",
-            description: "Welcome to SmartCare. Logging you in now...",
-          });
+      // Create account on server
+      const regRes = await register(payload);
+      toast({
+        title: "Account Created!",
+        description: "Welcome to SmartCare. Logging you in now...",
+      });
 
-          // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
-          try {
-            // apiFetch is available via import in this module — use a direct call to the auth login
-            const { apiFetch } = await import('@/lib/api');
-            const loginRes: any = await apiFetch({ url: '/auth/login', method: 'POST', data: { email: formData.email, password: formData.password } });
-            const user = loginRes?.user || loginRes?.data?.user || loginRes;
-            // Store in context + keep master key in memory
-            if (user) {
-              login(formData.email, formData.password, masterKey);
-            }
-          } catch (err) {
-            // If login after register fails, still redirect to login page with a message
-            console.warn('Auto-login failed after registration', err);
-            navigate('/login');
-            return;
-          }
-
-          // Redirect to role-specific dashboard
-          if (formData.role === 'patient') navigate('/patient/dashboard');
-          else if (formData.role === 'doctor') navigate('/doctor/dashboard');
-          else if (formData.role === 'admin') navigate('/admin-dashboard');
-          else navigate('/dashboard');
-        } catch (error) {
-          toast({
-            title: "Registration Failed",
-            description: "Something went wrong. Please try again.",
-            variant: "destructive",
-          });
+      // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
+      try {
+        // apiFetch is available via import in this module — use a direct call to the auth login
+        const { apiFetch } = await import('@/lib/api');
+        const loginRes: any = await apiFetch({ url: '/auth/login', method: 'POST', data: { email: formData.email, password: formData.password } });
+        const user = loginRes?.user || loginRes?.data?.user || loginRes;
+        // Store in context + keep master key in memory
+        if (user) {
+          login(formData.email, formData.password, masterKey);
         }
+      } catch (err) {
+        // If login after register fails, still redirect to login page with a message
+        console.warn('Auto-login failed after registration', err);
+        navigate('/login');
+        return;
+      }
+
+      // Redirect to role-specific dashboard
+      if (formData.role === 'patient') navigate('/patient/dashboard');
+      else if (formData.role === 'doctor') navigate('/doctor/dashboard');
+      else if (formData.role === 'admin') navigate('/admin-dashboard');
+      else navigate('/dashboard');
+    } catch (error: any) {
+      console.error("Registration error", error);
+      if (error.response?.status === 409) {
+        toast({
+          title: "Account Already Exists",
+          description: "This email is already registered. Please sign in instead.",
+          variant: "destructive",
+        });
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: error.response?.data?.detail || "Something went wrong. Please check your connection and try again.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
 
