@@ -19,6 +19,8 @@ from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment
 from app.models.medical_record import MedicalRecord
+from app.models.doctor import Doctor
+from app.models.patient import Patient
 
 # Router Imports
 from app.api.v1 import (
@@ -26,7 +28,13 @@ from app.api.v1 import (
     appointments as appointments_module,
     medical_records as medical_records_module,
     files as files_module,
-    auth as auth_module
+    auth as auth_module,
+    admin as admin_module,
+    doctors as doctors_module,
+    patients as patients_module,
+    video as video_module,
+    vault as vault_module,
+    tele as tele_module
 )
 from app import signaling as signaling_module
 
@@ -137,6 +145,12 @@ app.include_router(dashboard_module.router, prefix="/api/v1/patient", tags=["Das
 app.include_router(medical_records_module.router, prefix="/api/v1/medical-records", tags=["Records"])
 app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(appointments_module.router, prefix="/api/v1/appointments", tags=["Appointments"])
+app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(doctors_module.router, prefix="/api/v1/doctors", tags=["Doctors"])
+app.include_router(patients_module.router, prefix="/api/v1/patients", tags=["Patients"])
+app.include_router(video_module.router, prefix="/api/v1/video", tags=["Video"])
+app.include_router(vault_module.router, prefix="/api/v1/vault", tags=["Vault"])
+app.include_router(tele_module.router, prefix="/api/v1/tele", tags=["Telehealth"])
 
 @app.get("/")
 def root():

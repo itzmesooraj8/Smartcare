@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MiniNavbar } from "@/components/ui/mini-navbar";
 import Footer from '@/components/layout/Footer';
@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Search, 
-  MapPin, 
-  Clock, 
+import {
+  Search,
+  MapPin,
+  Clock,
   Star,
   Calendar,
   ArrowRight,
@@ -19,109 +19,43 @@ import {
   Phone
 } from 'lucide-react';
 
+import apiFetch from '@/lib/api';
+
 const DoctorsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const doctors = [
-    {
-      id: '1',
-      name: 'Dr. Sarah Johnson',
-      specialty: 'Cardiology',
-      subSpecialty: 'Interventional Cardiology',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=300&h=300&fit=crop&crop=face',
-      rating: 4.9,
-      reviewCount: 127,
-      experience: '15+ years',
-      location: 'Downtown Medical Center',
-      nextAvailable: 'Tomorrow, 2:00 PM',
-      languages: ['English', 'Spanish'],
-      education: 'Harvard Medical School',
-      specializations: ['Heart Surgery', 'Cardiac Catheterization', 'Preventive Cardiology'],
-      about: 'Dr. Johnson is a board-certified cardiologist with over 15 years of experience in treating complex cardiovascular conditions.'
-    },
-    {
-      id: '2',
-      name: 'Dr. Michael Chen',
-      specialty: 'Emergency Medicine',
-      subSpecialty: 'Trauma Care',
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=300&h=300&fit=crop&crop=face',
-      rating: 4.8,
-      reviewCount: 89,
-      experience: '12+ years',
-      location: 'Emergency Department',
-      nextAvailable: 'Available Now',
-      languages: ['English', 'Mandarin'],
-      education: 'Stanford University School of Medicine',
-      specializations: ['Emergency Care', 'Trauma Surgery', 'Critical Care'],
-      about: 'Dr. Chen specializes in emergency medicine and has extensive experience in trauma care and critical patient management.'
-    },
-    {
-      id: '3',
-      name: 'Dr. Emily Rodriguez',
-      specialty: 'Pediatrics',
-      subSpecialty: 'Developmental Pediatrics',
-      image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=764&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      rating: 4.9,
-      reviewCount: 156,
-      experience: '10+ years',
-      location: 'Children\'s Health Center',
-      nextAvailable: 'Friday, 10:00 AM',
-      languages: ['English', 'Spanish', 'Portuguese'],
-      education: 'Johns Hopkins School of Medicine',
-      specializations: ['Child Development', 'Behavioral Pediatrics', 'ADHD Treatment'],
-      about: 'Dr. Rodriguez is passionate about pediatric care and specializes in developmental and behavioral issues in children.'
-    },
-    {
-      id: '4',
-      name: 'Dr. James Wilson',
-      specialty: 'Orthopedics',
-      subSpecialty: 'Sports Medicine',
-      image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=300&h=300&fit=crop&crop=face',
-      rating: 4.7,
-      reviewCount: 98,
-      experience: '18+ years',
-      location: 'Sports Medicine Clinic',
-      nextAvailable: 'Monday, 9:00 AM',
-      languages: ['English'],
-      education: 'Mayo Clinic College of Medicine',
-      specializations: ['Joint Replacement', 'Sports Injuries', 'Arthroscopic Surgery'],
-      about: 'Dr. Wilson is an orthopedic surgeon specializing in sports medicine and minimally invasive joint procedures.'
-    },
-    {
-      id: '5',
-      name: 'Dr. Lisa Park',
-      specialty: 'Dermatology',
-      subSpecialty: 'Cosmetic Dermatology',
-      image: 'https://images.unsplash.com/photo-1527613426441-4da17471b66d?w=300&h=300&fit=crop&crop=face',
-      rating: 4.8,
-      reviewCount: 143,
-      experience: '8+ years',
-      location: 'Dermatology Center',
-      nextAvailable: 'Thursday, 3:30 PM',
-      languages: ['English', 'Korean'],
-      education: 'University of California, San Francisco',
-      specializations: ['Skin Cancer Screening', 'Cosmetic Procedures', 'Acne Treatment'],
-      about: 'Dr. Park combines medical dermatology expertise with aesthetic treatments to help patients achieve healthy, beautiful skin.'
-    },
-    {
-      id: '6',
-      name: 'Dr. Robert Thompson',
-      specialty: 'Neurology',
-      subSpecialty: 'Stroke & Cerebrovascular Disease',
-      image: 'https://images.unsplash.com/photo-1638202993928-7267aad84c31?w=300&h=300&fit=crop&crop=face',
-      rating: 4.9,
-      reviewCount: 76,
-      experience: '20+ years',
-      location: 'Neuroscience Institute',
-      nextAvailable: 'Next Week',
-      languages: ['English', 'French'],
-      education: 'Yale School of Medicine',
-      specializations: ['Stroke Treatment', 'Epilepsy', 'Movement Disorders'],
-      about: 'Dr. Thompson is a leading neurologist with expertise in stroke care and complex neurological conditions.'
-    }
-  ];
+  useEffect(() => {
+    apiFetch.get('/doctors')
+      .then((res: any) => {
+        const data = res.data;
+        const mapped = (data || []).map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          specialty: d.specialization || 'General',
+          subSpecialty: 'General Practice',
+          image: d.avatar || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=300&h=300&fit=crop&crop=face',
+          rating: 5.0,
+          reviewCount: 0,
+          experience: '5+ years',
+          location: 'Main Clinic',
+          nextAvailable: 'Check Availability',
+          languages: ['English'],
+          education: 'Medical School',
+          specializations: d.specialization ? [d.specialization] : ['General Health'],
+          about: d.bio || 'Dedicated healthcare professional.'
+        }));
+        setDoctors(mapped);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
 
   const specialties = [
     'Cardiology',
@@ -146,17 +80,17 @@ const DoctorsPage: React.FC = () => {
 
   const filteredDoctors = doctors.filter(doctor => {
     const matchesSearch = doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase());
+      doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSpecialty = selectedSpecialty === 'all' || doctor.specialty === selectedSpecialty;
     const matchesLocation = selectedLocation === 'all' || doctor.location === selectedLocation;
-    
+
     return matchesSearch && matchesSpecialty && matchesLocation;
   });
 
   return (
     <div className="min-h-screen bg-background">
       <MiniNavbar />
-      
+
       {/* Hero Section */}
       <section className="py-20 lg:py-32 bg-gradient-to-r from-primary/5 to-secondary/5">
         <div className="container mx-auto px-4">
@@ -165,7 +99,7 @@ const DoctorsPage: React.FC = () => {
               Find Your Perfect <span className="text-primary">Doctor</span>
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed">
-              Connect with board-certified physicians and healthcare specialists 
+              Connect with board-certified physicians and healthcare specialists
               who are dedicated to providing exceptional medical care.
             </p>
           </div>
@@ -337,11 +271,11 @@ const DoctorsPage: React.FC = () => {
               Why Choose Our Medical Team?
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Our doctors are carefully selected based on their expertise, experience, 
+              Our doctors are carefully selected based on their expertise, experience,
               and commitment to patient care.
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full medical-gradient flex items-center justify-center">
@@ -349,7 +283,7 @@ const DoctorsPage: React.FC = () => {
               </div>
               <h3 className="text-xl font-semibold mb-2 text-foreground">Board Certified</h3>
               <p className="text-muted-foreground">
-                All our physicians are board-certified in their specialties with ongoing 
+                All our physicians are board-certified in their specialties with ongoing
                 medical education and training.
               </p>
             </div>
@@ -359,7 +293,7 @@ const DoctorsPage: React.FC = () => {
               </div>
               <h3 className="text-xl font-semibold mb-2 text-foreground">Patient-Centered</h3>
               <p className="text-muted-foreground">
-                Our doctors prioritize patient communication, shared decision-making, 
+                Our doctors prioritize patient communication, shared decision-making,
                 and personalized treatment plans.
               </p>
             </div>
@@ -369,7 +303,7 @@ const DoctorsPage: React.FC = () => {
               </div>
               <h3 className="text-xl font-semibold mb-2 text-foreground">Latest Technology</h3>
               <p className="text-muted-foreground">
-                Access to cutting-edge medical technology and evidence-based treatment 
+                Access to cutting-edge medical technology and evidence-based treatment
                 approaches for optimal outcomes.
               </p>
             </div>
@@ -384,7 +318,7 @@ const DoctorsPage: React.FC = () => {
             Ready to Schedule Your Appointment?
           </h2>
           <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
-            Take the first step towards better health. Connect with our expert medical team 
+            Take the first step towards better health. Connect with our expert medical team
             and experience personalized healthcare.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

@@ -52,11 +52,14 @@ async def generate_notes(payload: NotesRequest, db: Session = Depends(get_db)):
 
     prompt = f"{system_prompt}\nPatient History:\n{history_text}\n\nTranscript:\n{payload.transcript}\n\nProvide the SOAP Note (JSON) and include a 'safety_alert' key when applicable."
 
-    resp_text = await ChatbotService.get_response(prompt)
+    resp_data = await ChatbotService.get_response(prompt)
+    resp_text = resp_data.get("text", "") if isinstance(resp_data, dict) else str(resp_data)
 
     # Try to parse response as JSON; if parsing fails, return raw text under 'text'
     try:
-        parsed = json.loads(resp_text)
+        # If the text contains JSON markdown blocks, strip them
+        clean_text = resp_text.replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(clean_text)
         return {"notes": parsed}
     except Exception:
         return {"notes": {"text": resp_text}}
