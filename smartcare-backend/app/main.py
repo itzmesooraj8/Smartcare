@@ -28,7 +28,8 @@ from app.api.v1 import (
 )
 from app import signaling as signaling_module
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# Switch to bcrypt as it is more guaranteed to be available than argon2 on some environments
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
 logger = logging.getLogger("smartcare")
 
@@ -109,6 +110,19 @@ async def audit_sensitive_reads(request: Request, call_next):
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global Crash: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 @app.on_event("startup")
 async def startup_event():
