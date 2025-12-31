@@ -1,47 +1,7 @@
-import { useParams, useNavigate } from 'react-router-dom';
-const TelehealthRoom = React.lazy(() => import('@/components/TelehealthRoom'));
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-
-export function TelehealthLandingPage() {
-  // Grab the "roomId" from the URL (e.g., /video/consultation-101)
-  const { roomId } = useParams<{ roomId: string }>();
-  const navigate = useNavigate();
-
-  return (
-    <div className="flex flex-col h-screen bg-slate-950">
-      {/* Simple Header */}
-      <div className="flex items-center p-4 text-white bg-slate-900 border-b border-slate-800">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate('/dashboard')}
-          className="mr-4 text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
-        <div className="flex flex-col">
-          <span className="font-semibold">Secure Telehealth Session</span>
-          <span className="text-xs text-slate-400">Room ID: {roomId || 'General'}</span>
-        </div>
-      </div>
-
-      {/* The LiveKit Room */}
-      <div className="flex-1 overflow-hidden">
-        {/* We pass the roomId from the URL to your component (lazy-loaded) */}
-        <React.Suspense fallback={<div className="p-6 text-center text-slate-400">Loading telehealth...</div>}>
-          <TelehealthRoom 
-            roomId={roomId || 'default-room'} 
-            onLeave={() => navigate('/dashboard')} 
-          />
-        </React.Suspense>
-      </div>
-    </div>
-  );
-}
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+
 import { Video, VideoOff, Mic, MicOff, PhoneOff, Camera, MessageCircle, Paperclip, FileText, X, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -211,13 +171,13 @@ const VideoCallPage: React.FC = () => {
       // websocket opened
       try {
         ws.send(JSON.stringify({ type: 'announce', role, peerId, name: (user as any)?.full_name || user?.email }));
-      } catch (e) {}
+      } catch (e) { }
 
       // start heartbeat every 30s
       try {
         if (heartbeatRef.current) clearInterval(heartbeatRef.current);
         heartbeatRef.current = window.setInterval(() => {
-          try { ws.send(JSON.stringify({ type: 'ping' })); } catch (e) {}
+          try { ws.send(JSON.stringify({ type: 'ping' })); } catch (e) { }
         }, 30000);
       } catch (e) { console.warn('heartbeat setup failed', e); }
     };
@@ -268,7 +228,7 @@ const VideoCallPage: React.FC = () => {
             setIsWaiting(false);
             setJoining(false);
             toast.error('Doctor denied the request');
-            try { wsRef.current?.close(); } catch (e) {}
+            try { wsRef.current?.close(); } catch (e) { }
           }
           return;
         }
@@ -329,8 +289,8 @@ const VideoCallPage: React.FC = () => {
   }, [roomId, peerId, role, user]);
 
   const disconnectWebSocket = useCallback(() => {
-    try { if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; } } catch (e) {}
-    try { wsRef.current?.close(); } catch (e) {}
+    try { if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; } } catch (e) { }
+    try { wsRef.current?.close(); } catch (e) { }
     wsRef.current = null;
     pendingCandidatesRef.current = [];
   }, []);
@@ -341,10 +301,10 @@ const VideoCallPage: React.FC = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) {}
-      try { remoteStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) {}
-      try { pcRef.current?.close(); } catch (e) {}
-      try { disconnectWebSocket(); } catch (e) {}
+      try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) { }
+      try { remoteStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) { }
+      try { pcRef.current?.close(); } catch (e) { }
+      try { disconnectWebSocket(); } catch (e) { }
       localStreamRef.current = null; remoteStreamRef.current = null;
     };
   }, [disconnectWebSocket]);
@@ -368,10 +328,10 @@ const VideoCallPage: React.FC = () => {
 
   const endCall = useCallback(() => {
     setCallStatus('ended');
-    try { localStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
-    try { remoteStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
-    try { pcRef.current?.close(); } catch (e) {}
-    try { disconnectWebSocket(); } catch (e) {}
+    try { localStream?.getTracks().forEach(t => t.stop()); } catch (e) { }
+    try { remoteStream?.getTracks().forEach(t => t.stop()); } catch (e) { }
+    try { pcRef.current?.close(); } catch (e) { }
+    try { disconnectWebSocket(); } catch (e) { }
     pcRef.current = null;
     setIsJoined(false);
     setJoining(false);
@@ -382,10 +342,12 @@ const VideoCallPage: React.FC = () => {
   // Create peer connection
   const createPeerConnection = useCallback(async () => {
     if (pcRef.current) return pcRef.current;
-    const servers = { iceServers: iceConfigRef.current || [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ] };
+    const servers = {
+      iceServers: iceConfigRef.current || [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ]
+    };
     const pc = new RTCPeerConnection(servers as any);
     pcRef.current = pc;
 
@@ -478,7 +440,7 @@ const VideoCallPage: React.FC = () => {
     const next = cameraFacing === 'user' ? 'environment' : 'user';
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next, width: 1280, height: 720 }, audio: true });
-      try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) {}
+      try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch (e) { }
       setLocalStream(s); localStreamRef.current = s; if (localVideoRef.current) localVideoRef.current.srcObject = s;
       const pc = pcRef.current;
       if (pc) {
@@ -538,7 +500,7 @@ const VideoCallPage: React.FC = () => {
         }
       }
       if (screenTrackRef.current) {
-        try { screenTrackRef.current.stop(); } catch (e) {}
+        try { screenTrackRef.current.stop(); } catch (e) { }
         screenTrackRef.current = null;
       }
     } catch (e) { console.warn(e); }
@@ -599,7 +561,7 @@ const VideoCallPage: React.FC = () => {
     } finally {
       setIsUploading(false);
       // clear input value to allow re-uploading same file
-      try { (e.target as HTMLInputElement).value = ''; } catch (e) {}
+      try { (e.target as HTMLInputElement).value = ''; } catch (e) { }
     }
   };
 
@@ -642,7 +604,7 @@ const VideoCallPage: React.FC = () => {
         </div>
 
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
-          <div className={`px-2 py-1 rounded text-xs font-bold ${connectionQuality==='Excellent'?'bg-green-600':'bg-yellow-500'} ${connectionQuality==='Fair'?'bg-orange-500':''} ${connectionQuality==='Poor'?'bg-red-600':''}`}>{connectionQuality}</div>
+          <div className={`px-2 py-1 rounded text-xs font-bold ${connectionQuality === 'Excellent' ? 'bg-green-600' : 'bg-yellow-500'} ${connectionQuality === 'Fair' ? 'bg-orange-500' : ''} ${connectionQuality === 'Poor' ? 'bg-red-600' : ''}`}>{connectionQuality}</div>
           <button onClick={() => setChatOpen(c => !c)} className="ml-2 p-2 rounded-md bg-white/6">
             <MessageCircle className="w-5 h-5" />
           </button>
@@ -686,7 +648,7 @@ const VideoCallPage: React.FC = () => {
                   <p className="text-xs text-indigo-500 font-medium">Shared by Doctor</p>
                 </div>
                 <button onClick={() => setSharedFile(null)} className="text-gray-400 hover:text-red-500">
-                  <X className="h-5 w-5"/>
+                  <X className="h-5 w-5" />
                 </button>
               </div>
 
@@ -699,13 +661,13 @@ const VideoCallPage: React.FC = () => {
                 </div>
               )}
 
-              <a 
-                href={sharedFile.url} 
-                target="_blank" 
-                rel="noreferrer" 
+              <a
+                href={sharedFile.url}
+                target="_blank"
+                rel="noreferrer"
                 className="flex items-center justify-center w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors font-semibold"
               >
-                Open Document <ArrowUpRight className="ml-2 h-4 w-4"/>
+                Open Document <ArrowUpRight className="ml-2 h-4 w-4" />
               </a>
             </div>
           )}
@@ -724,8 +686,8 @@ const VideoCallPage: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'approve_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-green-600 rounded-md">Accept</button>
-                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'reject_join', target: req.peerId, from: peerId })); } catch (e) {} setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-red-600 rounded-md">Deny</button>
+                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'approve_join', target: req.peerId, from: peerId })); } catch (e) { } setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-green-600 rounded-md">Accept</button>
+                      <button onClick={() => { try { wsRef.current?.send(JSON.stringify({ type: 'reject_join', target: req.peerId, from: peerId })); } catch (e) { } setIncomingRequests(prev => prev.filter(p => p.peerId !== req.peerId)); }} className="px-2 py-1 bg-red-600 rounded-md">Deny</button>
                     </div>
                   </div>
                 </div>
@@ -793,7 +755,7 @@ const VideoCallPage: React.FC = () => {
                   {isVideoEnabled ? <Video className="w-6 h-6 text-white" /> : <VideoOff className="w-6 h-6 text-white" />}
                 </button>
 
-                <button onClick={() => { if (!isJoined) { handleJoin(); } else { /* if joined, patient/doctor flows handled earlier */ } }} className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold">{!isJoined ? 'Join' : (callStatus==='connected' ? 'Connected' : 'Join')}</button>
+                <button onClick={() => { if (!isJoined) { handleJoin(); } else { /* if joined, patient/doctor flows handled earlier */ } }} className="hidden md:inline-block px-3 py-2 rounded-full bg-green-600 text-sm font-semibold">{!isJoined ? 'Join' : (callStatus === 'connected' ? 'Connected' : 'Join')}</button>
 
                 <button onClick={isScreenSharing ? stopScreenShare : startScreenShare} className={`ml-2 px-3 py-2 rounded-full bg-white/8`}>{isScreenSharing ? 'Stop Share' : 'Share Screen'}</button>
 
