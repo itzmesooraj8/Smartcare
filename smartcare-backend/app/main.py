@@ -17,6 +17,8 @@ from app.core.config import settings
 from app.database import engine, get_db, Base, SessionLocal
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from app.models.appointment import Appointment
+from app.models.medical_record import MedicalRecord
 
 # Router Imports
 from app.api.v1 import (
