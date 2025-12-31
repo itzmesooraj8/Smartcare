@@ -1,8 +1,14 @@
 /// <reference types="vite/client" />
 import axios from 'axios';
 
+let baseURL = import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1';
+// Ensure strict /api/v1 suffix
+if (baseURL && !baseURL.endsWith('/api/v1')) {
+  baseURL = baseURL.replace(/\/$/, '') + '/api/v1';
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -31,7 +37,7 @@ api.interceptors.response.use(
 export const apiFetch = api;
 export default api;
 
-export const API_URL = import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1';
+export const API_URL = baseURL;
 
 export async function getPatientDashboardData() {
   const res = await api.get('/patient/dashboard');
