@@ -110,10 +110,15 @@ export default function MedicalRecordsPage() {
       const wrapped = await wrapMasterKey(newKey, password);
 
       // 3. Send to Backend
+      // 3. Send to Backend
       await apiFetch({
         url: "/vault/key",
         method: "POST",
-        data: wrapped
+        data: {
+          encrypted_master_key: wrapped.cipher_text,
+          key_encryption_iv: wrapped.iv,
+          key_derivation_salt: wrapped.salt
+        }
       });
 
       // 4. Update Context
