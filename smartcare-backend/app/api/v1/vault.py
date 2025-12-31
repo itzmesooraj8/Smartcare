@@ -71,4 +71,35 @@ def get_vault_key(
         'encrypted_master_key': ve.encrypted_master_key,
         'key_encryption_iv': ve.key_encryption_iv,
         'key_derivation_salt': ve.key_derivation_salt,
-    }
+from pydantic import BaseModel
+
+class VaultSetupRequest(BaseModel):
+    encrypted_master_key: str
+    key_encryption_iv: str
+    key_derivation_salt: str
+
+@router.post('/key')
+def setup_vault_key(
+    payload: VaultSetupRequest,
+    authorization: str | None = Header(None, alias='Authorization'),
+    db: Session = Depends(get_db),
+):
+    """
+    Initialize the vault for a user by storing their encrypted master key.
+    This is used for legacy account migration or new account setup.
+    """
+    user = _get_user_from_bearer(authorization, db)
+
+    # Check if vault already exists
+    if db.query(VaultEntry).filter(VaultEntry.user_id == user.id).first():
+        raise HTTPException(status_code=409, detail="Vault already initialized")
+    
+    ve = VaultEntry(
+        user_id=user.id,
+        encrypted_master_key=payload.encrypted_master_key,
+        key_encryption_iv=payload.key_encryption_iv,
+        key_derivation_salt=payload.key_derivation_salt
+    )
+    db.add(ve)
+    db.commit()
+    return {"status": "ok"}
