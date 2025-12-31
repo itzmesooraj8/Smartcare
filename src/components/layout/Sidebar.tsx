@@ -151,7 +151,7 @@ export default function Sidebar(): JSX.Element {
 
         <nav className="flex-1 flex flex-col items-center gap-4">
           {ADMIN_ITEMS.map((it) => (
-            <NavLink key={it.id} to={it.href} className={({ isActive }) => `group relative w-full flex items-center justify-center p-2 rounded-lg` }>
+            <NavLink key={it.id} to={it.href} className={({ isActive }) => `group relative w-full flex items-center justify-center p-2 rounded-lg`}>
               {({ isActive }) => (
                 <div className="relative flex items-center justify-center w-full">
                   <it.Icon className={`h-6 w-6 ${isActive ? 'text-[#39E079]' : 'text-zinc-400'} transition-transform duration-150 group-hover:scale-110`} />
@@ -163,18 +163,19 @@ export default function Sidebar(): JSX.Element {
         </nav>
 
         <div className="mt-4 mb-2">
-          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white">{(user?.name||'A').slice(0,1)}</div>
+          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white">{(user?.name || 'A').slice(0, 1)}</div>
         </div>
       </aside>
     );
   }
 
+  // God Tier Sidebar Design
   return (
     <>
       {isMobile && (
-        <div className="fixed z-40 top-4 left-4">
-          <button onClick={() => setOpen(true)} aria-label="Open navigation" className="p-2 rounded-md bg-white/80 backdrop-blur border border-white/20 shadow-sm">
-            <Menu className="h-5 w-5 text-zinc-700" />
+        <div className="fixed z-50 top-4 left-4">
+          <button onClick={() => setOpen(true)} aria-label="Open navigation" className="p-2.5 rounded-xl bg-white/10 dark:bg-black/20 backdrop-blur-md border border-white/20 shadow-lg text-foreground hover:bg-white/20 transition-all">
+            <Menu className="h-5 w-5" />
           </button>
         </div>
       )}
@@ -182,116 +183,114 @@ export default function Sidebar(): JSX.Element {
       <AnimatePresence>
         {(open || !isMobile) && (
           <motion.aside
-            initial={{ x: isMobile ? -280 : 0, opacity: isMobile ? 0 : 1 }}
+            initial={{ x: isMobile ? -300 : 0, opacity: isMobile ? 0 : 1 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -280, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={`z-30 fixed top-4 left-4 h-[calc(100vh-2rem)] flex-shrink-0 flex flex-col ${collapsed ? 'w-20' : 'w-64'} p-4 rounded-2xl bg-white/60 dark:bg-slate-900/30 backdrop-blur-xl border border-white/10 shadow-2xl`}
-            aria-label="Primary navigation"
+            exit={{ x: -300, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className={`z-40 fixed top-0 left-0 h-screen flex-shrink-0 flex flex-col ${collapsed ? 'w-[5.5rem]' : 'w-72'} py-6 px-4 bg-white/40 dark:bg-[#09090b]/60 backdrop-blur-3xl border-r border-white/20 dark:border-white/5 shadow-2xl transition-[width] duration-300 ease-in-out`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-md p-1 bg-gradient-to-tr from-cyan-100 to-sky-100/60">
-                  <svg width="28" height="28" viewBox="0 0 24 24" className="block">
-                    <circle cx="12" cy="12" r="10" fill="#06b6d4" opacity="0.12" />
-                    <path d="M4 12h16" stroke="#06b6d4" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </div>
+            {/* Logo Area */}
+            <div className="flex items-center gap-4 mb-8 px-2 relative group">
+              <div className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-shadow duration-500">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <div className="absolute inset-0 bg-white/20 rounded-xl animate-pulse-slow" />
+              </div>
 
-                <motion.span initial={false} animate={collapsed ? { opacity: 0, x: -20 } : { opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="font-semibold text-lg text-[var(--sc-panel-text, #0f172a)]">
+              <motion.div animate={collapsed ? { opacity: 0, width: 0, display: 'none' } : { opacity: 1, width: 'auto', display: 'block' }} className="overflow-hidden whitespace-nowrap">
+                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 tracking-tight">
                   SmartCare
-                </motion.span>
-              </div>
-
-              <div className="hidden lg:flex items-center">
-                <button onClick={() => setCollapsed((s) => !s)} aria-pressed={collapsed} className="p-1 rounded-md bg-white/10 hover:bg-white/20 border border-white/10">
-                  <motion.div animate={{ rotate: collapsed ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                    <Menu className="h-4 w-4 text-zinc-700" />
-                  </motion.div>
-                </button>
-              </div>
+                </h1>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest ml-0.5">Health OS</p>
+              </motion.div>
             </div>
 
-            <div className="flex-1 overflow-y-auto py-2">
+            {/* Navigation Items */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar py-2 space-y-1">
               <LayoutGroup>
-                <motion.ul layout initial={false} className="space-y-2">
-                  {items.map((item, idx) => {
-                    const isActive = activeIndex === idx;
-                    return (
-                      <motion.li key={item.id} layout className="relative rounded-xl overflow-hidden">
-                        {isActive && <motion.div layoutId="active-pill" transition={pillTransition} className="absolute inset-0 rounded-xl bg-emerald-500/8 backdrop-blur border border-emerald-300/6 -z-10" />}
+                {items.map((item, idx) => {
+                  const isActive = activeIndex === idx;
+                  return (
+                    <NavLink
+                      key={item.id}
+                      to={item.href}
+                      onClick={() => isMobile && setOpen(false)}
+                      className="group relative block"
+                    >
+                      {({ isActive }) => (
+                        <div className={`relative px-3 py-3 flex items-center gap-4 rounded-xl transition-all duration-300 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/40 dark:hover:bg-white/5'}`}>
 
-                        <div className="relative z-20">
-                          <MotionSidebarItem item={item} collapsed={collapsed} active={isActive} />
+                          {/* Active Background Glow */}
+                          {isActive && (
+                            <motion.div
+                              layoutId="nav-glow"
+                              className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-violet-500/10 dark:from-indigo-500/20 dark:to-violet-500/20 rounded-xl border border-indigo-500/10"
+                              initial={false}
+                              transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                            />
+                          )}
+
+                          <div className="relative z-10 flex-shrink-0">
+                            <IconMicro Icon={item.icon} active={isActive} />
+                          </div>
+
+                          <motion.span
+                            animate={collapsed ? { opacity: 0, x: -10 } : { opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className={`relative z-10 font-medium whitespace-nowrap ${isActive ? 'font-semibold' : ''}`}
+                          >
+                            {item.name}
+                          </motion.span>
+
+                          {/* Active Indicator Dot */}
+                          {isActive && !collapsed && (
+                            <motion.div layoutId="nav-dot" className="absolute right-3 w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                          )}
                         </div>
-                      </motion.li>
-                    );
-                  })}
-                </motion.ul>
+                      )}
+                    </NavLink>
+                  );
+                })}
               </LayoutGroup>
             </div>
 
-            <div className="mt-4">
-              <div className="mb-3 px-1">
-                <div className={`text-xs text-zinc-600 ${collapsed ? 'opacity-0 -translate-x-4' : ''}`}>Shortcuts</div>
-              </div>
+            {/* Bottom Actions */}
+            <div className="mt-6 pt-6 border-t border-slate-200/50 dark:border-white/5 px-1 space-y-3">
+              {/* Profile Card */}
+              <div className={`flex items-center gap-3 p-2 rounded-2xl bg-gradient-to-b from-white/50 to-white/20 dark:from-white/5 dark:to-transparent border border-white/20 shadow-sm backdrop-blur-sm transition-all duration-300 ${collapsed ? 'justify-center' : ''}`}>
+                <Avatar className="h-9 w-9 border-2 border-white dark:border-white/10 shadow-sm">
+                  <AvatarImage src={user?.avatar} />
+                  <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user?.name?.[0] || 'U'}</AvatarFallback>
+                </Avatar>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button className="flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 text-xs text-zinc-700">
-                  <Phone className="h-4 w-4" />
-                  <motion.span animate={collapsed ? { opacity: 0, x: -20 } : { opacity: 1, x: 0 }} className="whitespace-nowrap">
-                    Call Clinic
-                  </motion.span>
-                </button>
-
-                <button className="flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 text-xs text-zinc-700">
-                  <MessageSquare className="h-4 w-4" />
-                  <motion.span animate={collapsed ? { opacity: 0, x: -20 } : { opacity: 1, x: 0 }} className="whitespace-nowrap">
-                    Messages
-                  </motion.span>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <div className="relative group">
-                <motion.div whileHover={{ y: -4 }} className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarImage src={user?.avatar || '/avatar.png'} alt={user?.name || 'User'} />
-                    <AvatarFallback>{(user?.name || 'U').slice(0, 1)}</AvatarFallback>
-                  </Avatar>
-
-                  <motion.div animate={collapsed ? { opacity: 0, x: -20 } : { opacity: 1, x: 0 }} className="flex-1">
-                    <div className="text-sm font-medium text-[var(--sc-panel-text, #0f172a)]">{user?.name || 'User'}</div>
-                    <div className="text-xs text-zinc-600">{user?.role || 'patient'}</div>
-                  </motion.div>
+                <motion.div
+                  animate={collapsed ? { opacity: 0, width: 0, display: 'none' } : { opacity: 1, width: 'auto', display: 'block' }}
+                  className="overflow-hidden"
+                >
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[120px]">{user?.name || 'User'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate capitlzied">{user?.role || 'Patient'}</p>
                 </motion.div>
 
-                <motion.div initial={{ opacity: 0, y: 8 }} whileHover={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} className="absolute right-0 bottom-full mb-2 w-40 rounded-md bg-white/80 backdrop-blur border border-white/20 shadow-md p-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
-                  <div className="flex flex-col gap-1">
-                    <a href="/settings" className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/10">
-                      <Settings className="h-4 w-4" />
-                      <span className="text-sm">Settings</span>
-                    </a>
-                    <a href="/logout" className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/10">
-                      <LogOut className="h-4 w-4" />
-                      <span className="text-sm">Logout</span>
-                    </a>
+                {!collapsed && (
+                  <NavLink to="/logout" className="ml-auto p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                    <LogOut className="h-4 w-4" />
+                  </NavLink>
+                )}
+              </div>
+
+              {/* Collapse Toggle */}
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className="w-full h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground transition-colors group"
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                <motion.div animate={{ rotate: collapsed ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                  <div className="p-1 rounded bg-white/40 dark:bg-white/10 border border-white/20 shadow-sm group-hover:scale-110 transition-transform">
+                    {collapsed ? <Menu className="h-3 w-3" /> : <div className="i-lucide-chevron-left h-3 w-3"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg></div>}
                   </div>
                 </motion.div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <button onClick={() => setCollapsed((s) => !s)} className="text-sm text-zinc-700 px-3 py-2 rounded-md bg-white/5" aria-pressed={collapsed}>
-                {collapsed ? 'Expand' : 'Collapse'}
               </button>
-
-              {isMobile && (
-                <button onClick={() => setOpen(false)} className="text-xs text-zinc-600 px-2 py-1">
-                  Close
-                </button>
-              )}
             </div>
           </motion.aside>
         )}
