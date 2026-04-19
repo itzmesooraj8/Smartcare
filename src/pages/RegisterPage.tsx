@@ -10,9 +10,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useEncryption } from '@/hooks/useEncryption';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { Heart, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 type UserRole = 'patient' | 'doctor' | 'admin';
+
+const MOCK_AUTH_ENABLED = import.meta.env.DEV || import.meta.env.VITE_MOCK_AUTH === 'true';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -109,26 +111,24 @@ const RegisterPage = () => {
         key_derivation_salt: wrapped.salt,
       };
 
-      // Create account on server
-      const regRes = await register(payload);
+      // Create account in backend (or mock store when mock mode is enabled)
+      await register(payload);
       toast({
         title: "Account Created!",
-        description: "Welcome to SmartCare. Logging you in now...",
+        description: MOCK_AUTH_ENABLED
+          ? "Mock account created. Signing you in..."
+          : "Welcome to SmartCare. Logging you in now...",
       });
 
-      // Auto-login: call the login endpoint so the server issues the HttpOnly cookie
+      // Auto-login through shared auth context (handles both real and mock modes)
       try {
-        // apiFetch is available via import in this module — use a direct call to the auth login
-        const { apiFetch } = await import('@/lib/api');
-        const loginRes: any = await apiFetch({ url: '/auth/login', method: 'POST', data: { email: formData.email, password: formData.password } });
-        const user = loginRes?.user || loginRes?.data?.user || loginRes;
-        // Store in context + keep master key in memory
-        if (user) {
-          login(formData.email, formData.password, masterKey);
-        }
+        await login(formData.email, formData.password, masterKey);
       } catch (err) {
-        // If login after register fails, still redirect to login page with a message
         console.warn('Auto-login failed after registration', err);
+        toast({
+          title: 'Registration Complete',
+          description: 'Account created. Please sign in to continue.',
+        });
         navigate('/login');
         return;
       }

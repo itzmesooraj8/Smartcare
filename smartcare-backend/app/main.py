@@ -21,6 +21,7 @@ from app.models.appointment import Appointment
 from app.models.medical_record import MedicalRecord
 from app.models.doctor import Doctor
 from app.models.patient import Patient
+from seed_demo_users import seed_demo_users
 
 # Router Imports
 from app.api.v1 import (
@@ -137,6 +138,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup_event():
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_result = seed_demo_users(db)
+        logger.info(
+            "Demo user seeding complete: created=%s existing=%s",
+            seed_result.get("created", 0),
+            seed_result.get("existing", 0),
+        )
+    except Exception as exc:
+        logger.error("Demo user seeding failed: %s", exc)
+    finally:
+        db.close()
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
