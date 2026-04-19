@@ -6,10 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useEncryption } from '@/hooks/useEncryption';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { Heart, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+
+type UserRole = 'patient' | 'doctor' | 'admin';
+
+const MOCK_AUTH_ENABLED = import.meta.env.DEV || import.meta.env.VITE_MOCK_AUTH === 'true';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -26,8 +31,10 @@ const RegisterPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const { register, isLoading } = useAuth();
+  const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { generateMasterKey, wrapMasterKey } = useEncryption();
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -88,20 +95,65 @@ const RegisterPage = () => {
 
     // NOTE: current register mock doesn't accept files. In a real app we would send
     // the licenseFile in a multipart/form-data request to the backend here.
-    const success = await register(formData.email, formData.password, formData.name, formData.role);
+    try {
+      // Generate and wrap a master key for client-side encryption
+      const masterKey = await generateMasterKey();
+      const wrapped = await wrapMasterKey(masterKey, formData.password);
 
-    if (success) {
+      // Send raw password over TLS; let server hash it with bcrypt/argon2.
+      const payload: any = {
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.name,
+        role: formData.role,
+        encrypted_master_key: wrapped.cipher_text,
+        key_encryption_iv: wrapped.iv,
+        key_derivation_salt: wrapped.salt,
+      };
+
+      // Create account in backend (or mock store when mock mode is enabled)
+      await register(payload);
       toast({
         title: "Account Created!",
-        description: "Welcome to SmartCare. Your account has been created successfully.",
+        description: MOCK_AUTH_ENABLED
+          ? "Mock account created. Signing you in..."
+          : "Welcome to SmartCare. Logging you in now...",
       });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Registration Failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+
+      // Auto-login through shared auth context (handles both real and mock modes)
+      try {
+        await login(formData.email, formData.password, masterKey);
+      } catch (err) {
+        console.warn('Auto-login failed after registration', err);
+        toast({
+          title: 'Registration Complete',
+          description: 'Account created. Please sign in to continue.',
+        });
+        navigate('/login');
+        return;
+      }
+
+      // Redirect to role-specific dashboard
+      if (formData.role === 'patient') navigate('/patient/dashboard');
+      else if (formData.role === 'doctor') navigate('/doctor/dashboard');
+      else if (formData.role === 'admin') navigate('/admin-dashboard');
+      else navigate('/dashboard');
+    } catch (error: any) {
+      console.error("Registration error", error);
+      if (error.response?.status === 409) {
+        toast({
+          title: "Account Already Exists",
+          description: "This email is already registered. Please sign in instead.",
+          variant: "destructive",
+        });
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: error.response?.data?.detail || "Something went wrong. Please check your connection and try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 

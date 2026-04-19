@@ -1,94 +1,170 @@
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from app.tasks.audit import record_audit_async
-from app.signaling import router as signaling_router
-from app.api.v1 import ehr, appointments, availability, profile, auth, tele, finance
-import os
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
 
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
-app = FastAPI(title="Smartcare Backend")
+from app.core.config import settings
+from app.database import engine, get_db, Base, SessionLocal
+from app.models.user import User
+from app.models.audit_log import AuditLog
+from app.models.appointment import Appointment
+from app.models.medical_record import MedicalRecord
+from app.models.doctor import Doctor
+from app.models.patient import Patient
+from seed_demo_users import seed_demo_users
+
+# Router Imports
+from app.api.v1 import (
+    dashboard as dashboard_module,
+    appointments as appointments_module,
+    medical_records as medical_records_module,
+    files as files_module,
+    auth as auth_module,
+    admin as admin_module,
+    doctors as doctors_module,
+    patients as patients_module,
+    video as video_module,
+    vault as vault_module,
+    tele as tele_module
+)
+from app import signaling as signaling_module
+
+# Switch to bcrypt as it is more guaranteed to be available than argon2 on some environments
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
+logger = logging.getLogger("smartcare")
+
+app = FastAPI(title="SmartCare Backend")
+
+# --- CORS SETTINGS ---
+# Use configured BACKEND_CORS_ORIGINS from settings to allow preview and local domains.
+ORIGINS = list(getattr(settings, 'BACKEND_CORS_ORIGINS', []))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(ehr.router, prefix="/api/v1/ehr", tags=["EHR"])
-app.include_router(appointments.router, prefix="/api/v1/appointments", tags=["Appointments"])
-app.include_router(availability.router, prefix="/api/v1/availability", tags=["Availability"])
-app.include_router(profile.router, prefix="/api/v1/profile", tags=["Profile"])
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
-app.include_router(tele.router, prefix="/api/v1/tele", tags=["Telemedicine"])
-app.include_router(finance.router, prefix="/api/v1/finance", tags=["Finance"])
-app.include_router(signaling_router)
-
 @app.middleware("http")
-async def audit_middleware(request: Request, call_next):
+async def inject_current_user(request: Request, call_next):
+    """
+    Decodes the JWT from the Authorization Header (Priority) or Cookie (Fallback).
+    For Vercel->Render deployment, Authorization Header is the only reliable method.
+    """
+    request.state.current_user_id = None
+    token = None
+
+    # 1. Priority: Check Authorization: Bearer <token>
+    auth = request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1]
+
+    # 2. Fallback: Check Cookie (often blocked in cross-site)
+    if not token:
+        try:
+            token = request.cookies.get("access_token")
+        except Exception:
+            pass
+
+    if token:
+        try:
+            payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
+            sub = payload.get("sub")
+            if sub:
+                request.state.current_user_id = str(sub)
+        except Exception:
+            request.state.current_user_id = None
+
     response = await call_next(request)
-    try:
-        user = request.state.user if hasattr(request.state, "user") else None
-        record_audit_async.delay({
-            "path": request.url.path,
-            "method": request.method,
-            "status": response.status_code,
-            "user": getattr(user, "id", None),
-            "ip": request.client.host if request.client else None
-        })
-    except Exception:
-        pass
     return response
 
 
-# Simple rule-based chatbot responses
-def get_chatbot_response(message: str) -> str:
-    """Simple keyword-based chatbot for healthcare queries."""
-    msg_lower = message.lower()
-    
-    # Greetings
-    if any(word in msg_lower for word in ['hello', 'hi', 'hey', 'greetings']):
-        return "Hello! I'm SmartCare Assistant. I can help you with appointment booking, general health information, and navigating our services. How can I assist you today?"
-    
-    # Appointments
-    if any(word in msg_lower for word in ['appointment', 'book', 'schedule', 'doctor']):
-        return "To book an appointment, please navigate to the 'Book Appointment' section in the menu. You can choose your preferred doctor, date, and time. Would you like me to guide you through the process?"
-    
-    # Hours/Contact
-    if any(word in msg_lower for word in ['hours', 'open', 'time', 'contact', 'phone']):
-        return "Our clinic is open Monday-Friday 8:00 AM - 6:00 PM, and Saturday 9:00 AM - 2:00 PM. For urgent matters, you can reach us at our 24/7 helpline. You can find contact details in the 'Contact' section."
-    
-    # Medical records
-    if any(word in msg_lower for word in ['record', 'history', 'medical', 'report']):
-        return "You can access your medical records in the 'Medical Records' section of your dashboard. All your test results, prescriptions, and visit history are securely stored there."
-    
-    # Payments/Billing
-    if any(word in msg_lower for word in ['payment', 'bill', 'invoice', 'cost', 'price']):
-        return "You can view and manage your bills in the 'Financial Hub' section. We accept various payment methods including credit cards, insurance, and online payments."
-    
-    # Emergency
-    if any(word in msg_lower for word in ['emergency', 'urgent', 'help', 'pain']):
-        return "⚠️ If this is a medical emergency, please call emergency services immediately (911 or your local emergency number). For urgent but non-emergency care, please visit our 'Contact' page for our 24/7 helpline."
-    
-    # Video consultation
-    if any(word in msg_lower for word in ['video', 'call', 'online', 'teleconsult']):
-        return "We offer video consultations! You can schedule a video appointment through the 'Teleconsultation' section. Make sure you have a stable internet connection and a camera-enabled device."
-    
-    # Default response
-    return "I'm here to help! You can ask me about:\n• Booking appointments\n• Clinic hours and contact info\n• Accessing medical records\n• Payment and billing\n• Video consultations\n\nWhat would you like to know?"
-
-# WebSocket endpoint for real-time chatbot
-@app.websocket("/ws/chatbot")
-async def websocket_chatbot(websocket: WebSocket):
-    await websocket.accept()
-    
+@app.middleware("http")
+async def audit_sensitive_reads(request: Request, call_next):
+    """
+    Lightweight middleware to record read access to sensitive resources.
+    We persist a minimal AuditLog entry for GETs to the medical-records API.
+    """
+    response = await call_next(request)
     try:
-        while True:
-            data = await websocket.receive_text()
-            response = get_chatbot_response(data)
-            await websocket.send_text(response)
-    except WebSocketDisconnect:
+        if request.method == 'GET' and request.url.path.startswith('/api/v1/medical-records'):
+            user_id = getattr(request.state, 'current_user_id', None)
+            if user_id:
+                db = SessionLocal()
+                try:
+                    audit = AuditLog(user_id=str(user_id), target_id=None, action='READ', resource_type='MEDICAL_RECORDS', ip_address=(request.client.host if request.client else None))
+                    db.add(audit)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                finally:
+                    db.close()
+    except Exception:
+        # Never fail the request due to auditing issues
         pass
 
+    return response
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global Crash: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
+@app.on_event("startup")
+async def startup_event():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_result = seed_demo_users(db)
+        logger.info(
+            "Demo user seeding complete: created=%s existing=%s",
+            seed_result.get("created", 0),
+            seed_result.get("existing", 0),
+        )
+    except Exception as exc:
+        logger.error("Demo user seeding failed: %s", exc)
+    finally:
+        db.close()
+
+# --- ROUTER REGISTRATION ---
+app.include_router(signaling_module.router)
+app.include_router(auth_module.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(dashboard_module.router, prefix="/api/v1/patient", tags=["Dashboard"])
+app.include_router(medical_records_module.router, prefix="/api/v1/medical-records", tags=["Records"])
+app.include_router(files_module.router, prefix="/api/v1/files", tags=["Files"])
+app.include_router(appointments_module.router, prefix="/api/v1/appointments", tags=["Appointments"])
+app.include_router(admin_module.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(doctors_module.router, prefix="/api/v1/doctors", tags=["Doctors"])
+app.include_router(patients_module.router, prefix="/api/v1/patients", tags=["Patients"])
+app.include_router(video_module.router, prefix="/api/v1/video", tags=["Video"])
+app.include_router(vault_module.router, prefix="/api/v1/vault", tags=["Vault"])
+app.include_router(tele_module.router, prefix="/api/v1/tele", tags=["Telehealth"])
+
+@app.get("/")
+def root():
+    return {"status": "online", "environment": "production"}
