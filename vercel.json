@@ -11,7 +11,9 @@
     ],
     "env": {
         "VITE_API_URL": "https://smartcare-zflo.onrender.com/api/v1",
-        "VITE_WS_URL": "wss://smartcare-zflo.onrender.com/ws/chatbot"
+        "VITE_WS_URL": "wss://smartcare-zflo.onrender.com/ws",
+        "VITE_SUPABASE_URL": "https://zgluklhdnnqsnnnylkxw.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnbHVrbGhkbm5xc25ubnlsa3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODc1MTEsImV4cCI6MjEwNjA2MzUxMX0.dChOAfOXT5VvpNaIpQaaztQIbmDwZ0I-xD-W6-7N_WU"
     },
     "headers": [
         {

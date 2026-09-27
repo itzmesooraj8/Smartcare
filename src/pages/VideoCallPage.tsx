@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useThemeMode } from '@/hooks/useThemeMode';
+import { subscribeToMessages, sendRealtimeMessage } from '@/lib/realtime';
 
 type Soap = { S: string; O: string; A: string; P: string } | null;
 
@@ -38,6 +39,25 @@ export default function VideoCallPage() {
     { from: 'doctor', text: 'Can you describe the pain? Sharp or dull?', time: '09:33' },
   ]);
   const [chatInput, setChatInput] = useState('');
+
+  // Subscribe to in-call realtime chat
+  useEffect(() => {
+    const channel = subscribeToMessages('videocall-active-session', (incoming) => {
+      if (incoming.sender_id !== 'local-caller') {
+        const now = new Date(incoming.created_at);
+        const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setChat((prev) => [...prev, {
+          from: incoming.sender_id.includes('doctor') ? 'doctor' : 'patient',
+          text: incoming.text,
+          time,
+        }]);
+      }
+    });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
@@ -64,10 +84,18 @@ export default function VideoCallPage() {
 
   const sendChat = () => {
     if (!chatInput.trim()) return;
+    const text = chatInput.trim();
     const now = new Date();
     const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    setChat((prev) => [...prev, { from: 'doctor', text: chatInput.trim(), time }]);
+    setChat((prev) => [...prev, { from: 'doctor', text, time }]);
     setChatInput('');
+
+    // Broadcast in realtime to call peer
+    void sendRealtimeMessage('videocall-active-session', {
+      sender_id: 'local-caller',
+      sender_name: 'Doctor',
+      text,
+    });
   };
 
   const callBg = isDark ? '#050508' : '#eef3fb';

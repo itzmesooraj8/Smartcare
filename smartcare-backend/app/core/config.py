@@ -20,13 +20,26 @@ class Settings(BaseSettings):
     PUBLIC_KEY: str = os.getenv("PUBLIC_KEY", "")
 
     if not PRIVATE_KEY or not PUBLIC_KEY:
-        try:
-            with open("private_key.pem", "r") as f:
-                PRIVATE_KEY = f.read()
-            with open("public_key.pem", "r") as f:
-                PUBLIC_KEY = f.read()
-        except Exception:
-            pass
+        # Try reading from candidate file locations
+        candidate_dirs = [
+            os.getcwd(),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "/app",
+            "/workspace/smartcare-backend"
+        ]
+        for cdir in candidate_dirs:
+            priv_p = os.path.join(cdir, "private_key.pem")
+            pub_p = os.path.join(cdir, "public_key.pem")
+            if os.path.exists(priv_p) and os.path.exists(pub_p):
+                try:
+                    with open(priv_p, "r", encoding="utf-8") as f:
+                        PRIVATE_KEY = f.read()
+                    with open(pub_p, "r", encoding="utf-8") as f:
+                        PUBLIC_KEY = f.read()
+                    if PRIVATE_KEY and PUBLIC_KEY:
+                        break
+                except Exception:
+                    pass
 
     if not PRIVATE_KEY or not PUBLIC_KEY:
         logging.warning("USING GENERATED KEYS. Set PRIVATE_KEY and PUBLIC_KEY in production.")
@@ -63,13 +76,15 @@ class Settings(BaseSettings):
     # CORS
     _cors_raw = os.getenv(
         "ALLOWED_ORIGINS",
-        "http://localhost:5173,https://smartcare-six.vercel.app"
+        "http://localhost:5173,http://localhost:3000,https://smartcare-six.vercel.app"
     )
-    BACKEND_CORS_ORIGINS: List[str] = [
-        origin.strip().rstrip("/")
-        for origin in _cors_raw.split(",")
-        if origin.strip()
-    ]
+    _origins = []
+    for origin in _cors_raw.split(","):
+        trimmed = origin.strip()
+        if trimmed:
+            _origins.append(trimmed.rstrip("/"))
+            _origins.append(trimmed.rstrip("/") + "/")
+    BACKEND_CORS_ORIGINS: List[str] = list(set(_origins))
 
     class Config:
         case_sensitive = True
