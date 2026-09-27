@@ -3,10 +3,11 @@ import logging
 from typing import List
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "SmartCare AI"
-    
+
     # DATABASE
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
 
@@ -19,7 +20,6 @@ class Settings(BaseSettings):
     PUBLIC_KEY: str = os.getenv("PUBLIC_KEY", "")
 
     if not PRIVATE_KEY or not PUBLIC_KEY:
-        # Try reading from local files (Docker volume or local dev)
         try:
             with open("private_key.pem", "r") as f:
                 PRIVATE_KEY = f.read()
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
             pass
 
     if not PRIVATE_KEY or not PUBLIC_KEY:
-        logging.warning("⚠️ USING GENERATED KEYS. LOGIN WILL FAIL AFTER RESTART.")
+        logging.warning("USING GENERATED KEYS. Set PRIVATE_KEY and PUBLIC_KEY in production.")
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         _key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -37,37 +37,42 @@ class Settings(BaseSettings):
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
+        ).decode("utf-8")
         PUBLIC_KEY = _key.public_key().public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode('utf-8')
+        ).decode("utf-8")
     else:
-        # Handle newlines and whitespace
-        PRIVATE_KEY = PRIVATE_KEY.replace('\\n', '\n').strip()
-        PUBLIC_KEY = PUBLIC_KEY.replace('\\n', '\n').strip()
+        PRIVATE_KEY = PRIVATE_KEY.replace("\\n", "\n").strip()
+        PUBLIC_KEY = PUBLIC_KEY.replace("\\n", "\n").strip()
 
     # EXTERNAL SERVICES
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", SUPABASE_KEY)
     SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-    
+
     LIVEKIT_API_KEY: str = os.getenv("LIVEKIT_API_KEY", "")
     LIVEKIT_API_SECRET: str = os.getenv("LIVEKIT_API_SECRET", "")
     LIVEKIT_URL: str = os.getenv("LIVEKIT_URL", "")
-    
+
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
-    
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
 
     # CORS
+    _cors_raw = os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173,https://smartcare-six.vercel.app"
+    )
     BACKEND_CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "https://smartcare-six.vercel.app",
-        "https://smartcare-six.vercel.app/",
+        origin.strip().rstrip("/")
+        for origin in _cors_raw.split(",")
+        if origin.strip()
     ]
 
     class Config:
         case_sensitive = True
+
 
 settings = Settings()
