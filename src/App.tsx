@@ -25,7 +25,6 @@ const AppointmentPage = lazy(() => import('./pages/AppointmentPage'));
 const PatientDashboard = lazy(() => import('./pages/PatientDashboard'));
 const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
 const DoctorProfilePage = lazy(() => import('./pages/DoctorProfilePage'));
-const FinancialHub = lazy(() => import('./pages/FinancialHub'));
 const ResourcesCenter = lazy(() => import('./pages/ResourcesCenter'));
 const LabResultsCenter = lazy(() => import('./pages/LabResultsCenter'));
 const DoctorMessagesPage = lazy(() => import('./pages/DoctorMessagesPage'));
@@ -118,7 +117,6 @@ const App = (): JSX.Element => {
                   <Route path="/doctor/dashboard" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
 
                   {/* Misc Protected */}
-                  <Route path="/financial-hub" element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />
                   <Route path="/resources" element={<ProtectedRoute><ResourcesCenter /></ProtectedRoute>} />
                   <Route path="/medical-records" element={<ProtectedRoute allowedRoles={['doctor','patient']}><MedicalRecordsPage /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute allowedRoles={['doctor','patient']}><ProfilePage /></ProtectedRoute>} />

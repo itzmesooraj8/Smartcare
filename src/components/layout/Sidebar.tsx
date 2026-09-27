@@ -48,7 +48,6 @@ const ALL_ITEMS: SidebarItem[] = [
   { id: 'messages', name: 'Messages', href: '/messages', icon: MessageSquare, roles: ['admin', 'doctor', 'patient'] },
   { id: 'doctors', name: 'Doctors', href: '/doctors', icon: Users, roles: ['admin', 'doctor', 'patient'] },
   { id: 'resources', name: 'Patient Education', href: '/resources', icon: BookOpen, roles: ['admin', 'doctor', 'patient'] },
-  { id: 'financial', name: 'Financial Hub', href: '/financial-hub', icon: CreditCard, roles: ['admin', 'doctor', 'patient'] },
   { id: 'profile', name: 'Profile', href: '/patient/profile', icon: Users, roles: ['patient'] },
   { id: 'settings', name: 'Settings', href: '/patient/settings', icon: Settings, roles: ['patient'] },
 ];
@@ -135,7 +134,6 @@ export default function Sidebar(): JSX.Element {
       { id: 'appointments', name: 'Appointments', href: '/appointments', Icon: CalendarClock },
       { id: 'staff', name: 'Staff', href: '/doctors', Icon: Stethoscope },
       { id: 'cms', name: 'CMS', href: '/cms', Icon: FileEdit },
-      { id: 'finance', name: 'Finance', href: '/financial-hub', Icon: Wallet },
       { id: 'inventory', name: 'Inventory', href: '/inventory', Icon: PackageSearch },
       { id: 'analytics', name: 'Analytics', href: '/reports', Icon: BarChart2 },
       { id: 'security', name: 'Settings', href: '/settings', Icon: ShieldCheck },

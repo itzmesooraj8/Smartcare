@@ -35,6 +35,8 @@ const chatSchema = z.object({
   message: z.string().min(1, 'Message is required').max(2000),
 });
 
+import { subscribeToMessages, sendRealtimeMessage } from '@/lib/realtime';
+
 export default function DoctorMessagesPage() {
   const { toast } = useToast();
 
@@ -49,19 +51,42 @@ export default function DoctorMessagesPage() {
     const [loading, setLoading] = useState(false);
     const [typing, setTyping] = useState(false);
 
+    // Subscribe to Supabase Realtime messages
+    useEffect(() => {
+      const channel = subscribeToMessages('doctor-patient-chat', (incoming) => {
+        if (incoming.sender_id !== 'doctor-me') {
+          const newMsg: ChatMessage = {
+            id: incoming.id,
+            text: incoming.text,
+            sender: 'them',
+            createdAt: new Date(incoming.created_at).getTime(),
+            status: 'sent',
+          };
+          setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
+          toast({
+            title: incoming.sender_name || 'Patient Message',
+            description: incoming.text,
+          });
+        }
+      });
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }, []);
+
     const sendMessage = async (text: string) => {
       const id = `local-${Date.now()}`;
       const optimistic: ChatMessage = { id, text, sender: 'me', createdAt: Date.now(), status: 'sending' };
       setMessages((m) => [...m, optimistic]);
       try {
         setLoading(true);
-        await new Promise((res) => setTimeout(res, 600));
+        await sendRealtimeMessage('doctor-patient-chat', {
+          sender_id: 'doctor-me',
+          sender_name: 'Dr. Jones',
+          text,
+        });
         setMessages((m) => m.map((mm) => (mm.id === id ? { ...mm, status: 'sent' } : mm)));
-        setTimeout(() => {
-          const reply: ChatMessage = { id: `r-${Date.now()}`, text: 'Thanks for the message — I will review and follow up.', sender: 'them', createdAt: Date.now(), status: 'sent' };
-          setMessages((m) => [...m, reply]);
-          toast({ title: 'New message from Sarah Jones', description: reply.text });
-        }, 3000);
       } catch (e) {
         setMessages((m) => m.map((mm) => (mm.id === id ? { ...mm, status: 'error' } : mm)));
       } finally {
@@ -72,7 +97,11 @@ export default function DoctorMessagesPage() {
     const retrySend = async (msg: ChatMessage) => {
       setMessages((m) => m.map((mm) => (mm.id === msg.id ? { ...mm, status: 'sending' } : mm)));
       try {
-        await new Promise((res) => setTimeout(res, 700));
+        await sendRealtimeMessage('doctor-patient-chat', {
+          sender_id: 'doctor-me',
+          sender_name: 'Dr. Jones',
+          text: msg.text,
+        });
         setMessages((m) => m.map((mm) => (mm.id === msg.id ? { ...mm, status: 'sent' } : mm)));
       } catch {
         setMessages((m) => m.map((mm) => (mm.id === msg.id ? { ...mm, status: 'error' } : mm)));

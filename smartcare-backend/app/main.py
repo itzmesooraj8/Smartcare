@@ -137,19 +137,23 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def startup_event():
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
     try:
-        seed_result = seed_demo_users(db)
-        logger.info(
-            "Demo user seeding complete: created=%s existing=%s",
-            seed_result.get("created", 0),
-            seed_result.get("existing", 0),
-        )
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables verified/created successfully.")
+        db = SessionLocal()
+        try:
+            seed_result = seed_demo_users(db)
+            logger.info(
+                "Demo user seeding complete: created=%s existing=%s",
+                seed_result.get("created", 0),
+                seed_result.get("existing", 0),
+            )
+        except Exception as exc:
+            logger.error("Demo user seeding failed: %s", exc)
+        finally:
+            db.close()
     except Exception as exc:
-        logger.error("Demo user seeding failed: %s", exc)
-    finally:
-        db.close()
+        logger.error("Database connection/init deferred: %s", exc)
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
@@ -167,4 +171,9 @@ app.include_router(tele_module.router, prefix="/api/v1/tele", tags=["Telehealth"
 
 @app.get("/")
 def root():
-    return {"status": "online", "environment": "production"}
+    return {"status": "online", "environment": "production", "service": "SmartCare AI"}
+
+@app.get("/health")
+@app.get("/api/v1/health")
+def health():
+    return {"status": "healthy", "service": "smartcare-backend"}
