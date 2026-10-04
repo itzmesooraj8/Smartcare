@@ -28,7 +28,6 @@ api.interceptors.response.use(
   (error: any) => {
     if (error?.response?.status === 401) {
       try { localStorage.removeItem('access_token'); } catch { }
-      // We do NOT hard reload here as it causes OOM loops if the backend is flaky.
     }
     return Promise.reject(error);
   }
@@ -51,5 +50,10 @@ export async function getDoctors() {
 
 export async function bookAppointment(payload: any) {
   const res = await api.post('/appointments', payload);
+  return res.data;
+}
+
+export async function getAppointments() {
+  const res = await api.get('/appointments');
   return res.data;
 }

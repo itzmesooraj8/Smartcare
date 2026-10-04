@@ -1,10 +1,6 @@
 # Smartcare Platform
 
-> **CONFIDENTIAL & PROPRIETARY**
-> This repository contains confidential information and proprietary software belonging to **Smartcare**.
-> Unauthorized copying, distribution, modification, public display, or use of this software, via any medium, is strictly prohibited.
-
-![Build Status](https://img.shields.io/badge/Build-Passing-success) ![Security](https://img.shields.io/badge/Security-HIPAA_Ready-blue) ![License](https://img.shields.io/badge/License-Proprietary-red)
+![Build Status](https://img.shields.io/badge/Build-Passing-success) ![Security](https://img.shields.io/badge/Security-HIPAA%2FGDPR--Aligned-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
 > [!IMPORTANT]
 > **Production database schema is migration-controlled. Never modify production schema manually.**
@@ -16,7 +12,7 @@
 
 Smartcare is an enterprise-grade Telehealth and Electronic Health Record (EHR) orchestration engine designed to eliminate clinical friction and improve patient outcomes. Unlike standard video conferencing tools, Smartcare integrates real-time communication directly with clinical workflows, offering AI-assisted triage, encrypted record keeping, and audit-compliant file exchange.
 
-The platform is engineered for high availability, low latency, and strict adherence to healthcare data privacy standards (HIPAA/GDPR).
+The platform is engineered with **HIPAA/GDPR-aligned security controls**, including cryptographic isolation of PHI, least-privilege database roles, and immutable append-only audit ledgers. See the [Compliance Control Matrix](./docs/compliance/control-matrix.md) for technical safeguard mappings.
 
 ---
 

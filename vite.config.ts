@@ -65,8 +65,7 @@ export default defineConfig(({ mode }) => ({
           
           // Heavy dependencies - isolate separately
           livekit: ['livekit-client', '@livekit/components-react', '@livekit/components-styles'],
-          ai: ['openai', 'ai', '@ai-sdk/xai'],
-          charts: ['recharts', 'react-chartjs-2', 'chart.js'],
+          charts: ['recharts'],
           
           // Forms & validation
           forms: ['react-hook-form', '@hookform/resolvers', 'zod'],

@@ -198,7 +198,7 @@ class Milestone2SessionSecurityTests(unittest.TestCase):
         allowed_files = {
             os.path.normpath(os.path.join(backend_dir, "app", "database.py")),
             os.path.normpath(os.path.join(backend_dir, "app", "main.py")),
-            os.path.normpath(os.path.join(backend_dir, "seed_demo_users.py")),
+            os.path.normpath(os.path.join(backend_dir, "scripts", "seed_demo_data.py")),
             os.path.normpath(os.path.join(backend_dir, "app", "utils", "fhir_export.py")),
             os.path.normpath(os.path.join(backend_dir, "tests", "test_milestone2_session_security.py")),
         }

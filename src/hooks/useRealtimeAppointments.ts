@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { subscribeToAppointments, RealtimeAppointment, broadcastAppointmentUpdate } from '@/lib/realtime';
 import { format, subDays } from 'date-fns';
-import { supabase } from '@/lib/supabase';
+import { getAppointments } from '@/lib/api';
 import { toast } from 'sonner';
 
 export interface UIAppointment {
@@ -26,23 +26,19 @@ export function useRealtimeAppointments() {
   const [appointments, setAppointments] = useState<UIAppointment[]>(INITIAL_APPOINTMENTS);
   const [isLive, setIsLive] = useState(false);
 
-  // Load appointments from Supabase if available
+  // Load appointments from FastAPI API layer
   useEffect(() => {
     let mounted = true;
     async function fetchDBAppointments() {
       try {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*, doctor:doctor_id(full_name)')
-          .order('appointment_time', { ascending: true });
-
-        if (!error && data && data.length > 0 && mounted) {
+        const data = await getAppointments();
+        if (data && data.length > 0 && mounted) {
           const mapped: UIAppointment[] = data.map((d: any) => {
             const dt = new Date(d.appointment_time);
             return {
               id: d.id,
               title: d.reason || 'General Consultation',
-              doctor: d.doctor?.full_name || 'Dr. SmartCare Specialist',
+              doctor: 'Dr. SmartCare Specialist',
               date: format(dt, 'yyyy-MM-dd'),
               time: format(dt, 'HH:mm'),
               status: (d.status === 'booked' ? 'pending' : d.status) as any,

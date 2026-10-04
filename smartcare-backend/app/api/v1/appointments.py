@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -117,3 +118,31 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
         "reason": row[5],
         "created_at": row[6].isoformat() if row[6] is not None else None,
     }
+
+
+@router.get("/")
+def get_user_appointments(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db)):
+    """
+    Returns appointments for the authenticated patient.
+    """
+    from app.models.appointment import Appointment
+
+    rows = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == user_id)
+        .order_by(Appointment.appointment_time.asc())
+        .all()
+    )
+
+    results = []
+    for appt in rows:
+        results.append({
+            "id": str(appt.id),
+            "doctor_id": appt.doctor_id,
+            "patient_id": appt.patient_id,
+            "appointment_time": appt.appointment_time.isoformat() if appt.appointment_time else None,
+            "status": appt.status,
+            "reason": appt.reason,
+            "created_at": appt.created_at.isoformat() if appt.created_at else None,
+        })
+    return results

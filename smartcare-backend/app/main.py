@@ -21,7 +21,6 @@ from app.models.appointment import Appointment
 from app.models.medical_record import MedicalRecord
 from app.models.doctor import Doctor
 from app.models.patient import Patient
-from seed_demo_users import seed_demo_users
 
 # Router Imports
 from app.api.v1 import (
@@ -139,19 +138,8 @@ async def startup_event():
             Base.metadata.create_all(bind=engine)
             logger.info("Local SQLite database tables initialized.")
         else:
-            logger.info("Production PostgreSQL schema managed via migrations; skipping create_all.")
-        db = SessionLocal()
-        try:
-            seed_result = seed_demo_users(db)
-            logger.info(
-                "Demo user seeding complete: created=%s existing=%s",
-                seed_result.get("created", 0),
-                seed_result.get("existing", 0),
-            )
-        except Exception as exc:
-            logger.error("Demo user seeding failed: %s", exc)
-        finally:
-            db.close()
+            logger.info("Production PostgreSQL schema managed via Supabase migrations; skipping create_all.")
+        logger.info("Application startup sequence completed successfully.")
     except Exception as exc:
         logger.error("Database connection/init deferred: %s", exc)
 

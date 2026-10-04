@@ -143,21 +143,6 @@ export async function sendRealtimeMessage(
   } catch (err) {
     console.warn('Broadcast send error:', err);
   }
-
-  // 2. Persist to Supabase messages table asynchronously
-  try {
-    await supabase.from('messages').insert({
-      id: fullMessage.id,
-      sender_id: fullMessage.sender_id,
-      receiver_id: fullMessage.receiver_id || fullMessage.sender_id,
-      room_id: roomId,
-      text: fullMessage.text,
-      created_at: fullMessage.created_at,
-    });
-  } catch {
-    // If table not yet populated, broadcast still succeeded
-  }
-
   return fullMessage;
 }
 

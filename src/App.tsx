@@ -1,7 +1,6 @@
 import React, { Suspense, useEffect, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -64,7 +63,6 @@ const App = (): JSX.Element => {
       <TooltipProvider>
         <AuthProvider>
           <ErrorBoundary>
-            <Toaster />
             <Sonner />
             {/* Chatbot temporarily disabled - may cause memory issues */}
             {/* <React.Suspense fallback={null}>
