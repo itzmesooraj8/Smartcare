@@ -15,7 +15,7 @@ class AuditLog(Base):
     __table_args__ = {"extend_existing": True}
 
     id = sa.Column(sa.String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = sa.Column(sa.String, sa.ForeignKey("users.id"), nullable=False, index=True)
+    user_id = sa.Column(sa.String, nullable=False, index=True)
     target_id = sa.Column(sa.String, nullable=True, index=True)
     action = sa.Column(sa.String, nullable=False)
     resource_type = sa.Column(sa.String, nullable=False)
