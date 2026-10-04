@@ -20,26 +20,23 @@ export default function ProtectedRoute({ children, requireAuth = true, allowedRo
     );
   }
 
-  const hasToken = !!localStorage.getItem('access_token');
-
   // If the route is public (requireAuth === false), allow access when not authenticated.
   if (!requireAuth) {
-    // If user is already authenticated, redirect to role-specific dashboard
-    if (user || hasToken) {
-      const role = user?.role;
+    if (user) {
+      const role = user.role;
       const dest = role === 'patient' ? '/patient/dashboard' : role === 'doctor' ? '/doctor/dashboard' : role === 'admin' ? '/admin-dashboard' : '/dashboard';
       return <Navigate to={dest} replace />;
     }
     return <>{children}</>;
   }
 
-  // For protected routes: ensure there's a user or token
-  if (!user && !hasToken) {
+  // For protected routes: ensure authenticated user profile is present
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // If allowedRoles provided, enforce role check
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

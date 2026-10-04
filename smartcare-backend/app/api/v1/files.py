@@ -9,7 +9,7 @@ import logging
 import hmac
 import hashlib
 
-from .auth import get_current_user_id
+from app.core.security import get_current_user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

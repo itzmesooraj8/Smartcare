@@ -14,6 +14,8 @@ from app.models.mfa_recovery_code import MFARecoveryCode
 from app.api.v1 import mfa as mfa_module
 from app.core.config import settings
 
+from app.core.security import get_current_user
+
 router = APIRouter()
 
 class RecoveryCodesResponse(BaseModel):
@@ -31,23 +33,8 @@ def _hash_code(code: str) -> str:
 
 
 @router.post("/generate", response_model=RecoveryCodesResponse)
-def generate_recovery_codes(request: Request, db: Session = Depends(get_db)) -> Dict[str, List[str]]:
-    # Authenticated users should call this; for simplicity, require cookie auth
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    # Resolve user
-    from jose import jwt
-    try:
-        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=["RS256"])
-        user_id = payload.get("sub")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(User).filter(User.id == str(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+def generate_recovery_codes(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Dict[str, List[str]]:
+    user = current_user
 
     # Generate 10 Base32 human-friendly recovery codes and store hashed
     codes: List[str] = []

@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   masterKey: CryptoKey | null;
-  login: (email: string, passwordHash: string, masterKey: CryptoKey | null) => Promise<void>;
+  login: (email: string, passwordHash: string, masterKey: CryptoKey | null) => Promise<any>;
   register: (payload: any) => Promise<void>;
   logout: () => void;
   updateMasterKey: (key: CryptoKey) => void;
@@ -29,17 +29,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkSession = async () => {
-      // Check for token first to avoid unnecessary requests
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       try {
+        // Query backend session via HttpOnly cookie
         const res = await apiFetch.get('/auth/me', {
           signal: controller.signal,
         } as any).catch(() => null);
@@ -50,12 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (body?.user) {
           setUser(body.user as User);
         } else {
-          // Token invalid or expired
-          localStorage.removeItem('access_token');
           setUser(null);
         }
-      } catch (err) {
-        localStorage.removeItem('access_token');
+      } catch {
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -67,24 +58,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, passwordHash: string, key: CryptoKey | null) => {
     setIsLoading(true);
     try {
+      // Backend automatically sets HttpOnly Secure SameSite cookie on response
       const res = await apiFetch.post('/auth/login', { email, password: passwordHash });
+      const data = res.data;
 
-      // Save token to localStorage if backend returned one
-      try {
-        const token = (res as any)?.data?.access_token;
-        if (token) localStorage.setItem('access_token', token);
-      } catch (e) {
-        // ignore storage access errors
+      if (data?.mfa_required) {
+        // User has MFA enabled; return mfa_required payload so caller can render TOTP challenge
+        return data;
       }
 
-      // Fetch the authenticated user's profile
-      const meRes = await apiFetch.get('/auth/me');
-      const body = (meRes as any)?.data ?? null;
-      const userData = body?.user ?? null;
-      if (!userData) throw new Error('Invalid response from server');
-      setUser(userData as User);
-      setMasterKey(key);
-
+      // Session established via HttpOnly cookie; record user profile in state
+      if (data?.user) {
+        setUser(data.user as User);
+        setMasterKey(key);
+      }
+      return data;
     } catch (err) {
       console.error('Login error', err);
       throw err;
@@ -96,11 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (payload: any) => {
     setIsLoading(true);
     try {
-      await apiFetch({
-        url: '/auth/register',
-        method: 'POST',
-        data: payload,
-      });
+      const res = await apiFetch.post('/auth/register', payload);
+      if (res.data?.user) {
+        setUser(res.data.user as User);
+      }
     } catch (err) {
       console.error('Registration error', err);
       throw err;
@@ -112,13 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await apiFetch.post('/auth/logout');
-    } catch (e) {
+    } catch {
       // ignore network errors on logout
-    }
-    try {
-      localStorage.removeItem('access_token');
-    } catch (e) {
-      // ignore
     }
     setUser(null);
     setMasterKey(null);

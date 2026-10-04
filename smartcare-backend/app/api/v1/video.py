@@ -13,7 +13,7 @@ except Exception:
     except Exception:
         raise ImportError("Neither 'livekit' nor 'livekit_api' could be imported; install one of them.") from None
 
-from app.api.v1.medical_records import get_current_user
+from app.core.security import get_current_user
 
 router = APIRouter()
 

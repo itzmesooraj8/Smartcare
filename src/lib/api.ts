@@ -9,29 +9,11 @@ if (baseURL && !baseURL.endsWith('/api/v1')) {
 
 const api = axios.create({
   baseURL,
+  withCredentials: true, // Enables browser to automatically transmit HttpOnly session cookies
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-api.interceptors.request.use((config: any) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers = config.headers || {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  (error: any) => {
-    if (error?.response?.status === 401) {
-      try { localStorage.removeItem('access_token'); } catch { }
-    }
-    return Promise.reject(error);
-  }
-);
 
 export const apiFetch = api;
 export default api;

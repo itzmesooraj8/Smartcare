@@ -19,30 +19,14 @@ from app.models.user import User
 from jose import jwt, JWTError
 from app.core.config import settings
 
+from app.core.security import get_current_user
+
 router = APIRouter()
 
 
-def _user_from_cookie(request: Request, db: Session) -> User:
-    token = request.cookies.get('access_token')
-    if not token:
-        raise HTTPException(status_code=401, detail='Not authenticated')
-    try:
-        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=['RS256'])
-        sub = payload.get('sub')
-        if not sub:
-            raise HTTPException(status_code=401, detail='Invalid token payload')
-        user = db.query(User).filter(User.id == str(sub)).first()
-        if not user:
-            raise HTTPException(status_code=401, detail='User not found')
-        return user
-    except JWTError:
-        raise HTTPException(status_code=401, detail='Invalid token')
-
-
 @router.get('/{key_id}')
-def get_wrapped_key(key_id: str, request: Request, db: Session = Depends(get_db)):
-    # Verify session and identity
-    user = _user_from_cookie(request, db)
+def get_wrapped_key(key_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = current_user
 
     # Fetch metadata
     km = db.query(KeyMetadata).filter(KeyMetadata.id == key_id).first()

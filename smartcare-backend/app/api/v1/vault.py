@@ -8,48 +8,25 @@ from app.core.config import settings
 import pyotp
 import logging
 
+from app.core.security import get_current_user
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _get_user_from_bearer(authorization: str | None, db: Session) -> User:
-    if not authorization:
-        raise HTTPException(status_code=401, detail='Missing Authorization header')
-    parts = authorization.split()
-    if len(parts) != 2 or parts[0].lower() != 'bearer':
-        raise HTTPException(status_code=401, detail='Invalid Authorization header')
-    token = parts[1]
-    try:
-        payload = jwt.decode(token, settings.PUBLIC_KEY, algorithms=['RS256'])
-        # Require full_access scope for vault operations
-        scopes = payload.get('scopes', []) or []
-        if 'full_access' not in scopes:
-            raise HTTPException(status_code=403, detail='Full access token required')
-        sub = payload.get('sub')
-        if not sub:
-            raise HTTPException(status_code=401, detail='Invalid token payload')
-        user = db.query(User).filter(User.id == str(sub)).first()
-        if not user:
-            raise HTTPException(status_code=401, detail='User not found')
-        return user
-    except JWTError:
-        raise HTTPException(status_code=401, detail='Invalid token')
-
-
 @router.get('/key')
 def get_vault_key(
-    authorization: str | None = Header(None, alias='Authorization'),
     x_mfa_token: str | None = Header(None, alias='X-MFA-Token'),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Return wrapped master key material only when both a valid bearer JWT
+    """Return wrapped master key material only when both a valid full_access JWT
     and a valid TOTP (X-MFA-Token) are presented.
     """
-    # Require both headers
-    if not authorization or not x_mfa_token:
-        raise HTTPException(status_code=401, detail='Authorization and X-MFA-Token required')
+    if not x_mfa_token:
+        raise HTTPException(status_code=401, detail='X-MFA-Token header required')
 
-    user = _get_user_from_bearer(authorization, db)
+    user = current_user
 
     # Verify TOTP
     if not getattr(user, 'mfa_totp_secret', None):
@@ -83,14 +60,14 @@ class VaultSetupRequest(BaseModel):
 @router.post('/key')
 def setup_vault_key(
     payload: VaultSetupRequest,
-    authorization: str | None = Header(None, alias='Authorization'),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Initialize the vault for a user by storing their encrypted master key.
     This is used for legacy account migration or new account setup.
     """
-    user = _get_user_from_bearer(authorization, db)
+    user = current_user
 
     # Check if vault already exists
     if db.query(VaultEntry).filter(VaultEntry.user_id == user.id).first():
