@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: Smartcare
+    runtime: python
+    rootDir: smartcare-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false
+      - key: PUBLIC_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
