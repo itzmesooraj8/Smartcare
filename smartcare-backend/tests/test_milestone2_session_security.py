@@ -201,6 +201,7 @@ class Milestone2SessionSecurityTests(unittest.TestCase):
             os.path.normpath(os.path.join(backend_dir, "scripts", "seed_demo_data.py")),
             os.path.normpath(os.path.join(backend_dir, "app", "utils", "fhir_export.py")),
             os.path.normpath(os.path.join(backend_dir, "tests", "test_milestone2_session_security.py")),
+            os.path.normpath(os.path.join(backend_dir, "tests", "test_security_certification.py")),
         }
 
         found_occurrences = []

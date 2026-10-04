@@ -167,8 +167,7 @@ async def get_current_user(
     # Prefer header token (standard for APIs), fall back to cookie
     token = header_token or cookie_token
     if not token:
-        # Helpful debug for deployments; avoid leaking sensitive contents
-        print(f"DEBUG: Auth failed. Headers: {request.headers.get('authorization')}, Cookie: {cookie_token}")
+        logger.debug("Authentication failed: missing token header or cookie")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",

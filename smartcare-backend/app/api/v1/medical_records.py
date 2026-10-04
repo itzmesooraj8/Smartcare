@@ -8,6 +8,9 @@ import uuid
 import json
 import hmac
 import hashlib
+import logging
+
+logger = logging.getLogger("smartcare.audit")
 
 # Core Imports
 from app.core.config import settings
@@ -102,13 +105,14 @@ def create_medical_record(
         # Audit Log via trusted security-definer function
         try:
             if db.bind and db.bind.dialect.name == "postgresql":
+                db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(current_user.id)})
                 db.execute(
                     text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"),
                     {"action": "CREATE_RECORD", "res": "MEDICAL_RECORD", "target": str(mr.id), "ip": "masked"}
                 )
                 db.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Audit log error on CREATE_RECORD: %s", e)
         
         # Return the original payload (client already has it)
         return {"id": mr.id, "status": "securely_stored"}
@@ -159,14 +163,14 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
     # Audit: record that the user viewed records (immutable) via trusted security-definer function
     try:
         if db.bind and db.bind.dialect.name == "postgresql":
+            db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(current_user.id)})
             db.execute(
                 text("SELECT public.log_user_audit_event(:action, :res, NULL, :ip)"),
                 {"action": "VIEW_RECORDS", "res": "MEDICAL_RECORDS", "ip": "masked"}
             )
             db.commit()
-    except Exception:
-        # Do not fail the request if audit logging fails; ensure operators see server logs.
-        pass
+    except Exception as e:
+        logger.error("Audit log error on VIEW_RECORDS: %s", e)
             
     return result
 

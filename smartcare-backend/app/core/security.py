@@ -7,7 +7,7 @@ Design choices:
 - Tokens include `sub`, `exp`, and `iat`. Keep payload minimal to reduce
   exposure of PII if token is leaked.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from jose import jwt, JWTError
 from app.core.config import settings
@@ -23,7 +23,7 @@ def create_jwt(subject: str, extra: Optional[Dict[str, Any]] = None, expires_min
 
     The private key must be provided via environment variable `PRIVATE_KEY`.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     payload: Dict[str, Any] = {
         'sub': subject,
         'iat': int(now.timestamp()),
