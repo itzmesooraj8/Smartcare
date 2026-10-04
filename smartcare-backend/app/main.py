@@ -138,8 +138,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup_event():
     try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables verified/created successfully.")
+        # Schema management is strictly authoritative via migrations (Supabase/Alembic).
+        # In production/PostgreSQL, DDL operations during application startup are prohibited.
+        if engine.dialect.name == "sqlite":
+            Base.metadata.create_all(bind=engine)
+            logger.info("Local SQLite database tables initialized.")
+        else:
+            logger.info("Production PostgreSQL schema managed via migrations; skipping create_all.")
         db = SessionLocal()
         try:
             seed_result = seed_demo_users(db)
