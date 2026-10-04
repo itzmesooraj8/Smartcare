@@ -1,0 +1,78 @@
+name: SmartCare CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-checks:
+    name: Backend Tests & Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install backend dependencies
+        working-directory: smartcare-backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Backend Session Security & Unit Tests
+        working-directory: smartcare-backend
+        env:
+          PYTHONPATH: .
+          DATABASE_URL: "sqlite:///./ci_test.db"
+          ENVIRONMENT: "test"
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+
+  frontend-checks:
+    name: Frontend Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Frontend Build
+        run: npm run build
+
+  migration-checks:
+    name: Migration Chain & SQL Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify Migration Naming and Sequential Order
+        run: |
+          echo "Verifying migration files in supabase/migrations/..."
+          ls -la supabase/migrations/
+          python -c "
+          import os, sys
+          files = sorted(os.listdir('supabase/migrations'))
+          print('Found migrations:', files)
+          assert len(files) >= 4, 'Expected at least 4 migration files'
+          assert files[0].startswith('20260101000000_init'), 'Initial migration missing'
+          assert files[1].startswith('20260101000001_secure'), 'Migration 000001 missing'
+          assert files[2].startswith('20260101000002_fix'), 'Migration 000002 missing'
+          assert files[3].startswith('20260101000003_decouple'), 'Migration 000003 missing'
+          print('Migration chain structure: PASS')
+          "

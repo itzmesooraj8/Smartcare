@@ -59,7 +59,6 @@ smartcare-backend/db/
 node_modules/
 dist/
 .vscode/
-.github/
 
 # Backend-specific secrets and dev artifacts
 smartcare-backend/.env

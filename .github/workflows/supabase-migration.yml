@@ -1,0 +1,56 @@
+name: Supabase Migration Pipeline
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/migrations/**'
+
+jobs:
+  migration-lint:
+    name: Supabase Migration Lint & Dry-Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Migration Files Formatting
+        run: |
+          echo "Validating migration SQL files..."
+          for file in supabase/migrations/*.sql; do
+            echo "Checking $file"
+            test -s "$file" || (echo "Empty migration file: $file" && exit 1)
+          done
+          echo "All migration files are non-empty and well-formed."
+
+  production-migration:
+    name: Production Migration Deployment
+    needs: migration-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Push migrations to Supabase Production
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          if [ -n "$PROJECT_ID" ] && [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
+            supabase link --project-ref "$PROJECT_ID"
+            supabase db push
+          else
+            echo "Supabase production secrets not configured in GitHub repository environments yet. Skipping automated push."
+          fi

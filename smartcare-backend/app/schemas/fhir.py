@@ -13,7 +13,7 @@ class CodeableConcept(BaseModel):
 
 
 class ObservationResource(BaseModel):
-    resourceType: Literal['Observation'] = Field('Observation', const=True)
+    resourceType: Literal['Observation'] = 'Observation'
     status: str
     code: CodeableConcept
     subject: Reference
@@ -47,8 +47,8 @@ class Coding(BaseModel):
 
 
 class ObservationFHIR(BaseModel):
-    resourceType: str = Field('Observation', const=True)
-    id: Optional[str]
+    resourceType: Literal['Observation'] = 'Observation'
+    id: Optional[str] = None
     status: str = Field('final')
     category: Optional[List[Coding]] = None
     code: Coding

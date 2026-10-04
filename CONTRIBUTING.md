@@ -1,20 +1,20 @@
 # Contributing to SmartCare
 
-Thank you for your interest in contributing to SmartCare. This document gives a short overview on how to get started.
+Thank you for your interest in contributing to SmartCare.
 
-- Fork the repository and create feature branches from `main`.
-- Follow the existing TypeScript / Python project styles.
-- Run linters and formatters before creating a PR.
-  - Frontend: `npm run lint` (if configured) and `npm run format`.
-  - Backend: use `black` / `ruff` and run tests.
-- Write tests for new features or bug fixes. Aim to add unit tests to `tests/`.
-- For security-sensitive changes (encryption, auth, migrations), request a code review from a senior maintainer and include a migration plan.
+## Database Schema Governance
+> **CRITICAL RULE**:
+> Production database schema is migration-controlled. Never modify production schema manually.
+> All schema modifications must occur via a new migration file in `supabase/migrations/` and be accompanied by preflight validation scripts and transactional rollback tests.
 
-# Running locally
+## Development Workflow
+1. Fork the repository and create feature branches from `main`.
+2. Follow existing TypeScript / Python styling and formatting guidelines.
+3. Verify test suites before opening a Pull Request:
+   - Backend: `PYTHONPATH=. python -m unittest discover -s tests -p "test_*.py"`
+   - Frontend: `npm run build`
+4. For security-sensitive changes (encryption, auth, migrations), request a security review and adhere to the least-privilege role boundaries (`smartcare_backend`).
 
-- Frontend: `npm install` then `npm run dev`.
-- Backend: create and activate a Python venv, install `requirements.txt`, and run `uvicorn app.main:app --reload`.
-
-# Reporting Security Issues
-
-If you discover a security vulnerability, please report it privately to the maintainers at security@smartcare.example (replace with real address).
+## Submitting Pull Requests
+- Keep PRs focused, atomic, and well-documented.
+- Ensure all CI/CD pipeline checks pass.

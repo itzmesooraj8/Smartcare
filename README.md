@@ -1,8 +1,3 @@
-# Welcome to  the  project
-
-## Project info
-
-
 # Smartcare Platform
 
 > **CONFIDENTIAL & PROPRIETARY**
@@ -11,56 +6,89 @@
 
 ![Build Status](https://img.shields.io/badge/Build-Passing-success) ![Security](https://img.shields.io/badge/Security-HIPAA_Ready-blue) ![License](https://img.shields.io/badge/License-Proprietary-red)
 
+> [!IMPORTANT]
+> **Production database schema is migration-controlled. Never modify production schema manually.**
+> All database schema changes must be authored as SQL migrations under `supabase/migrations/` and verified through CI/CD pipelines.
+
+---
+
 ## 1. Executive Summary
 
-Smartcare is a next-generation Telehealth and Electronic Health Record (EHR) orchestration engine designed to reduce clinical friction and improve patient outcomes. Unlike standard video conferencing tools, Smartcare integrates real-time communication directly with clinical workflows, offering AI-assisted triage, encrypted record keeping, and audit-compliant file exchange.
+Smartcare is an enterprise-grade Telehealth and Electronic Health Record (EHR) orchestration engine designed to eliminate clinical friction and improve patient outcomes. Unlike standard video conferencing tools, Smartcare integrates real-time communication directly with clinical workflows, offering AI-assisted triage, encrypted record keeping, and audit-compliant file exchange.
 
 The platform is engineered for high availability, low latency, and strict adherence to healthcare data privacy standards (HIPAA/GDPR).
 
-## 2. System Architecture
+---
 
-Smartcare operates on a decoupled microservices-ready architecture:
+## 2. Target Architecture
 
-* **Frontend:** Single Page Application (SPA) built with **React/TypeScript**, utilizing atomic design principles for UI scalability.
-* **Backend:** High-performance REST API built with **Python FastAPI**, leveraging asynchronous processing for concurrent request handling.
-* **Real-Time Layer:** Custom signaling server using **WebSockets** and **Redis Pub/Sub** for millisecond-latency peer discovery.
-* **Data Persistence:** **PostgreSQL** with Row-Level Security (RLS) for multi-tenant data isolation.
-* **Storage:** Secure object storage with time-limited signed URLs for ephemeral file access.
+```
+                         GitHub
+                           │
+                    Pull Request / CI
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+        Frontend CI                Backend CI
+              │                         │
+           Vercel                    Render
+              │                         │
+              └──────────┬──────────────┘
+                         │
+                    SmartCare API
+                     FastAPI
+                         │
+              smartcare_backend role
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+          Supabase DB          Supabase Storage
+              │
+          PostgreSQL (RLS)
+              │
+        Realtime / Presence
+```
 
-## 3. Key Technical Features
+* **Frontend:** Vite + React 18, TypeScript, Tailwind CSS, Shadcn/UI, deployed on **Vercel**.
+* **Backend:** FastAPI, SQLAlchemy 2.0 (ORM queries only; DDL disabled), Pydantic v2, deployed on **Render**.
+* **Database & Auth:** Supabase PostgreSQL with 100% Row-Level Security (RLS), security-definer procedures, and least-privilege `smartcare_backend` runtime role.
+* **Audit Trail:** Tamper-evident, decoupled append-only audit logging ledger powered by security-definer database functions (`log_user_audit_event`, `log_system_audit_event`).
 
-### 🔐 Security & Compliance
-* **Zero-Knowledge Architecture:** Patient diagnosis and prescription fields are encrypted at the application level (AES-256/Fernet) before persistence. Database administrators cannot view sensitive PHI (Protected Health Information).
-* **Immutable Audit Trails:** A comprehensive audit logging system tracks every read, write, and export action, recording user identity, timestamp, and IP address to satisfy regulatory requirements.
-* **Role-Based Access Control (RBAC):** Strict separation of concerns between `Patient`, `Doctor`, and `Admin` roles.
+---
 
-### 🎥 Telemedicine Infrastructure
-* **Dynamic Network Traversal:** Implements a fallback strategy for restrictive hospital networks, utilizing dynamic TURN credential generation to tunnel traffic through firewalls when P2P (STUN) connections fail.
-* **Secure Data Channels:** In-call file sharing utilizes server-side signed URLs. Files are never exposed publicly; access is granted strictly on a per-session basis and logged for auditing.
+## 3. Documentation Suite
 
-### 🤖 Clinical Decision Support
-* **AI Triage Engine:** An integrated LLM-based triage system assesses patient symptoms pre-consultation, routing high-acuity cases to emergency services and low-acuity cases to telemedicine queues.
+Comprehensive technical and operational specifications are available in the [`docs/`](./docs) directory:
+
+| Document | Purpose |
+| :--- | :--- |
+| [Architecture Guide](./docs/architecture.md) | High-level system design, network topologies, and microservice boundaries |
+| [Security Architecture](./docs/security.md) | Threat model, zero-trust RBAC, least privilege, and HIPAA/GDPR controls |
+| [Database & Migrations](./docs/database.md) | Schema design, RLS policies, migration workflows, and repair guidelines |
+| [Audit Logging](./docs/audit-logging.md) | Security-definer audit engine, actor models, and compliance ledger |
+| [Environment Variables](./docs/environment-variables.md) | Tiered secrets management across Vercel, Render, and GitHub Actions |
+| [Deployment & CI/CD](./docs/deployment.md) | CI pipeline specs, GitHub Actions, and production deployment gates |
+| [Realtime & WebSockets](./docs/realtime.md) | WebRTC signaling, presence tracking, and Supabase Realtime integration |
+| [Disaster Recovery](./docs/disaster-recovery.md) | Backup policies, RTO/RPO targets, and emergency runbooks |
+| [Development Guide](./docs/development.md) | Local developer environment setup, linting, and testing workflows |
+
+---
 
 ## 4. Technology Stack
 
 | Domain | Technology |
 | :--- | :--- |
-| **Client** | React 18, TypeScript, Vite, Tailwind CSS, Shadcn/UI |
-| **Server** | Python 3.10+, FastAPI, SQLAlchemy, Pydantic |
-| **Database** | PostgreSQL 15+ (Relational), Redis (Transient State) |
-| **Infrastructure** | Docker, Nginx (Reverse Proxy) |
-| **Testing** | Pytest, Jest |
+| **Client** | React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, Shadcn/UI |
+| **Server** | Python 3.10+, FastAPI, SQLAlchemy, Pydantic v2 |
+| **Database** | PostgreSQL 17 (Supabase Managed), Row-Level Security (RLS) |
+| **Realtime** | WebSockets, Supabase Realtime Channels, WebRTC (STUN/TURN) |
+| **Infrastructure** | Vercel (Frontend), Render (API), GitHub Actions (CI/CD) |
+| **Testing** | Unittest, Pytest, Playwright, Supabase CLI |
 
-## 5. Development Setup (Internal Use Only)
+---
 
-**Prerequisites:** Docker, Node.js v18+, Python 3.10+.
+## 5. Security & Governance
 
-### Backend Initialization
-```bash
-cd smartcare-backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Start the development server with hot-reload
-uvicorn app.main:app --reload
+- [Security Policy](./SECURITY.md) - Vulnerability reporting and responsible disclosure
+- [Contribution Guidelines](./CONTRIBUTING.md) - Code quality standards and commit protocols
+- [Environment Template](./.env.example) - Public variable keys (no values or secrets)
