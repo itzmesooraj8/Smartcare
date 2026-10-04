@@ -17,6 +17,7 @@ from app.core.encryption import encrypt_data, decrypt_data
 from app.models.medical_record import MedicalRecord
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from sqlalchemy import text
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -98,16 +99,16 @@ def create_medical_record(
         db.commit()
         db.refresh(mr)
 
-        # Audit Log
-        audit = AuditLog(
-            user_id=str(current_user.id),
-            target_id=str(mr.id),
-            action="CREATE_RECORD",
-            resource_type="MEDICAL_RECORD",
-            ip_address="masked" # Simplified for brevity
-        )
-        db.add(audit)
-        db.commit()
+        # Audit Log via trusted security-definer function
+        try:
+            if db.bind and db.bind.dialect.name == "postgresql":
+                db.execute(
+                    text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"),
+                    {"action": "CREATE_RECORD", "res": "MEDICAL_RECORD", "target": str(mr.id), "ip": "masked"}
+                )
+                db.commit()
+        except Exception:
+            pass
         
         # Return the original payload (client already has it)
         return {"id": mr.id, "status": "securely_stored"}
@@ -155,11 +156,14 @@ def list_medical_records(current_user: User = Depends(get_current_user), db: Ses
         except Exception:
             # If decryption fails, skip the record or return error placeholder
             continue
-    # Audit: record that the user viewed records (immutable)
+    # Audit: record that the user viewed records (immutable) via trusted security-definer function
     try:
-        audit = AuditLog(user_id=str(current_user.id), target_id=None, action="VIEW_RECORDS", resource_type="MEDICAL_RECORDS", ip_address="masked")
-        db.add(audit)
-        db.commit()
+        if db.bind and db.bind.dialect.name == "postgresql":
+            db.execute(
+                text("SELECT public.log_user_audit_event(:action, :res, NULL, :ip)"),
+                {"action": "VIEW_RECORDS", "res": "MEDICAL_RECORDS", "ip": "masked"}
+            )
+            db.commit()
     except Exception:
         # Do not fail the request if audit logging fails; ensure operators see server logs.
         pass

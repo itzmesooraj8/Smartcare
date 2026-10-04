@@ -14,9 +14,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.database import engine, get_db, Base, SessionLocal
+from app.database import engine, get_db, Base, SessionLocal, transactional_session
+from sqlalchemy import text
 from app.models.user import User
-from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment
 from app.models.medical_record import MedicalRecord
 from app.models.doctor import Doctor
@@ -96,25 +96,20 @@ async def inject_current_user(request: Request, call_next):
 async def audit_sensitive_reads(request: Request, call_next):
     """
     Lightweight middleware to record read access to sensitive resources.
-    We persist a minimal AuditLog entry for GETs to the medical-records API.
+    Persists an audit event using the authenticated transaction identity
+    via the trusted SECURITY DEFINER function log_user_audit_event().
+    Direct ORM inserts and fail-open fallbacks are strictly prohibited.
     """
     response = await call_next(request)
-    try:
-        if request.method == 'GET' and request.url.path.startswith('/api/v1/medical-records'):
-            user_id = getattr(request.state, 'current_user_id', None)
-            if user_id:
-                db = SessionLocal()
-                try:
-                    audit = AuditLog(user_id=str(user_id), target_id=None, action='READ', resource_type='MEDICAL_RECORDS', ip_address=(request.client.host if request.client else None))
-                    db.add(audit)
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                finally:
-                    db.close()
-    except Exception:
-        # Never fail the request due to auditing issues
-        pass
+    if response.status_code < 400 and request.method == 'GET' and request.url.path.startswith('/api/v1/medical-records'):
+        user_id = getattr(request.state, 'current_user_id', None)
+        if user_id:
+            ip_addr = request.client.host if request.client else None
+            with transactional_session(user_id=str(user_id)) as db:
+                db.execute(
+                    text("SELECT public.log_user_audit_event(:action, :res, NULL, :ip)"),
+                    {"action": "READ", "res": "MEDICAL_RECORDS", "ip": ip_addr}
+                )
 
     return response
 

@@ -3,7 +3,6 @@ from typing import Dict, Any
 import hashlib
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.database import get_db
 from app.models.medical_record import MedicalRecord
 from app.core.config import settings
 
@@ -58,23 +57,31 @@ def _export_to_fhir_with_db(record_id: str, db: Session) -> Dict[str, Any]:
     return bundle
 
 
-def export_to_fhir(record_id: str) -> Dict[str, Any]:
-    """Convenience wrapper that creates a DB session and returns the FHIR bundle.
+def export_to_fhir(record_id: str, db: Session | None = None) -> Dict[str, Any]:
+    """Fetch encrypted medical record and wrap in a FHIR Bundle.
 
     Args:
         record_id: UUID string of MedicalRecord
+        db: Optional SQLAlchemy Session. When called in an authenticated request
+            context, the caller MUST pass their authenticated DB session to
+            ensure queries respect RLS and SET LOCAL app.current_user_id.
+            If omitted, a standalone SessionLocal() is created strictly for
+            offline/admin CLI exports.
 
     Returns:
         FHIR Bundle as dict
     """
-    from app.database import SessionLocal
-    db = SessionLocal()
-    try:
+    if db is not None:
         return _export_to_fhir_with_db(record_id, db)
+
+    from app.database import SessionLocal
+    standalone_db = SessionLocal()
+    try:
+        return _export_to_fhir_with_db(record_id, standalone_db)
     finally:
-        db.close()
+        standalone_db.close()
 
 
-def export_to_fhir_by_id(record_id: str) -> Dict[str, Any]:
-    """Backward-compatible alias for export_to_fhir(record_id)."""
-    return export_to_fhir(record_id)
+def export_to_fhir_by_id(record_id: str, db: Session | None = None) -> Dict[str, Any]:
+    """Backward-compatible alias for export_to_fhir(record_id, db)."""
+    return export_to_fhir(record_id, db=db)

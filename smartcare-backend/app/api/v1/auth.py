@@ -12,6 +12,7 @@ from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 from app.models.audit_log import AuditLog
+from sqlalchemy import text
 import logging
 
 logger = logging.getLogger("smartcare.audit")
@@ -122,17 +123,20 @@ def login(request: Request, payload: LoginRequest, db=Depends(get_db)):
     else:
         token = create_access_token(subject=str(user.id), role=role, scopes=["full_access"])
         mfa_required = False
-    # Record immutable audit log for successful login (do not block login on failure)
+    # Record immutable audit log for successful login via trusted security-definer function
     try:
         ip = None
         if getattr(request, "client", None):
             ip = getattr(request.client, "host", None)
-        audit = AuditLog(user_id=str(user.id), action="LOGIN", resource_type="auth", ip_address=ip)
-        db.add(audit)
-        db.commit()
+        if db.bind and db.bind.dialect.name == "postgresql":
+            db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user.id)})
+            db.execute(
+                text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"),
+                {"action": "LOGIN", "res": "auth", "target": str(user.id), "ip": ip}
+            )
+            db.commit()
     except Exception as e:
-        # Do not silently ignore audit failures — record for operators. In higher-security
-        # deployments you may want to fail the action instead of failing open.
+        # Do not silently ignore audit failures — record for operators.
         logger.error("AUDIT LOG FAILURE: %s", str(e))
     # Indicate whether MFA is required so the frontend can prompt for the code
     response = JSONResponse(content={

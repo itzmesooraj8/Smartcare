@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from ...database import get_db
 from ...models.audit_log import AuditLog
+from sqlalchemy import text
 from ...core.config import settings
 from supabase import create_client, Client
 import logging
@@ -71,15 +72,18 @@ def generate_signed_url(payload: SignUrlRequest, user_id: str = Depends(get_curr
         except Exception:
             masked_ip = '0.0.0.0'
 
-        audit_entry = AuditLog(
-            user_id=user_id,
-            target_id=payload.file_path,
-            action="SHARE_FILE",
-            resource_type="FILE_ATTACHMENT",
-            ip_address=masked_ip
-        )
-        db.add(audit_entry)
-        db.commit()
+        # Route audit logging through trusted security-definer function
+        try:
+            if db.bind and db.bind.dialect.name == "postgresql":
+                if user_id:
+                    db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
+                db.execute(
+                    text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"),
+                    {"action": "SHARE_FILE", "res": "FILE_ATTACHMENT", "target": payload.file_path, "ip": masked_ip}
+                )
+                db.commit()
+        except Exception as e:
+            logger.error("Failed to write audit log for SHARE_FILE: %s", e)
 
         # Return the standard Supabase-shaped response so callers can rely on stable keys
         return {"data": {"signedURL": signed_url}, "error": None}

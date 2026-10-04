@@ -75,8 +75,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "SmartCare AI"
 
-    # DATABASE
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
+    # DATABASE - Production runtime uses dedicated role smartcare_backend (NO BYPASSRLS)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # SECURITY
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
