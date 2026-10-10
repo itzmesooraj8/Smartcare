@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { subscribeToAppointments, RealtimeAppointment, broadcastAppointmentUpdate } from '@/lib/realtime';
+import { subscribeToAppointments, RealtimeAppointment } from '@/lib/realtime';
 import { format, subDays } from 'date-fns';
-import { getAppointments } from '@/lib/api';
+import { getAppointments, apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 
 export interface UIAppointment {
@@ -62,7 +62,7 @@ export function useRealtimeAppointments() {
   useEffect(() => {
     setIsLive(true);
     const channel = subscribeToAppointments(
-      // On Insert
+      // Realtime gateway delivers authorized appointment changes.
       (newApt: RealtimeAppointment) => {
         try {
           const dt = new Date(newApt.appointment_time || new Date());
@@ -118,25 +118,12 @@ export function useRealtimeAppointments() {
     };
   }, []);
 
-  const updateStatus = useCallback((id: string, newStatus: UIAppointment['status']) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
-    );
-
-    // Broadcast change in realtime
-    void broadcastAppointmentUpdate({
-      id,
-      patient_id: 'current-user',
-      appointment_time: new Date().toISOString(),
-      status: newStatus as any,
-    });
-
-    // Sync to DB
-    supabase
-      .from('appointments')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .then();
+  const updateStatus = useCallback(async (id: string, newStatus: UIAppointment['status']) => {
+    try {
+      await apiFetch.patch(`/appointments/${id}`, { status: newStatus === 'pending' ? 'booked' : newStatus });
+    } catch {
+      toast.error('Unable to update the appointment.');
+    }
   }, []);
 
   return { appointments, isLive, updateStatus };
