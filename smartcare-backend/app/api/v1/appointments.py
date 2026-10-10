@@ -45,7 +45,7 @@ class AppointmentCreate(BaseModel):
     type: str = Field("video", description="video or in-person")
 
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_id
 from app.models.appointment import Appointment
 from app.models.user import User
 
