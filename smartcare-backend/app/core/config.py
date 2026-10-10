@@ -3,6 +3,7 @@ import os
 from typing import List, Tuple
 
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,17 +30,14 @@ def _validate_keypair(private_key: str, public_key: str) -> Tuple[str, str]:
     except Exception as exc:
         raise RuntimeError("PRIVATE_KEY/PUBLIC_KEY could not be parsed as PEM keys") from exc
 
-    if private_obj.__class__.__module__.split(".")[0] != "cryptography":
-        raise RuntimeError("PRIVATE_KEY must be a supported cryptographic private key")
-
-    if not hasattr(private_obj, "private_numbers") or not hasattr(public_obj, "public_numbers"):
+    if not isinstance(private_obj, rsa.RSAPrivateKey) or not isinstance(public_obj, rsa.RSAPublicKey):
         raise RuntimeError("PRIVATE_KEY/PUBLIC_KEY must be RSA keys")
 
-    try:
-        if private_obj.public_key().public_numbers() != public_obj.public_numbers():
-            raise RuntimeError("PRIVATE_KEY and PUBLIC_KEY do not form a matching keypair")
-    except AttributeError as exc:
-        raise RuntimeError("PRIVATE_KEY/PUBLIC_KEY must be RSA keys") from exc
+    if private_obj.key_size != 2048:
+        raise RuntimeError("PRIVATE_KEY must be a 2048-bit RSA key")
+
+    if private_obj.public_key().public_numbers() != public_obj.public_numbers():
+        raise RuntimeError("PRIVATE_KEY and PUBLIC_KEY do not form a matching keypair")
 
     return private_key, public_key
 
@@ -90,8 +88,6 @@ def _load_keys() -> Tuple[str, str]:
 
     # Development/test fallback only.
     logger.warning("Using ephemeral RSA signing keys outside production.")
-    from cryptography.hazmat.primitives.asymmetric import rsa
-
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_key = key.private_bytes(
         encoding=serialization.Encoding.PEM,
