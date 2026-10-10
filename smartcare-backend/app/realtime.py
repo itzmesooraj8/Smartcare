@@ -74,7 +74,7 @@ def _authenticate_cookie(websocket: WebSocket) -> dict[str, Any]:
 
     scopes = payload.get("scopes", [])
     if "full_access" not in scopes:
-        raise PermissionError("full access scope required")
+        raise PermissionError("full_access scope required")
     user_id = payload.get("sub")
     if not user_id:
         raise ValueError("missing subject")
