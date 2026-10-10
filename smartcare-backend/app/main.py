@@ -31,7 +31,7 @@ from app.api.v1 import (
     mfa_recovery as mfa_recovery_module,
     protected_key as protected_key_module,
 )
-from app import signaling as signaling_module
+from app import signaling as signaling_module, realtime as realtime_module
 
 logger = logging.getLogger("smartcare")
 
@@ -180,6 +180,7 @@ async def startup_event():
 
 # --- ROUTER REGISTRATION ---
 app.include_router(signaling_module.router)
+app.include_router(realtime_module.router)
 app.include_router(auth_module.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(dashboard_module.router, prefix="/api/v1/patient", tags=["Dashboard"])
 app.include_router(medical_records_module.router, prefix="/api/v1/medical-records", tags=["Records"])
