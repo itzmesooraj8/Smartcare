@@ -30,16 +30,16 @@ export default function CreateMedicalRecord({ patientId }: { patientId: string }
       const encryptedDiagnosis = await encryptData(formData.diagnosis, masterKey);
 
       // 2. SEND BLOBS TO API
-      await apiFetch('/medical-records', {
-        method: 'POST',
-        body: JSON.stringify({
-          patient_id: patientId,
-          title: 'Visit',
-          doctor_id: null,
-          chief_complaint: encryptedComplaint,
-          diagnosis: encryptedDiagnosis,
-          visit_type: 'General Checkup',
-        }),
+      if (!patientId.trim()) {
+        throw new Error('A patient must be selected before creating a clinical record.');
+      }
+
+      await apiFetch.post('/medical-records/', {
+        patient_id: patientId,
+        title: 'Visit',
+        chief_complaint: encryptedComplaint,
+        diagnosis: encryptedDiagnosis,
+        record_date: new Date().toISOString().slice(0, 10),
       });
 
       toast({ title: 'Success', description: 'Medical record encrypted and saved.' });
