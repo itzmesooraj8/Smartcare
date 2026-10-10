@@ -45,7 +45,9 @@ class AppointmentCreate(BaseModel):
     type: str = Field("video", description="video or in-person")
 
 
-from app.core.security import get_current_user_id
+from app.core.security import get_current_user
+from app.models.appointment import Appointment
+from app.models.user import User
 
 
 @router.post("/", status_code=201)
@@ -129,3 +131,49 @@ def get_user_appointments(user_id: str = Depends(get_current_user_id), db: Sessi
             "created_at": appt.created_at.isoformat() if appt.created_at else None,
         })
     return results
+
+
+class AppointmentStatusUpdate(BaseModel):
+    status: str = Field(..., pattern="^(confirmed|cancelled|completed|booked)$")
+
+
+@router.patch("/{appointment_id}", status_code=200)
+async def update_appointment_status(
+    appointment_id: str,
+    payload: AppointmentStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    user_id = str(current_user.id)
+    is_patient = str(appointment.patient_id) == user_id
+    is_doctor = str(appointment.doctor_id) == user_id
+    if not (is_patient or is_doctor):
+        raise HTTPException(status_code=403, detail="Not authorized for this appointment")
+
+    # Patients may cancel their own appointment; clinicians may manage the
+    # appointment lifecycle for an appointment they are assigned to.
+    if is_patient and payload.status not in {"cancelled"}:
+        raise HTTPException(status_code=403, detail="Patients may only cancel their own appointments")
+
+    appointment.status = payload.status
+    db.commit()
+    db.refresh(appointment)
+
+    event = {
+        "id": str(appointment.id),
+        "doctor_id": str(appointment.doctor_id),
+        "patient_id": str(appointment.patient_id),
+        "appointment_time": appointment.appointment_time.isoformat() if appointment.appointment_time else None,
+        "status": appointment.status,
+        "reason": appointment.reason,
+        "created_at": appointment.created_at.isoformat() if appointment.created_at else None,
+    }
+
+    from app.realtime import publish_appointment
+    await publish_appointment(event, {str(appointment.patient_id), str(appointment.doctor_id)})
+
+    return event
