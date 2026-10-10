@@ -1,161 +1,157 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from pydantic import BaseModel
-from typing import Optional, Any
-from datetime import date, datetime
-from jose import jwt, JWTError
-from sqlalchemy.orm import Session
-import uuid
 import json
-import hmac
-import hashlib
 import logging
+import uuid
+from datetime import date, datetime, time
+from typing import Optional
 
-logger = logging.getLogger("smartcare.audit")
-
-# Core Imports
-from app.core.config import settings
-from app.database import get_db
-# 👇 SECURITY FIX: Import Server-Side Encryption Helpers
-from app.core.encryption import encrypt_data, decrypt_data 
-from app.models.medical_record import MedicalRecord
-from app.models.user import User
-from app.models.audit_log import AuditLog
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import text
-
+from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.core.encryption import decrypt_data, encrypt_data
+from app.core.security import get_current_user
+from app.database import get_db
+from app.models.appointment import Appointment
+from app.models.medical_record import MedicalRecord
+from app.models.user import User
+
+logger = logging.getLogger("smartcare.medical_records")
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
-# --- Schemas ---
+
 class EncryptedBlob(BaseModel):
     cipher_text: str
     iv: str
     version: Optional[str] = "v1"
 
+
 class MedicalRecordCreate(BaseModel):
-    title: str
-    doctor_id: Optional[str] = None
-    diagnosis: EncryptedBlob        # Client-Encrypted Data
+    patient_id: str = Field(min_length=1)
+    title: str = Field(default="Visit", max_length=120)
+    diagnosis: EncryptedBlob
     chief_complaint: Optional[EncryptedBlob] = None
     record_date: Optional[date] = None
     file_url: Optional[str] = None
 
-from app.core.security import get_current_user
-
-# --- Endpoints ---
 
 @router.post("/", status_code=201)
 @limiter.limit("10/minute")
 def create_medical_record(
-    payload: MedicalRecordCreate, 
+    payload: MedicalRecordCreate,
     request: Request,
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    if getattr(current_user, 'role', 'patient') != 'patient':
-        raise HTTPException(status_code=403, detail="Only patients may create records")
+    # The production RLS policy deliberately prohibits patient-authored clinical
+    # records. Only a treating doctor with an eligible appointment may create one.
+    if current_user.role != "doctor":
+        raise HTTPException(status_code=403, detail="Only treating doctors may create clinical records")
 
-    try:
-        # 🛡️ SECURITY FIX: Double Encryption (Hybrid Approach)
-        # 1. Client sends {cipher_text: "..."} (Client Layer)
-        # 2. Server converts that to JSON string.
-        # 3. Server encrypts that JSON string using server ENCRYPTION_KEY (Server Layer).
-        
-        # Serialize Client Blobs
-        diagnosis_json = payload.diagnosis.json()
-        chief_complaint_json = payload.chief_complaint.json() if payload.chief_complaint else None
-        notes_json = json.dumps({"file_url": payload.file_url}) if payload.file_url else None
-
-        # Apply Server-Side Encryption
-        server_enc_diagnosis = encrypt_data(diagnosis_json)
-        server_enc_complaint = encrypt_data(chief_complaint_json) if chief_complaint_json else None
-        server_enc_notes = encrypt_data(notes_json) if notes_json else None
-
-        mr = MedicalRecord(
-            id=str(uuid.uuid4()),
-            patient_id=str(current_user.id),
-            doctor_id=payload.doctor_id,
-            title=payload.title,
-            diagnosis=server_enc_diagnosis,        # Storing Server-Encrypted Token
-            chief_complaint=server_enc_complaint,  # Storing Server-Encrypted Token
-            notes=server_enc_notes,                # Storing Server-Encrypted Token
-            created_at=datetime.utcnow()
+    appointment = (
+        db.query(Appointment)
+        .filter(
+            Appointment.doctor_id == str(current_user.id),
+            Appointment.patient_id == payload.patient_id,
+            Appointment.status.in_(["booked", "completed"]),
         )
-        db.add(mr)
+        .first()
+    )
+    if not appointment:
+        raise HTTPException(status_code=403, detail="No eligible appointment authorizes this patient record")
+
+    patient = db.query(User).filter(User.id == payload.patient_id, User.is_active.is_(True)).first()
+    if not patient or patient.role != "patient":
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Preserve the existing database contract: medical_records has user_id,
+    # diagnosis, notes, doctor_name, date, and created_at (no patient_id/title/
+    # doctor_id/chief_complaint columns).
+    diagnosis_json = payload.diagnosis.model_dump_json() if hasattr(payload.diagnosis, "model_dump_json") else payload.diagnosis.json()
+    notes_payload = {
+        "title": payload.title,
+        "chief_complaint": payload.chief_complaint.model_dump() if payload.chief_complaint and hasattr(payload.chief_complaint, "model_dump") else (payload.chief_complaint.dict() if payload.chief_complaint else None),
+        "file_url": payload.file_url,
+    }
+    record_date = datetime.combine(payload.record_date, time.min) if payload.record_date else datetime.utcnow()
+
+    record = MedicalRecord(
+        id=str(uuid.uuid4()),
+        user_id=str(patient.id),
+        diagnosis=encrypt_data(diagnosis_json),
+        notes=encrypt_data(json.dumps(notes_payload)) if any([payload.title, payload.chief_complaint, payload.file_url]) else None,
+        doctor_name=current_user.full_name or current_user.email,
+        date=record_date,
+        created_at=datetime.utcnow(),
+    )
+    try:
+        db.add(record)
+        db.flush()
+        db.execute(text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"), {
+            "action": "CREATE_RECORD",
+            "res": "MEDICAL_RECORD",
+            "target": str(record.id),
+            "ip": "masked",
+        })
         db.commit()
-        db.refresh(mr)
-
-        # Audit Log via trusted security-definer function
-        try:
-            if db.bind and db.bind.dialect.name == "postgresql":
-                db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(current_user.id)})
-                db.execute(
-                    text("SELECT public.log_user_audit_event(:action, :res, :target, :ip)"),
-                    {"action": "CREATE_RECORD", "res": "MEDICAL_RECORD", "target": str(mr.id), "ip": "masked"}
-                )
-                db.commit()
-        except Exception as e:
-            logger.error("Audit log error on CREATE_RECORD: %s", e)
-        
-        # Return the original payload (client already has it)
-        return {"id": mr.id, "status": "securely_stored"}
-
-    except Exception as e:
+        return {"id": str(record.id), "status": "securely_stored"}
+    except HTTPException:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Storage failure: {str(e)}")
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Medical record creation failed")
+        raise HTTPException(status_code=500, detail="Unable to securely store medical record")
+
 
 @router.get("/", status_code=200)
-def list_medical_records(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    role = getattr(current_user, 'role', 'patient')
+def list_medical_records(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     query = db.query(MedicalRecord).order_by(MedicalRecord.created_at.desc())
-    
-    if role == 'doctor':
-        query = query.filter(MedicalRecord.doctor_id == str(current_user.id))
-    elif role == 'patient':
-        query = query.filter(MedicalRecord.patient_id == str(current_user.id))
+    if current_user.role == "patient":
+        query = query.filter(MedicalRecord.user_id == str(current_user.id))
+    elif current_user.role not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     rows = query.all()
     result = []
-    
-    for r in rows:
-        # 🛡️ SECURITY FIX: Server-Side Decryption
-        # 1. Decrypt Server Layer (Fernet) -> Get JSON String
-        # 2. Parse JSON String -> Get Client Blob {cipher_text: "..."}
+    for record in rows:
         try:
-            raw_diag = decrypt_data(r.diagnosis)
-            diag_obj = json.loads(raw_diag) if raw_diag else None
-            
-            raw_comp = decrypt_data(r.chief_complaint)
-            comp_obj = json.loads(raw_comp) if raw_comp else None
-            
-            raw_notes = decrypt_data(r.notes)
-            notes_obj = json.loads(raw_notes) if raw_notes else None
-            
+            raw_diagnosis = decrypt_data(record.diagnosis) if record.diagnosis else None
+            diagnosis_blob = json.loads(raw_diagnosis) if raw_diagnosis else None
+            raw_notes = decrypt_data(record.notes) if record.notes else None
+            notes_payload = json.loads(raw_notes) if raw_notes else {}
+            complaint = notes_payload.get("chief_complaint")
             result.append({
-                "id": str(r.id),
-                "patient_id": r.patient_id,
-                "record_type": r.title,
-                "diagnosis": diag_obj,       # Client receives their own ciphertext back
-                "chief_complaint": comp_obj,
-                "notes": notes_obj,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "id": str(record.id),
+                "patient_id": str(record.user_id),
+                "visit_type": notes_payload.get("title") or "Visit",
+                "record_type": notes_payload.get("title") or "Visit",
+                "diagnosis": diagnosis_blob,
+                "chief_complaint": complaint,
+                "notes": None,
+                "doctor_name": record.doctor_name,
+                "created_at": record.created_at.isoformat() if record.created_at else None,
             })
         except Exception:
-            # If decryption fails, skip the record or return error placeholder
-            continue
-    # Audit: record that the user viewed records (immutable) via trusted security-definer function
-    try:
-        if db.bind and db.bind.dialect.name == "postgresql":
-            db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(current_user.id)})
-            db.execute(
-                text("SELECT public.log_user_audit_event(:action, :res, NULL, :ip)"),
-                {"action": "VIEW_RECORDS", "res": "MEDICAL_RECORDS", "ip": "masked"}
-            )
-            db.commit()
-    except Exception as e:
-        logger.error("Audit log error on VIEW_RECORDS: %s", e)
-            
-    return result
+            # Do not silently hide corruption: record a redacted operational event.
+            logger.warning("Unable to decrypt medical record id=%s", record.id)
+            raise HTTPException(status_code=500, detail="A medical record could not be decrypted")
 
+    try:
+        db.execute(text("SELECT public.log_user_audit_event(:action, :res, NULL, :ip)"), {
+            "action": "VIEW_RECORDS",
+            "res": "MEDICAL_RECORDS",
+            "ip": "masked",
+        })
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Medical record view audit failed")
+        raise HTTPException(status_code=500, detail="Unable to complete audited medical-record access")
+    return result
