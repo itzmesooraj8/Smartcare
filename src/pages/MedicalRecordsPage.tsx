@@ -20,7 +20,7 @@ interface MedicalRecord {
   id: string;
   visit_type: string;
   created_at: string;
-  chief_complaint: EncryptedBlob;
+  chief_complaint?: EncryptedBlob | null;
   diagnosis: EncryptedBlob;
   notes?: EncryptedBlob;
 }
@@ -67,10 +67,12 @@ export default function MedicalRecordsPage() {
 
       for (const record of records) {
         try {
-          const complaint = await decryptData(
-            { cipher_text: record.chief_complaint.cipher_text, iv: record.chief_complaint.iv },
-            masterKey
-          );
+          const complaint = record.chief_complaint?.cipher_text
+            ? await decryptData(
+                { cipher_text: record.chief_complaint.cipher_text, iv: record.chief_complaint.iv },
+                masterKey
+              )
+            : "";
 
           const diagnosis = await decryptData(
             { cipher_text: record.diagnosis.cipher_text, iv: record.diagnosis.iv },
