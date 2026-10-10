@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Lock, FileText, Calendar, ShieldCheck, Key, Shield, Unlock } from "lucide-react";
-import CreateMedicalRecord from "@/components/CreateMedicalRecord";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -234,15 +233,12 @@ export default function MedicalRecordsPage() {
         </div>
       </div>
 
-      {/* Write Component */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl p-6 rounded-3xl border border-white/20 dark:border-white/5 shadow-sm"
-      >
-        <CreateMedicalRecord patientId={""} />
-      </motion.div>
+      <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-zinc-900/60 p-5">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Clinical records are created by an authorized treating clinician for a verified patient.
+          Your vault displays records you are permitted to access.
+        </p>
+      </div>
 
       {/* Read List */}
       <div className="space-y-6">
