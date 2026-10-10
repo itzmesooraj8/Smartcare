@@ -1,6 +1,3 @@
-import { supabase } from './supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
-
 export interface RealtimeAppointment {
   id: string;
   doctor_id?: string;
@@ -24,160 +21,162 @@ export interface RealtimeMessage {
   created_at: string;
 }
 
-/**
- * Subscribes to Realtime Appointment updates (INSERT, UPDATE, DELETE).
- */
+type SocketListener<T> = (value: T) => void;
+
+class SmartCareRealtime {
+  private socket: WebSocket | null = null;
+  private listeners = new Map<string, Set<SocketListener<any>>>();
+  private reconnectTimer: number | null = null;
+  private stopped = false;
+  private reconnectAttempt = 0;
+
+  private endpoint(): string {
+    const configured = import.meta.env.VITE_API_URL || 'https://smartcare-zflo.onrender.com/api/v1';
+    const api = configured.replace(/\/$/, '');
+    const origin = api.replace(/\/api\/v1$/, '');
+    return origin.replace(/^http/, 'ws') + '/ws/realtime';
+  }
+
+  private ensureSocket() {
+    if (this.stopped || this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+
+    const socket = new WebSocket(this.endpoint());
+    this.socket = socket;
+
+    socket.onopen = () => {
+      this.reconnectAttempt = 0;
+      this.emit('connection', { event: 'connected' });
+    };
+
+    socket.onmessage = (message) => {
+      try {
+        const event = JSON.parse(message.data);
+        this.emit(event.type || 'unknown', event);
+        if (event.type === 'appointment') this.emit('appointment', event.data);
+        if (event.type === 'message') this.emit('message', event.data);
+        if (event.type === 'presence') this.emit('presence', event);
+      } catch {
+        // Ignore malformed server frames.
+      }
+    };
+
+    socket.onclose = () => {
+      if (this.socket === socket) this.socket = null;
+      this.scheduleReconnect();
+    };
+
+    socket.onerror = () => {
+      socket.close();
+    };
+  }
+
+  private scheduleReconnect() {
+    if (this.stopped || this.reconnectTimer !== null) return;
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 15000);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.ensureSocket();
+    }, delay);
+  }
+
+  private emit(type: string, value: any) {
+    for (const listener of this.listeners.get(type) || []) listener(value);
+  }
+
+  subscribe<T>(type: string, listener: SocketListener<T>): () => void {
+    this.stopped = false;
+    const set = this.listeners.get(type) || new Set();
+    set.add(listener);
+    this.listeners.set(type, set);
+    this.ensureSocket();
+
+    return () => {
+      set.delete(listener);
+      if (!set.size) this.listeners.delete(type);
+      if (!this.listeners.size) this.close();
+    };
+  }
+
+  sendControl(type: 'subscribe_appointments' | 'subscribe_messages' | 'join_presence') {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({ type }));
+    }
+  }
+
+  close() {
+    this.stopped = true;
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.socket?.close();
+    this.socket = null;
+  }
+}
+
+const realtime = new SmartCareRealtime();
+
 export function subscribeToAppointments(
   onInsert?: (apt: RealtimeAppointment) => void,
   onUpdate?: (apt: RealtimeAppointment) => void,
   onDelete?: (oldApt: { id: string }) => void
-): RealtimeChannel {
-  const channel = supabase
-    .channel('realtime:appointments')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'appointments' },
-      (payload) => {
-        if (onInsert) onInsert(payload.new as RealtimeAppointment);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'appointments' },
-      (payload) => {
-        if (onUpdate) onUpdate(payload.new as RealtimeAppointment);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'appointments' },
-      (payload) => {
-        if (onDelete) onDelete(payload.old as { id: string });
-      }
-    )
-    .on('broadcast', { event: 'appointment_update' }, (payload) => {
-      if (onUpdate && payload.payload) onUpdate(payload.payload as RealtimeAppointment);
-    })
-    .subscribe();
-
-  return channel;
+) {
+  const unsubscribe = realtime.subscribe<RealtimeAppointment>('appointment', (apt) => {
+    if (apt.status === 'cancelled') onDelete?.({ id: apt.id });
+    else onUpdate?.(apt);
+  });
+  realtime.sendControl('subscribe_appointments');
+  return {
+    unsubscribe,
+  };
 }
 
-/**
- * Broadcasts an appointment update to all connected clients immediately.
- */
-export async function broadcastAppointmentUpdate(appointment: RealtimeAppointment) {
-  try {
-    const channel = supabase.channel('realtime:appointments');
-    await channel.send({
-      type: 'broadcast',
-      event: 'appointment_update',
-      payload: appointment,
-    });
-  } catch (err) {
-    console.warn('Realtime appointment broadcast warning:', err);
-  }
-}
-
-/**
- * Subscribes to Realtime Chat Messages for a specific room or user.
- */
 export function subscribeToMessages(
   roomId: string,
   onMessageReceived: (msg: RealtimeMessage) => void
-): RealtimeChannel {
-  const channel = supabase
-    .channel(`room:${roomId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: roomId ? `room_id=eq.${roomId}` : undefined,
-      },
-      (payload) => {
-        onMessageReceived(payload.new as RealtimeMessage);
-      }
-    )
-    .on('broadcast', { event: 'new_message' }, (payload) => {
-      if (payload.payload) {
-        onMessageReceived(payload.payload as RealtimeMessage);
-      }
-    })
-    .subscribe();
-
-  return channel;
+) {
+  const unsubscribe = realtime.subscribe<RealtimeMessage>('message', (msg) => {
+    if (!msg.room_id || msg.room_id === roomId) onMessageReceived(msg);
+  });
+  realtime.sendControl('subscribe_messages');
+  return { unsubscribe };
 }
 
-/**
- * Sends a realtime message via Supabase broadcast and persists to DB if table exists.
- */
-export async function sendRealtimeMessage(
-  roomId: string,
-  message: {
+export function sendRealtimeMessage(
+  _roomId: string,
+  _message: {
     sender_id: string;
     text: string;
     sender_name?: string;
     receiver_id?: string;
   }
 ): Promise<RealtimeMessage> {
-  const fullMessage: RealtimeMessage = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    sender_id: message.sender_id,
-    receiver_id: message.receiver_id,
-    room_id: roomId,
-    text: message.text,
-    sender_name: message.sender_name,
-    created_at: new Date().toISOString(),
-  };
-
-  // 1. Broadcast immediately for instant UI delivery
-  try {
-    const channel = supabase.channel(`room:${roomId}`);
-    await channel.send({
-      type: 'broadcast',
-      event: 'new_message',
-      payload: fullMessage,
-    });
-  } catch (err) {
-    console.warn('Broadcast send error:', err);
-  }
-  return fullMessage;
+  return Promise.reject(
+    new Error('Realtime messages must be persisted through the authenticated messaging API.')
+  );
 }
 
-/**
- * Synchronizes presence for Waiting Room and Consultations.
- */
+export function broadcastAppointmentUpdate(_appointment: RealtimeAppointment): Promise<void> {
+  return Promise.reject(
+    new Error('Appointment mutations must use the authenticated appointments API.')
+  );
+}
+
 export function joinConsultationRoom(
   roomId: string,
   user: { id: string; name: string; role: 'patient' | 'doctor' },
   onPresenceChange: (presenceUsers: any[]) => void
-): RealtimeChannel {
-  const channel = supabase.channel(`consultation:${roomId}`, {
-    config: {
-      presence: {
-        key: user.id,
-      },
-    },
+) {
+  const unsubscribe = realtime.subscribe<any>('presence', (event) => {
+    if (event.room_id === roomId) onPresenceChange(event.data?.users || []);
   });
-
-  channel
-    .on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      const users = Object.values(state).flat();
-      onPresenceChange(users);
-    })
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({
-          id: user.id,
-          name: user.name,
-          role: user.role,
-          onlineAt: new Date().toISOString(),
-        });
-      }
-    });
-
-  return channel;
+  realtime.sendControl('join_presence');
+  return {
+    unsubscribe,
+    roomId,
+    user,
+  };
 }
