@@ -66,7 +66,30 @@ manager = RealtimeManager()
 def _authenticate_cookie(websocket: WebSocket) -> dict[str, Any]:
     token = websocket.cookies.get("access_token")
     if not token:
+        auth_header = websocket.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+
+    has_cookie = bool(websocket.cookies.get("access_token"))
+    has_auth_header = bool(websocket.headers.get("authorization")) if hasattr(websocket, "headers") and websocket.headers else False
+    has_query_token = bool(websocket.query_params.get("token")) if hasattr(websocket, "query_params") and websocket.query_params else False
+
+    logger.info(
+        "realtime_handshake: has_cookie=%s has_auth_header=%s has_query_token=%s cookie_count=%d",
+        has_cookie,
+        has_auth_header,
+        has_query_token,
+        len(websocket.cookies) if hasattr(websocket, "cookies") and websocket.cookies else 0,
+        extra={
+            "has_cookie": has_cookie,
+            "has_auth_header": has_auth_header,
+            "has_query_token": has_query_token,
+        },
+    )
+
+    if not token:
         raise ValueError("missing access token")
+
     try:
         payload = verify_access_token(token)
     except JWTError as exc:
@@ -86,9 +109,13 @@ async def realtime_websocket(websocket: WebSocket) -> None:
     try:
         payload = _authenticate_cookie(websocket)
     except PermissionError:
+        logger.warning("realtime_websocket: full_access required, closing with 1008")
+        await websocket.accept()
         await websocket.close(code=1008, reason="full_access required")
         return
-    except ValueError:
+    except ValueError as err:
+        logger.warning("realtime_websocket: authentication failed: %s, closing with 1008", err)
+        await websocket.accept()
         await websocket.close(code=1008, reason="authentication required")
         return
 
