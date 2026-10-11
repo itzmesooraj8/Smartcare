@@ -54,7 +54,10 @@ class SmartCareRealtime {
       try {
         const event = JSON.parse(message.data);
         this.emit(event.type || 'unknown', event);
-        if (event.type === 'appointment') this.emit('appointment', event.data);
+        if (event.type === 'appointment') {
+          const payload = event.data ? { ...event.data, _lifecycle: event.event } : event;
+          this.emit('appointment', payload);
+        }
         if (event.type === 'message') this.emit('message', event.data);
         if (event.type === 'presence') this.emit('presence', event);
       } catch {
@@ -124,9 +127,15 @@ export function subscribeToAppointments(
   onUpdate?: (apt: RealtimeAppointment) => void,
   onDelete?: (oldApt: { id: string }) => void
 ) {
-  const unsubscribe = realtime.subscribe<RealtimeAppointment>('appointment', (apt) => {
-    if (apt.status === 'cancelled') onDelete?.({ id: apt.id });
-    else onUpdate?.(apt);
+  const unsubscribe = realtime.subscribe<RealtimeAppointment & { _lifecycle?: string }>('appointment', (apt) => {
+    if (apt._lifecycle === 'created') {
+      onInsert?.(apt);
+    } else if (apt._lifecycle === 'cancelled' || apt.status === 'cancelled') {
+      onDelete?.({ id: apt.id });
+      onUpdate?.(apt);
+    } else {
+      onUpdate?.(apt);
+    }
   });
   realtime.sendControl('subscribe_appointments');
   return {

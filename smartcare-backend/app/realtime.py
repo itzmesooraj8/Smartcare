@@ -167,10 +167,14 @@ async def realtime_websocket(websocket: WebSocket) -> None:
         manager.disconnect(websocket)
 
 
-async def publish_appointment(event: dict[str, Any], user_ids: set[str]) -> None:
+async def publish_appointment(
+    data: dict[str, Any],
+    user_ids: set[str],
+    event_type: str = "updated",
+) -> None:
     await manager.send_users(
         {str(user_id) for user_id in user_ids if user_id},
-        {"type": "appointment", "event": "updated", "data": event},
+        {"type": "appointment", "event": event_type, "data": data},
     )
 
 

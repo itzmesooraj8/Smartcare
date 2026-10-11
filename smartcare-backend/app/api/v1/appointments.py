@@ -38,8 +38,10 @@ class NotificationService:
 # ----------------------------------------
 
 
+from typing import Optional, Union
+
 class AppointmentCreate(BaseModel):
-    doctor_id: int = Field(..., description="Doctor user id")
+    doctor_id: Union[str, int] = Field(..., description="Doctor user id")
     appointment_time: datetime
     reason: Optional[str] = None
     type: str = Field("video", description="video or in-person")
@@ -51,11 +53,12 @@ from app.models.user import User
 
 
 @router.post("/", status_code=201)
-def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
+async def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
+    doctor_id_str = str(payload.doctor_id)
     # Prevent double booking: check existing appointment for same doctor and time
     select_sql = "SELECT id FROM appointments WHERE doctor_id = :doctor_id AND appointment_time = :appointment_time LIMIT 1"
     existing = db.execute(select_sql, {
-        "doctor_id": payload.doctor_id,
+        "doctor_id": doctor_id_str,
         "appointment_time": payload.appointment_time,
     }).first()
     if existing:
@@ -69,20 +72,13 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
     """
     try:
         res = db.execute(insert_sql, {
-            "doctor_id": payload.doctor_id,
+            "doctor_id": doctor_id_str,
             "patient_id": user_id,
             "appointment_time": payload.appointment_time,
             "status": 'booked',
             "reason": payload.reason,
         })
         db.commit()
-        # --- NEW: Trigger Notification ---
-        # This runs only if the commit succeeds
-        try:
-            NotificationService.send_confirmation(user_id, payload.doctor_id, payload.appointment_time)
-        except Exception:
-            # Do not fail appointment creation if notification fails; just log
-            logger.warning('NotificationService failed to send confirmation')
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Doctor is already booked at this time")
@@ -94,15 +90,34 @@ def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_cu
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create appointment")
 
-    return {
+    # --- Trigger Notification ---
+    try:
+        NotificationService.send_confirmation(user_id, doctor_id_str, payload.appointment_time)
+    except Exception:
+        logger.warning('NotificationService failed to send confirmation')
+
+    canonical_event = {
         "id": str(row[0]),
-        "doctor_id": row[1],
-        "patient_id": row[2],
+        "doctor_id": str(row[1]),
+        "patient_id": str(row[2]),
         "appointment_time": row[3].isoformat() if row[3] is not None else None,
         "status": row[4],
         "reason": row[5],
         "created_at": row[6].isoformat() if row[6] is not None else None,
     }
+
+    # Authoritative realtime broadcast: patient + assigned doctor only
+    try:
+        from app.realtime import publish_appointment
+        await publish_appointment(
+            canonical_event,
+            {str(row[2]), str(row[1])},
+            event_type="created",
+        )
+    except Exception:
+        logger.exception("Failed to publish appointment creation event")
+
+    return canonical_event
 
 
 @router.get("/")
@@ -173,7 +188,13 @@ async def update_appointment_status(
         "created_at": appointment.created_at.isoformat() if appointment.created_at else None,
     }
 
+    lifecycle_event = payload.status if payload.status in {"confirmed", "cancelled", "completed"} else "updated"
+
     from app.realtime import publish_appointment
-    await publish_appointment(event, {str(appointment.patient_id), str(appointment.doctor_id)})
+    await publish_appointment(
+        event,
+        {str(appointment.patient_id), str(appointment.doctor_id)},
+        event_type=lifecycle_event,
+    )
 
     return event
