@@ -30,6 +30,7 @@ from app.api.v1 import (
     mfa as mfa_module,
     mfa_recovery as mfa_recovery_module,
     protected_key as protected_key_module,
+    messages as messages_module,
 )
 from app import signaling as signaling_module, realtime as realtime_module
 
@@ -195,6 +196,7 @@ app.include_router(tele_module.router, prefix="/api/v1/tele", tags=["Telehealth"
 app.include_router(mfa_module.router, prefix="/api/v1/mfa", tags=["MFA"])
 app.include_router(mfa_recovery_module.router, prefix="/api/v1/mfa-recovery", tags=["MFA Recovery"])
 app.include_router(protected_key_module.router, prefix="/api/v1/protected-key", tags=["Protected Key"])
+app.include_router(messages_module.router, prefix="/api/v1/messages", tags=["Messages"])
 
 
 @app.get("/")

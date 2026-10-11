@@ -53,13 +53,16 @@ class SmartCareRealtime {
     socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
-        this.emit(event.type || 'unknown', event);
         if (event.type === 'appointment') {
           const payload = event.data ? { ...event.data, _lifecycle: event.event } : event;
           this.emit('appointment', payload);
+        } else if (event.type === 'message') {
+          this.emit('message', event.data || event);
+        } else if (event.type === 'presence') {
+          this.emit('presence', event);
+        } else {
+          this.emit(event.type || 'unknown', event);
         }
-        if (event.type === 'message') this.emit('message', event.data);
-        if (event.type === 'presence') this.emit('presence', event);
       } catch {
         // Ignore malformed server frames.
       }
@@ -148,24 +151,29 @@ export function subscribeToMessages(
   onMessageReceived: (msg: RealtimeMessage) => void
 ) {
   const unsubscribe = realtime.subscribe<RealtimeMessage>('message', (msg) => {
-    if (!msg.room_id || msg.room_id === roomId) onMessageReceived(msg);
+    if (!roomId || !msg.room_id || msg.room_id === roomId) onMessageReceived(msg);
   });
   realtime.sendControl('subscribe_messages');
   return { unsubscribe };
 }
 
-export function sendRealtimeMessage(
-  _roomId: string,
-  _message: {
-    sender_id: string;
+export async function sendRealtimeMessage(
+  roomId: string,
+  message: {
+    sender_id?: string;
     text: string;
     sender_name?: string;
     receiver_id?: string;
   }
 ): Promise<RealtimeMessage> {
-  return Promise.reject(
-    new Error('Realtime messages must be persisted through the authenticated messaging API.')
-  );
+  const { apiFetch } = await import('@/lib/api');
+  const payload = {
+    receiver_id: message.receiver_id,
+    text: message.text,
+    room_id: roomId || undefined,
+  };
+  const res = await apiFetch.post('/messages/', payload);
+  return res.data;
 }
 
 export function broadcastAppointmentUpdate(_appointment: RealtimeAppointment): Promise<void> {
