@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
@@ -56,7 +57,7 @@ from app.models.user import User
 async def create_appointment(payload: AppointmentCreate, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
     doctor_id_str = str(payload.doctor_id)
     # Prevent double booking: check existing appointment for same doctor and time
-    select_sql = "SELECT id FROM appointments WHERE doctor_id = :doctor_id AND appointment_time = :appointment_time LIMIT 1"
+    select_sql = text("SELECT id FROM appointments WHERE doctor_id = :doctor_id AND appointment_time = :appointment_time LIMIT 1")
     existing = db.execute(select_sql, {
         "doctor_id": doctor_id_str,
         "appointment_time": payload.appointment_time,
@@ -65,11 +66,11 @@ async def create_appointment(payload: AppointmentCreate, user_id: str = Depends(
         raise HTTPException(status_code=400, detail="Doctor is already booked at this time")
 
     # Insert appointment into DB
-    insert_sql = """
+    insert_sql = text("""
     INSERT INTO appointments (doctor_id, patient_id, appointment_time, status, reason)
     VALUES (:doctor_id, :patient_id, :appointment_time, :status, :reason)
     RETURNING id, doctor_id, patient_id, appointment_time, status, reason, created_at
-    """
+    """)
     try:
         res = db.execute(insert_sql, {
             "doctor_id": doctor_id_str,
